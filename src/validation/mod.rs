@@ -37,6 +37,8 @@ impl SyntaxValidator {
             let start_pos = node.start_position();
             let end_pos = node.end_position();
 
+            let _ = source_code; // TODO: use source code for something, or remove it
+
             errors.push(SyntaxError {
                 message: "Syntax error".to_string(),
                 line: start_pos.row + 1,
@@ -107,32 +109,33 @@ pub enum SyntaxWarningType {
     StyleViolation,
 }
 
-impl ValidationResult {
-    pub fn to_string(&self) -> String {
-        let mut result = format!("Validation Result for {} code:\n", self.language);
+impl std::fmt::Display for ValidationResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Validation Result for {} code:", self.language)?;
 
         if self.is_valid {
-            result.push_str("✅ Syntax is valid\n");
+            writeln!(f, "✅ Syntax is valid")?;
         } else {
-            result.push_str("❌ Syntax errors found:\n");
+            writeln!(f, "❌ Syntax errors found:")?;
             for error in &self.errors {
-                result.push_str(&format!(
-                    "  Error at {}:{}: {}\n",
+                writeln!(
+                    f,
+                    "  Error at {}:{}: {}",
                     error.line, error.column, error.message
-                ));
+                )?;
             }
         }
 
         if !self.warnings.is_empty() {
-            result.push_str("\n⚠️  Warnings:\n");
+            writeln!(f, "\n⚠️  Warnings:")?;
             for warning in &self.warnings {
-                result.push_str(&format!(
-                    "  Warning at {}:{}: {}\n",
+                writeln!(
+                    f,
+                    "  Warning at {}:{}: {}",
                     warning.line, warning.column, warning.message
-                ));
+                )?;
             }
         }
-
-        result
+        Ok(())
     }
 }
