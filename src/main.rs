@@ -5,14 +5,14 @@ use serde_json::{Value, json};
 use tokio::io::BufReader;
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
 
-mod parsers;
 mod editors;
 mod operations;
+mod parsers;
 mod validation;
 
-use parsers::{TreeSitterParser, detect_language_from_path};
 use editors::rust::RustEditor;
 use operations::{EditOperation, NodeSelector};
+use parsers::{TreeSitterParser, detect_language_from_path};
 use validation::SyntaxValidator;
 
 #[derive(Parser)]
@@ -91,7 +91,7 @@ struct SemanticEditServer {
 impl SemanticEditServer {
     fn new() -> Result<Self> {
         let _parser = TreeSitterParser::new()?;
-        
+
         let tools = vec![
             Tool {
                 name: "replace_node".to_string(),
@@ -392,7 +392,7 @@ impl SemanticEditServer {
     async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<String> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
-        
+
         match tool_call.name.as_str() {
             "replace_node" => self.replace_node(args).await,
             "insert_before_node" => self.insert_before_node(args).await,
@@ -405,17 +405,19 @@ impl SemanticEditServer {
     }
 
     async fn replace_node(&self, args: &Value) -> Result<String> {
-        let file_path = args.get("file_path")
+        let file_path = args
+            .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-        
-        let new_content = args.get("new_content")
+
+        let new_content = args
+            .get("new_content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("new_content is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
-        
+
         let operation = EditOperation::Replace {
             target: selector,
             new_content: new_content.to_string(),
@@ -425,28 +427,30 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
 
         let result = operation.apply(&source_code, &language)?;
-        
-        if result.success {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+
+        if result.success
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         Ok(format!("Replace operation result:\n{}", result.message))
     }
 
     async fn insert_before_node(&self, args: &Value) -> Result<String> {
-        let file_path = args.get("file_path")
+        let file_path = args
+            .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-        
-        let content = args.get("content")
+
+        let content = args
+            .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
-        
+
         let operation = EditOperation::InsertBefore {
             target: selector,
             content: content.to_string(),
@@ -456,28 +460,33 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
 
         let result = operation.apply(&source_code, &language)?;
-        
-        if result.success {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+
+        if result.success
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
-        Ok(format!("Insert before operation result:\n{}", result.message))
+        Ok(format!(
+            "Insert before operation result:\n{}",
+            result.message
+        ))
     }
 
     async fn insert_after_node(&self, args: &Value) -> Result<String> {
-        let file_path = args.get("file_path")
+        let file_path = args
+            .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-        
-        let content = args.get("content")
+
+        let content = args
+            .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
-        
+
         let operation = EditOperation::InsertAfter {
             target: selector,
             content: content.to_string(),
@@ -487,28 +496,33 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
 
         let result = operation.apply(&source_code, &language)?;
-        
-        if result.success {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+
+        if result.success
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
-        Ok(format!("Insert after operation result:\n{}", result.message))
+        Ok(format!(
+            "Insert after operation result:\n{}",
+            result.message
+        ))
     }
 
     async fn wrap_node(&self, args: &Value) -> Result<String> {
-        let file_path = args.get("file_path")
+        let file_path = args
+            .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-        
-        let wrapper_template = args.get("wrapper_template")
+
+        let wrapper_template = args
+            .get("wrapper_template")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("wrapper_template is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
-        
+
         let operation = EditOperation::Wrap {
             target: selector,
             wrapper_template: wrapper_template.to_string(),
@@ -518,11 +532,11 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
 
         let result = operation.apply(&source_code, &language)?;
-        
-        if result.success {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+
+        if result.success
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         Ok(format!("Wrap operation result:\n{}", result.message))
@@ -533,7 +547,8 @@ impl SemanticEditServer {
             let result = SyntaxValidator::validate_file(file_path)?;
             Ok(result.to_string())
         } else if let Some(content) = args.get("content").and_then(|v| v.as_str()) {
-            let language = args.get("language")
+            let language = args
+                .get("language")
                 .and_then(|v| v.as_str())
                 .unwrap_or("rust");
             let result = SyntaxValidator::validate_content(content, language)?;
@@ -544,19 +559,20 @@ impl SemanticEditServer {
     }
 
     async fn get_node_info(&self, args: &Value) -> Result<String> {
-        let file_path = args.get("file_path")
+        let file_path = args
+            .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
-        
+
         let language = detect_language_from_path(file_path)
             .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
 
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
-        
+
         match language.as_str() {
             "rust" => RustEditor::get_node_info(&tree, &source_code, &selector),
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
@@ -573,7 +589,10 @@ impl SemanticEditServer {
             selector_obj.get("line").and_then(|v| v.as_u64()),
             selector_obj.get("column").and_then(|v| v.as_u64()),
         ) {
-            let scope = selector_obj.get("scope").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let scope = selector_obj
+                .get("scope")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             return Ok(NodeSelector::ByPosition {
                 line: line as usize,
                 column: column as usize,
@@ -607,7 +626,9 @@ impl SemanticEditServer {
             });
         }
 
-        Err(anyhow!("Invalid selector: must specify position, query, type, or name"))
+        Err(anyhow!(
+            "Invalid selector: must specify position, query, type, or name"
+        ))
     }
 }
 
