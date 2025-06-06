@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
 use crate::parsers::{TreeSitterParser, detect_language_from_path};
+use anyhow::{Result, anyhow};
 
 pub struct SyntaxValidator;
 
@@ -7,7 +7,7 @@ impl SyntaxValidator {
     pub fn validate_file(file_path: &str) -> Result<ValidationResult> {
         let language = detect_language_from_path(file_path)
             .ok_or_else(|| anyhow!("Unable to detect language from file path: {}", file_path))?;
-        
+
         let content = std::fs::read_to_string(file_path)?;
         Self::validate_content(&content, &language)
     }
@@ -15,10 +15,10 @@ impl SyntaxValidator {
     pub fn validate_content(content: &str, language: &str) -> Result<ValidationResult> {
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(language, content)?;
-        
+
         let root_node = tree.root_node();
         let has_errors = root_node.has_error();
-        
+
         let mut errors = Vec::new();
         if has_errors {
             Self::collect_errors(root_node, content, &mut errors);
@@ -36,7 +36,7 @@ impl SyntaxValidator {
         if node.is_error() {
             let start_pos = node.start_position();
             let end_pos = node.end_position();
-            
+
             errors.push(SyntaxError {
                 message: "Syntax error".to_string(),
                 line: start_pos.row + 1,
@@ -110,7 +110,7 @@ pub enum SyntaxWarningType {
 impl ValidationResult {
     pub fn to_string(&self) -> String {
         let mut result = format!("Validation Result for {} code:\n", self.language);
-        
+
         if self.is_valid {
             result.push_str("✅ Syntax is valid\n");
         } else {

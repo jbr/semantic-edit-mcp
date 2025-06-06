@@ -1,8 +1,8 @@
-use anyhow::{Result, anyhow};
-use ropey::Rope;
-use tree_sitter::{Tree, Node};
 use crate::operations::{EditOperation, EditResult, NodeSelector};
 use crate::parsers::{TreeSitterParser, get_node_text};
+use anyhow::{Result, anyhow};
+use ropey::Rope;
+use tree_sitter::{Node, Tree};
 
 pub struct RustEditor;
 
@@ -10,28 +10,34 @@ impl RustEditor {
     pub fn apply_operation(operation: &EditOperation, source_code: &str) -> Result<EditResult> {
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse("rust", source_code)?;
-        
+
         match operation {
-            EditOperation::Replace { target, new_content } => {
-                Self::replace_node(&tree, source_code, target, new_content)
-            },
+            EditOperation::Replace {
+                target,
+                new_content,
+            } => Self::replace_node(&tree, source_code, target, new_content),
             EditOperation::InsertBefore { target, content } => {
                 Self::insert_before_node(&tree, source_code, target, content)
-            },
+            }
             EditOperation::InsertAfter { target, content } => {
                 Self::insert_after_node(&tree, source_code, target, content)
-            },
-            EditOperation::Wrap { target, wrapper_template } => {
-                Self::wrap_node(&tree, source_code, target, wrapper_template)
-            },
-            EditOperation::Delete { target } => {
-                Self::delete_node(&tree, source_code, target)
-            },
+            }
+            EditOperation::Wrap {
+                target,
+                wrapper_template,
+            } => Self::wrap_node(&tree, source_code, target, wrapper_template),
+            EditOperation::Delete { target } => Self::delete_node(&tree, source_code, target),
         }
     }
 
-    fn replace_node(tree: &Tree, source_code: &str, selector: &NodeSelector, new_content: &str) -> Result<EditResult> {
-        let node = selector.find_node(tree, source_code, "rust")?
+    fn replace_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+        new_content: &str,
+    ) -> Result<EditResult> {
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // Validate the new content would create valid syntax
@@ -47,16 +53,16 @@ impl RustEditor {
         let rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
-        
+
         // Convert byte positions to character positions
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
-        
+
         // Create new rope with replacement
         let mut new_rope = rope.clone();
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, new_content);
-        
+
         Ok(EditResult {
             success: true,
             message: format!("Successfully replaced {} node", node.kind()),
@@ -65,24 +71,33 @@ impl RustEditor {
         })
     }
 
-    fn insert_before_node(tree: &Tree, source_code: &str, selector: &NodeSelector, content: &str) -> Result<EditResult> {
-        let node = selector.find_node(tree, source_code, "rust")?
+    fn insert_before_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+        content: &str,
+    ) -> Result<EditResult> {
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let start_char = rope.byte_to_char(start_byte);
-        
+
         // Find the appropriate indentation
         let line_start = rope.line_to_char(rope.char_to_line(start_char));
         let line_content = rope.slice(line_start..start_char).to_string();
-        let indentation = line_content.chars().take_while(|c| c.is_whitespace()).collect::<String>();
-        
-        let content_with_newline = format!("{}\n{}", content, indentation);
-        
+        let indentation = line_content
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+
+        let content_with_newline = format!("{content}\n{indentation}");
+
         let mut new_rope = rope.clone();
         new_rope.insert(start_char, &content_with_newline);
-        
+
         Ok(EditResult {
             success: true,
             message: format!("Successfully inserted content before {} node", node.kind()),
@@ -91,25 +106,34 @@ impl RustEditor {
         })
     }
 
-    fn insert_after_node(tree: &Tree, source_code: &str, selector: &NodeSelector, content: &str) -> Result<EditResult> {
-        let node = selector.find_node(tree, source_code, "rust")?
+    fn insert_after_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+        content: &str,
+    ) -> Result<EditResult> {
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
         let end_byte = node.end_byte();
         let end_char = rope.byte_to_char(end_byte);
-        
+
         // Find the appropriate indentation by looking at the node's line
         let start_char = rope.byte_to_char(node.start_byte());
         let line_start = rope.line_to_char(rope.char_to_line(start_char));
         let line_content = rope.slice(line_start..start_char).to_string();
-        let indentation = line_content.chars().take_while(|c| c.is_whitespace()).collect::<String>();
-        
-        let content_with_newline = format!("\n{}{}", indentation, content);
-        
+        let indentation = line_content
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+
+        let content_with_newline = format!("\n{indentation}{content}");
+
         let mut new_rope = rope.clone();
         new_rope.insert(end_char, &content_with_newline);
-        
+
         Ok(EditResult {
             success: true,
             message: format!("Successfully inserted content after {} node", node.kind()),
@@ -118,18 +142,26 @@ impl RustEditor {
         })
     }
 
-    fn wrap_node(tree: &Tree, source_code: &str, selector: &NodeSelector, wrapper_template: &str) -> Result<EditResult> {
-        let node = selector.find_node(tree, source_code, "rust")?
+    fn wrap_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+        wrapper_template: &str,
+    ) -> Result<EditResult> {
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let node_text = get_node_text(&node, source_code);
-        
+
         if !wrapper_template.contains("{{content}}") {
-            return Err(anyhow!("Wrapper template must contain {{content}} placeholder"));
+            return Err(anyhow!(
+                "Wrapper template must contain {{content}} placeholder"
+            ));
         }
-        
+
         let wrapped_content = wrapper_template.replace("{{content}}", node_text);
-        
+
         // Validate the wrapped content would create valid syntax
         if !Self::validate_replacement(source_code, &node, &wrapped_content)? {
             return Ok(EditResult {
@@ -145,11 +177,11 @@ impl RustEditor {
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
-        
+
         let mut new_rope = rope.clone();
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, &wrapped_content);
-        
+
         Ok(EditResult {
             success: true,
             message: format!("Successfully wrapped {} node", node.kind()),
@@ -159,7 +191,8 @@ impl RustEditor {
     }
 
     fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
-        let node = selector.find_node(tree, source_code, "rust")?
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
@@ -167,10 +200,10 @@ impl RustEditor {
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
-        
+
         let mut new_rope = rope.clone();
         new_rope.remove(start_char..end_char);
-        
+
         Ok(EditResult {
             success: true,
             message: format!("Successfully deleted {} node", node.kind()),
@@ -184,13 +217,13 @@ impl RustEditor {
         let rope = Rope::from_str(original_code);
         let start_char = rope.byte_to_char(node.start_byte());
         let end_char = rope.byte_to_char(node.end_byte());
-        
+
         let mut temp_rope = rope.clone();
         temp_rope.remove(start_char..end_char);
         temp_rope.insert(start_char, replacement);
-        
+
         let temp_code = temp_rope.to_string();
-        
+
         // Parse and check for syntax errors
         crate::parsers::rust::RustParser::validate_rust_syntax(&temp_code)
     }
@@ -201,14 +234,19 @@ impl RustEditor {
         Ok(source_code.to_string())
     }
 
-    pub fn get_node_info(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<String> {
-        let node = selector.find_node(tree, source_code, "rust")?
+    pub fn get_node_info(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+    ) -> Result<String> {
+        let node = selector
+            .find_node(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let node_text = get_node_text(&node, source_code);
         let start_pos = node.start_position();
         let end_pos = node.end_position();
-        
+
         Ok(format!(
             "Node Information:\n\
             - Kind: {}\n\

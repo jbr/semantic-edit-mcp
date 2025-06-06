@@ -1,8 +1,8 @@
 pub mod rust;
 
 use anyhow::{Result, anyhow};
-use tree_sitter::{Parser, Tree, Node};
 use std::collections::HashMap;
+use tree_sitter::{Node, Parser, Tree};
 
 pub struct TreeSitterParser {
     parsers: HashMap<String, Parser>,
@@ -11,12 +11,12 @@ pub struct TreeSitterParser {
 impl TreeSitterParser {
     pub fn new() -> Result<Self> {
         let mut parsers = HashMap::new();
-        
+
         // Initialize Rust parser
         let mut rust_parser = Parser::new();
         rust_parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
         parsers.insert("rust".to_string(), rust_parser);
-        
+
         // TODO: Add more languages as needed
         // let mut ts_parser = Parser::new();
         // ts_parser.set_language(&tree_sitter_typescript::language())?;
@@ -26,10 +26,13 @@ impl TreeSitterParser {
     }
 
     pub fn parse(&mut self, language: &str, source_code: &str) -> Result<Tree> {
-        let parser = self.parsers.get_mut(language)
+        let parser = self
+            .parsers
+            .get_mut(language)
             .ok_or_else(|| anyhow!("Unsupported language: {}", language))?;
-        
-        parser.parse(source_code, None)
+
+        parser
+            .parse(source_code, None)
             .ok_or_else(|| anyhow!("Failed to parse {} code", language))
     }
 
@@ -59,7 +62,7 @@ pub fn get_node_text<'a>(node: &Node, source_code: &'a str) -> &'a str {
 pub fn find_node_by_position(tree: &Tree, line: usize, column: usize) -> Option<Node> {
     let point = tree_sitter::Point::new(line.saturating_sub(1), column.saturating_sub(1));
     let mut node = tree.root_node().descendant_for_point_range(point, point)?;
-    
+
     // Walk up the tree to find a more "meaningful" node for editing
     // Skip trivial nodes like punctuation, identifiers, and literals
     while is_trivial_node(&node) && node.parent().is_some() {
@@ -69,7 +72,7 @@ pub fn find_node_by_position(tree: &Tree, line: usize, column: usize) -> Option<
             break;
         }
     }
-    
+
     Some(node)
 }
 
@@ -83,10 +86,13 @@ fn is_trivial_node(node: &Node) -> bool {
         // Skip keywords unless they're at the start of a meaningful construct
         "fn" | "struct" | "impl" | "let" | "mut" | "pub" => {
             // Only skip if parent exists and is more meaningful
-            node.parent().map_or(false, |parent| {
-                matches!(parent.kind(), "function_item" | "struct_item" | "impl_item" | "let_declaration")
+            node.parent().is_some_and(|parent| {
+                matches!(
+                    parent.kind(),
+                    "function_item" | "struct_item" | "impl_item" | "let_declaration"
+                )
             })
-        },
+        }
         _ => false,
     }
 }
