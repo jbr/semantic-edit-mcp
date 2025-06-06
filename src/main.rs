@@ -430,10 +430,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        #[allow(
+            clippy::collapsible_if,
+            reason = "let expressions in this position are unstable
+            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
+        )]
+        if result.success {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         Ok(format!("Replace operation result:\n{}", result.message))
@@ -463,10 +468,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        #[allow(
+            clippy::collapsible_if,
+            reason = "let expressions in this position are unstable
+            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
+        )]
+        if result.success {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         Ok(format!(
@@ -499,10 +509,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        #[allow(
+            clippy::collapsible_if,
+            reason = "let expressions in this position are unstable
+            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
+        )]
+        if result.success {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         Ok(format!(
@@ -535,10 +550,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        #[allow(
+            clippy::collapsible_if,
+            reason = "let expressions in this position are unstable
+            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
+        )]
+        if result.success {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         Ok(format!("Wrap operation result:\n{}", result.message))
