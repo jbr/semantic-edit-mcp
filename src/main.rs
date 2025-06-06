@@ -1,3 +1,5 @@
+#![allow(dead_code)] // temporary, remove when no longer necessary
+
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -593,7 +595,7 @@ impl SemanticEditServer {
                 .get("scope")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            return Ok(NodeSelector::ByPosition {
+            return Ok(NodeSelector::Position {
                 line: line as usize,
                 column: column as usize,
                 scope,
@@ -601,26 +603,26 @@ impl SemanticEditServer {
         }
 
         if let Some(query) = selector_obj.get("query").and_then(|v| v.as_str()) {
-            return Ok(NodeSelector::ByQuery {
+            return Ok(NodeSelector::Query {
                 query: query.to_string(),
             });
         }
 
         if let Some(node_type) = selector_obj.get("type").and_then(|v| v.as_str()) {
             if let Some(name) = selector_obj.get("name").and_then(|v| v.as_str()) {
-                return Ok(NodeSelector::ByName {
+                return Ok(NodeSelector::Name {
                     node_type: Some(node_type.to_string()),
                     name: name.to_string(),
                 });
             } else {
-                return Ok(NodeSelector::ByType {
+                return Ok(NodeSelector::Type {
                     node_type: node_type.to_string(),
                 });
             }
         }
 
         if let Some(name) = selector_obj.get("name").and_then(|v| v.as_str()) {
-            return Ok(NodeSelector::ByName {
+            return Ok(NodeSelector::Name {
                 node_type: None,
                 name: name.to_string(),
             });

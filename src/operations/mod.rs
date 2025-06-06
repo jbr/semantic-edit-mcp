@@ -6,16 +6,16 @@ use tree_sitter::Node;
 #[serde(tag = "type")]
 pub enum NodeSelector {
     #[serde(rename = "name")]
-    ByName {
+    Name {
         node_type: Option<String>,
         name: String,
     },
     #[serde(rename = "type")]
-    ByType { node_type: String },
+    Type { node_type: String },
     #[serde(rename = "query")]
-    ByQuery { query: String },
+    Query { query: String },
     #[serde(rename = "position")]
-    ByPosition {
+    Position {
         line: usize,
         column: usize,
         /// Optional scope hint: "token" (default), "expression", "statement", "item"
@@ -85,7 +85,7 @@ impl NodeSelector {
         language: &str,
     ) -> Result<Option<Node<'a>>> {
         match self {
-            NodeSelector::ByPosition {
+            NodeSelector::Position {
                 line,
                 column,
                 scope,
@@ -122,7 +122,7 @@ impl NodeSelector {
                     Ok(None)
                 }
             }
-            NodeSelector::ByName { node_type, name } => {
+            NodeSelector::Name { node_type, name } => {
                 match language {
                     "rust" => {
                         if let Some(nt) = node_type {
@@ -169,7 +169,7 @@ impl NodeSelector {
                     )),
                 }
             }
-            NodeSelector::ByType { node_type } => match language {
+            NodeSelector::Type { node_type } => match language {
                 "rust" => {
                     let nodes =
                         crate::parsers::rust::RustParser::find_nodes_by_type(tree, node_type);
@@ -180,7 +180,7 @@ impl NodeSelector {
                     language
                 )),
             },
-            NodeSelector::ByQuery { query } => {
+            NodeSelector::Query { query } => {
                 // Generic tree-sitter query execution
                 self.execute_query(tree, source_code, language, query)
             }
