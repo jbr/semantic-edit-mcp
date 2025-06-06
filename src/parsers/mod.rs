@@ -59,7 +59,7 @@ pub fn get_node_text<'a>(node: &Node, source_code: &'a str) -> &'a str {
     &source_code[node.start_byte()..node.end_byte()]
 }
 
-pub fn find_node_by_position(tree: &Tree, line: usize, column: usize) -> Option<Node> {
+pub fn find_node_by_position<'a>(tree: &'a Tree, line: usize, column: usize) -> Option<Node<'a>> {
     let point = tree_sitter::Point::new(line.saturating_sub(1), column.saturating_sub(1));
     let mut node = tree.root_node().descendant_for_point_range(point, point)?;
 
