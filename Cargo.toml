@@ -1,0 +1,35 @@
+[package]
+name = "semantic-edit-mcp"
+version = "0.1.0"
+authors = ["Jacob Rothstein <hi@jbr.me>", "Anthropic Claude Sonnet 4"]
+edition = "2024"
+description = "MCP server for semantic code editing with tree-sitter"
+readme = "README.md"
+repository = "https://github.com/jbr/semantic-edit-mcp"
+documentation = "https://docs.rs/semantic-edit-mcp"
+license = "MIT OR Apache-2.0"
+keywords = ["mcp", "tree-sitter", "semantic-editing", "code-editing"]
+categories = ["development-tools", "text-processing"]
+
+[dependencies]
+# MCP server basics
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+
+# Tree-sitter for AST parsing
+tree-sitter = "0.23"
+tree-sitter-rust = "0.23"
+
+# File system operations
+walkdir = "2.5"
+
+# Text processing
+ropey = "1.6"  # Efficient text editing with proper UTF-8 handling
+
+# Optional: Additional tree-sitter grammars we might add later
+# tree-sitter-typescript = "0.21"
+# tree-sitter-python = "0.21"
+# tree-sitter-javascript = "0.21"
