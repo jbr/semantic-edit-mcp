@@ -70,14 +70,14 @@ impl RustEditor {
         }
     }
 
-    fn replace_node(
+        fn replace_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         new_content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // Validate the new content would create valid syntax
@@ -111,14 +111,14 @@ impl RustEditor {
         })
     }
 
-    fn insert_before_node(
+        fn insert_before_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
@@ -146,14 +146,14 @@ impl RustEditor {
         })
     }
 
-    fn insert_after_node(
+        fn insert_after_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
@@ -182,14 +182,14 @@ impl RustEditor {
         })
     }
 
-    fn wrap_node(
+        fn wrap_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let node_text = get_node_text(&node, source_code);
@@ -230,9 +230,9 @@ impl RustEditor {
         })
     }
 
-    fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
+        fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
@@ -274,13 +274,13 @@ impl RustEditor {
         Ok(source_code.to_string())
     }
 
-    pub fn get_node_info(
+        pub fn get_node_info(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
     ) -> Result<String> {
         let node = selector
-            .find_node(tree, source_code, "rust")?
+            .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let node_text = get_node_text(&node, source_code);

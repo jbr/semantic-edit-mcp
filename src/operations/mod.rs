@@ -220,11 +220,18 @@ impl NodeSelector {
                                         name,
                                     )
                                 }
+                                "enum_item" => {
+                                    crate::parsers::rust::RustParser::find_enum_by_name(
+                                        tree,
+                                        source_code,
+                                        name,
+                                    )
+                                }
                                 _ => Err(anyhow!("Unsupported node type for name search: {}", nt)),
                             }
                         } else {
                             // Try to find by name in any context - this is more complex
-                            // For now, try function first, then struct
+                            // For now, try function first, then struct, then enum
                             if let Ok(Some(node)) =
                                 crate::parsers::rust::RustParser::find_function_by_name(
                                     tree,
@@ -233,8 +240,16 @@ impl NodeSelector {
                                 )
                             {
                                 Ok(Some(node))
-                            } else {
+                            } else if let Ok(Some(node)) =
                                 crate::parsers::rust::RustParser::find_struct_by_name(
+                                    tree,
+                                    source_code,
+                                    name,
+                                )
+                            {
+                                Ok(Some(node))
+                            } else {
+                                crate::parsers::rust::RustParser::find_enum_by_name(
                                     tree,
                                     source_code,
                                     name,
@@ -295,11 +310,17 @@ impl NodeSelector {
 
         match self {
             NodeSelector::Name { name, node_type } => {
-                // Get all available functions and structs for suggestions
+                // Get all available items for suggestions
                 let all_functions =
                     crate::parsers::rust::RustParser::get_all_function_names(tree, source_code);
                 let all_structs =
                     crate::parsers::rust::RustParser::get_all_struct_names(tree, source_code);
+                let all_enums =
+                    crate::parsers::rust::RustParser::get_all_enum_names(tree, source_code);
+                let all_impls =
+                    crate::parsers::rust::RustParser::get_all_impl_types(tree, source_code);
+                let all_mods =
+                    crate::parsers::rust::RustParser::get_all_mod_names(tree, source_code);
 
                 let mut available = Vec::new();
                 let mut suggestions = Vec::new();
@@ -312,6 +333,21 @@ impl NodeSelector {
                 if node_type.as_deref() == Some("struct_item") || node_type.is_none() {
                     available.extend(all_structs.iter().map(|s| format!("struct: {s}")));
                     suggestions.extend(Self::fuzzy_match(name, &all_structs));
+                }
+
+                if node_type.as_deref() == Some("enum_item") || node_type.is_none() {
+                    available.extend(all_enums.iter().map(|e| format!("enum: {e}")));
+                    suggestions.extend(Self::fuzzy_match(name, &all_enums));
+                }
+
+                if node_type.as_deref() == Some("impl_item") || node_type.is_none() {
+                    available.extend(all_impls.iter().map(|i| format!("impl: {i}")));
+                    suggestions.extend(Self::fuzzy_match(name, &all_impls));
+                }
+
+                if node_type.as_deref() == Some("mod_item") || node_type.is_none() {
+                    available.extend(all_mods.iter().map(|m| format!("mod: {m}")));
+                    suggestions.extend(Self::fuzzy_match(name, &all_mods));
                 }
 
                 error = error
