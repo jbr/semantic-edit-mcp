@@ -1,7 +1,7 @@
 use crate::parsers::TreeSitterParser;
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
-use tree_sitter::{Language, Node, Query, QueryCursor, Tree};
+use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator, Tree};
 
 /// Tree-sitter based context validator for semantic code editing
 pub struct ContextValidator {
@@ -127,10 +127,11 @@ impl ContextValidator {
 
         // Run validation queries against the temporary tree
         let mut cursor = QueryCursor::new();
-        let matches = cursor.matches(query, temp_tree.root_node(), temp_content.as_bytes());
+        let mut matches = cursor.matches(query, temp_tree.root_node(), temp_content.as_bytes());
 
         let mut violations = Vec::new();
-        for m in matches {
+
+        while let Some(m) = matches.next() {
             for capture in m.captures {
                 let node = capture.node;
 
