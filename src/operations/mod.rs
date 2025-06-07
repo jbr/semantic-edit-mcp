@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, StreamingIterator};
 
@@ -148,7 +148,15 @@ impl EditOperation {
     }
 
     pub fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
-        // This will be implemented in the specific language editors
+        // Try to use the new language registry first
+        if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+            if let Some(lang_support) = registry.get_language(language) {
+                let editor = lang_support.editor();
+                return editor.apply_operation(self, source_code);
+            }
+        }
+
+        // Fallback to old Rust-only logic
         match language {
             "rust" => crate::editors::rust::RustEditor::apply_operation(self, source_code),
             _ => Err(anyhow!("Unsupported language for editing: {}", language)),
@@ -163,6 +171,85 @@ impl NodeSelector {
         source_code: &str,
         language: &str,
     ) -> Result<Option<Node<'a>>> {
+        // Try to use the new language registry first
+        if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+            if let Some(lang_support) = registry.get_language(language) {
+                let parser = lang_support.parser();
+
+                match self {
+                    NodeSelector::Position {
+                        line,
+                        column,
+                        scope,
+                    } => {
+                        let node = crate::parsers::find_node_by_position(tree, *line, *column);
+                        if let Some(node) = node {
+                            // Apply scope-based filtering if requested
+                            let final_node = match scope.as_deref() {
+                                Some("expression") => find_ancestor_of_type(
+                                    &node,
+                                    &[
+                                        "expression_statement",
+                                        "call_expression",
+                                        "macro_invocation",
+                                    ],
+                                ),
+                                Some("statement") => find_ancestor_of_type(
+                                    &node,
+                                    &[
+                                        "expression_statement",
+                                        "let_declaration",
+                                        "item_declaration",
+                                    ],
+                                ),
+                                Some("item") => find_ancestor_of_type(
+                                    &node,
+                                    &["function_item", "struct_item", "impl_item", "mod_item"],
+                                ),
+                                Some("token") | None => Some(node), // Default behavior
+                                _ => Some(node),                    // Unknown scope, use default
+                            };
+                            return Ok(final_node);
+                        } else {
+                            return Ok(None);
+                        }
+                    }
+                    NodeSelector::Name { node_type, name } => {
+                        if let Some(nt) = node_type {
+                            return parser.find_by_name(tree, source_code, nt, name);
+                        } else {
+                            // Try common node types for this language
+                            let node_types = match language {
+                                "rust" => vec!["function_item", "struct_item", "enum_item"],
+                                "json" => vec!["pair", "object", "array"],
+                                "toml" => vec!["table", "pair"],
+                                "markdown" => vec!["atx_heading", "fenced_code_block"],
+                                _ => vec!["function_item", "struct_item"], // fallback
+                            };
+
+                            for nt in node_types {
+                                if let Ok(Some(node)) =
+                                    parser.find_by_name(tree, source_code, nt, name)
+                                {
+                                    return Ok(Some(node));
+                                }
+                            }
+                            return Ok(None);
+                        }
+                    }
+                    NodeSelector::Type { node_type } => {
+                        let nodes = parser.find_by_type(tree, node_type);
+                        return Ok(nodes.into_iter().next());
+                    }
+                    NodeSelector::Query { query } => {
+                        let nodes = parser.execute_query(query, tree, source_code)?;
+                        return Ok(nodes.into_iter().next());
+                    }
+                }
+            }
+        }
+
+        // Fallback to old Rust-only logic
         match self {
             NodeSelector::Position {
                 line,

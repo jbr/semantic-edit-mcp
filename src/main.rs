@@ -2,6 +2,7 @@
 
 mod editors;
 mod handlers;
+mod languages;
 mod operations;
 mod parsers;
 mod server;

@@ -1,15 +1,23 @@
+use crate::languages::traits::LanguageEditor;
 use crate::operations::{EditOperation, EditResult, NodeSelector};
-use crate::parsers::{get_node_text, TreeSitterParser};
+use crate::parsers::get_node_text;
 use anyhow::{anyhow, Result};
 use ropey::Rope;
 use tree_sitter::{Node, Tree};
 
-pub struct RustEditor;
+pub struct JsonEditor;
 
-impl RustEditor {
-    pub fn apply_operation(operation: &EditOperation, source_code: &str) -> Result<EditResult> {
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse("rust", source_code)?;
+impl JsonEditor {
+    pub fn new() -> Self {
+        Self
+    }
+
+    fn apply_json_operation(operation: &EditOperation, source_code: &str) -> Result<EditResult> {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
+        let tree = parser
+            .parse(source_code, None)
+            .ok_or_else(|| anyhow!("Failed to parse JSON"))?;
 
         match operation {
             EditOperation::Replace {
@@ -17,10 +25,9 @@ impl RustEditor {
                 new_content,
                 preview_only,
             } => {
-                let mut result = Self::replace_node(&tree, source_code, target, new_content)?;
+                let mut result = Self::replace_json_node(&tree, source_code, target, new_content)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
-                    // Don't modify the file in preview mode, but show what would happen
                 }
                 Ok(result)
             }
@@ -29,7 +36,8 @@ impl RustEditor {
                 content,
                 preview_only,
             } => {
-                let mut result = Self::insert_before_node(&tree, source_code, target, content)?;
+                let mut result =
+                    Self::insert_before_json_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -40,7 +48,7 @@ impl RustEditor {
                 content,
                 preview_only,
             } => {
-                let mut result = Self::insert_after_node(&tree, source_code, target, content)?;
+                let mut result = Self::insert_after_json_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -51,7 +59,8 @@ impl RustEditor {
                 wrapper_template,
                 preview_only,
             } => {
-                let mut result = Self::wrap_node(&tree, source_code, target, wrapper_template)?;
+                let mut result =
+                    Self::wrap_json_node(&tree, source_code, target, wrapper_template)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -61,7 +70,7 @@ impl RustEditor {
                 target,
                 preview_only,
             } => {
-                let mut result = Self::delete_node(&tree, source_code, target)?;
+                let mut result = Self::delete_json_node(&tree, source_code, target)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -70,21 +79,21 @@ impl RustEditor {
         }
     }
 
-    fn replace_node(
+    fn replace_json_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         new_content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        // Validate the new content would create valid syntax
-        if !Self::validate_replacement(source_code, &node, new_content)? {
+        // Validate the new content would create valid JSON
+        if !Self::validate_json_replacement(source_code, &node, new_content)? {
             return Ok(EditResult {
                 success: false,
-                message: "Replacement would create invalid syntax".to_string(),
+                message: "Replacement would create invalid JSON".to_string(),
                 new_content: None,
                 affected_range: None,
             });
@@ -94,11 +103,9 @@ impl RustEditor {
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
 
-        // Convert byte positions to character positions
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
 
-        // Create new rope with replacement
         let mut new_rope = rope.clone();
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, new_content);
@@ -111,85 +118,90 @@ impl RustEditor {
         })
     }
 
-    fn insert_before_node(
+    fn insert_before_json_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let start_char = rope.byte_to_char(start_byte);
 
-        // Find the appropriate indentation
-        let line_start = rope.line_to_char(rope.char_to_line(start_char));
-        let line_content = rope.slice(line_start..start_char).to_string();
-        let indentation = line_content
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .collect::<String>();
-
-        let content_with_newline = format!("{content}\n{indentation}");
+        // For JSON, we need to handle commas properly
+        let content_with_comma = match node.kind() {
+            "pair" => {
+                // If inserting before a property, add comma after new content
+                if Self::needs_comma_after(&node) {
+                    format!("{content},")
+                } else {
+                    content.to_string()
+                }
+            }
+            _ => content.to_string(),
+        };
 
         let mut new_rope = rope.clone();
-        new_rope.insert(start_char, &content_with_newline);
+        new_rope.insert(start_char, &content_with_comma);
 
         Ok(EditResult {
             success: true,
             message: format!("Successfully inserted content before {} node", node.kind()),
             new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + content_with_newline.len())),
+            affected_range: Some((start_char, start_char + content_with_comma.len())),
         })
     }
 
-    fn insert_after_node(
+    fn insert_after_json_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
         let end_byte = node.end_byte();
         let end_char = rope.byte_to_char(end_byte);
 
-        // Find the appropriate indentation by looking at the node's line
-        let start_char = rope.byte_to_char(node.start_byte());
-        let line_start = rope.line_to_char(rope.char_to_line(start_char));
-        let line_content = rope.slice(line_start..start_char).to_string();
-        let indentation = line_content
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .collect::<String>();
-
-        let content_with_newline = format!("\n{indentation}{content}");
+        // For JSON, we need to handle commas properly
+        let content_with_comma = match node.kind() {
+            "pair" => {
+                // If inserting after a property, add comma before new content
+                if Self::needs_comma_before(&node) {
+                    format!(",{content}")
+                } else {
+                    content.to_string()
+                }
+            }
+            _ => content.to_string(),
+        };
 
         let mut new_rope = rope.clone();
-        new_rope.insert(end_char, &content_with_newline);
+        new_rope.insert(end_char, &content_with_comma);
 
         Ok(EditResult {
             success: true,
             message: format!("Successfully inserted content after {} node", node.kind()),
             new_content: Some(new_rope.to_string()),
-            affected_range: Some((end_char, end_char + content_with_newline.len())),
+            affected_range: Some((end_char, end_char + content_with_comma.len())),
         })
     }
 
-    fn wrap_node(
+    fn wrap_json_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let node_text = get_node_text(&node, source_code);
@@ -202,11 +214,11 @@ impl RustEditor {
 
         let wrapped_content = wrapper_template.replace("{{content}}", node_text);
 
-        // Validate the wrapped content would create valid syntax
-        if !Self::validate_replacement(source_code, &node, &wrapped_content)? {
+        // Validate the wrapped content would create valid JSON
+        if !Self::validate_json_replacement(source_code, &node, &wrapped_content)? {
             return Ok(EditResult {
                 success: false,
-                message: "Wrapping would create invalid syntax".to_string(),
+                message: "Wrapping would create invalid JSON".to_string(),
                 new_content: None,
                 affected_range: None,
             });
@@ -230,9 +242,13 @@ impl RustEditor {
         })
     }
 
-    fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
+    fn delete_json_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+    ) -> Result<EditResult> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         let rope = Rope::from_str(source_code);
@@ -241,19 +257,29 @@ impl RustEditor {
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
 
+        // Handle comma removal for JSON objects/arrays
+        let (final_start, final_end) = if node.kind() == "pair" {
+            Self::adjust_deletion_range_for_comma(&rope, start_char, end_char, &node)
+        } else {
+            (start_char, end_char)
+        };
+
         let mut new_rope = rope.clone();
-        new_rope.remove(start_char..end_char);
+        new_rope.remove(final_start..final_end);
 
         Ok(EditResult {
             success: true,
             message: format!("Successfully deleted {} node", node.kind()),
             new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char)),
+            affected_range: Some((final_start, final_start)),
         })
     }
 
-    fn validate_replacement(original_code: &str, node: &Node, replacement: &str) -> Result<bool> {
-        // Create a temporary version with the replacement
+    fn validate_json_replacement(
+        original_code: &str,
+        node: &Node,
+        replacement: &str,
+    ) -> Result<bool> {
         let rope = Rope::from_str(original_code);
         let start_char = rope.byte_to_char(node.start_byte());
         let end_char = rope.byte_to_char(node.end_byte());
@@ -264,31 +290,76 @@ impl RustEditor {
 
         let temp_code = temp_rope.to_string();
 
-        // Parse and check for syntax errors
-        crate::parsers::rust::RustParser::validate_rust_syntax(&temp_code)
+        // Parse and check for JSON syntax errors
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
+
+        if let Some(tree) = parser.parse(&temp_code, None) {
+            Ok(!tree.root_node().has_error())
+        } else {
+            Ok(false)
+        }
     }
 
-    pub fn format_code(source_code: &str) -> Result<String> {
-        // For now, just return the original code
-        // In a full implementation, we'd integrate with rustfmt
-        Ok(source_code.to_string())
+    fn needs_comma_after(node: &Node) -> bool {
+        // Check if this node is followed by another sibling in an object or array
+        if let Some(next_sibling) = node.next_sibling() {
+            matches!(next_sibling.kind(), "pair" | "value")
+        } else {
+            false
+        }
     }
 
-    pub fn get_node_info(
-        tree: &Tree,
-        source_code: &str,
-        selector: &NodeSelector,
-    ) -> Result<String> {
+    fn needs_comma_before(node: &Node) -> bool {
+        // Check if this node is preceded by another sibling in an object or array
+        if let Some(prev_sibling) = node.prev_sibling() {
+            matches!(prev_sibling.kind(), "pair" | "value")
+        } else {
+            false
+        }
+    }
+
+    fn adjust_deletion_range_for_comma(
+        rope: &Rope,
+        start_char: usize,
+        end_char: usize,
+        node: &Node,
+    ) -> (usize, usize) {
+        // If deleting a pair, also remove associated comma
+        if let Some(next_sibling) = node.next_sibling() {
+            if next_sibling.kind() == "," {
+                let comma_end = rope.byte_to_char(next_sibling.end_byte());
+                return (start_char, comma_end);
+            }
+        }
+
+        if let Some(prev_sibling) = node.prev_sibling() {
+            if prev_sibling.kind() == "," {
+                let comma_start = rope.byte_to_char(prev_sibling.start_byte());
+                return (comma_start, end_char);
+            }
+        }
+
+        (start_char, end_char)
+    }
+}
+
+impl LanguageEditor for JsonEditor {
+    fn apply_operation(&self, operation: &EditOperation, source: &str) -> Result<EditResult> {
+        Self::apply_json_operation(operation, source)
+    }
+
+    fn get_node_info(&self, tree: &Tree, source: &str, selector: &NodeSelector) -> Result<String> {
         let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
+            .find_node(tree, source, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        let node_text = get_node_text(&node, source_code);
+        let node_text = get_node_text(&node, source);
         let start_pos = node.start_position();
         let end_pos = node.end_position();
 
         Ok(format!(
-            "Node Information:\n\
+            "JSON Node Information:\n\
             - Kind: {}\n\
             - Start: {}:{}\n\
             - End: {}:{}\n\
@@ -307,5 +378,15 @@ impl RustEditor {
                 node_text.to_string()
             }
         ))
+    }
+
+    fn format_code(&self, source: &str) -> Result<String> {
+        // For now, just return the original code
+        // In a full implementation, we'd integrate with a JSON formatter
+        Ok(source.to_string())
+    }
+
+    fn validate_replacement(&self, original: &str, node: &Node, replacement: &str) -> Result<bool> {
+        Self::validate_json_replacement(original, node, replacement)
     }
 }

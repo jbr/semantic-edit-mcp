@@ -158,12 +158,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -186,12 +186,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -213,12 +213,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -241,12 +241,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("type_name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("type_name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -269,12 +269,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
