@@ -3,6 +3,7 @@ use crate::parsers::{TreeSitterParser, detect_language_from_path};
 use crate::tools::ToolRegistry;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
+use tree_sitter::StreamingIterator;
 
 // Specialized insertion tools implementations
 impl ToolRegistry {
@@ -259,7 +260,8 @@ impl ToolRegistry {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut last_use_node = None;
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if capture.index == query.capture_index_for_name("use").unwrap() {
                         last_use_node = Some(capture.node);
@@ -340,7 +342,8 @@ impl ToolRegistry {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut last_item_node = None;
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if capture.index == query.capture_index_for_name("item").unwrap() {
                         last_item_node = Some(capture.node);

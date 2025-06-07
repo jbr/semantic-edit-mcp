@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tree_sitter::{Node, Query, QueryCursor, Tree};
+use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
 pub struct RustParser;
 
@@ -20,7 +20,8 @@ impl RustParser {
         let query = Query::new(&tree_sitter_rust::LANGUAGE.into(), &query_text)?;
         let mut cursor = QueryCursor::new();
 
-        for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+        let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+        while let Some(m) = matches.next() {
             for capture in m.captures {
                 if capture.index == query.capture_index_for_name("function").unwrap() {
                     return Ok(Some(capture.node));
@@ -47,7 +48,8 @@ impl RustParser {
         let query = Query::new(&tree_sitter_rust::LANGUAGE.into(), &query_text)?;
         let mut cursor = QueryCursor::new();
 
-        for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+        let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+        while let Some(m) = matches.next() {
             for capture in m.captures {
                 if capture.index == query.capture_index_for_name("struct").unwrap() {
                     return Ok(Some(capture.node));
@@ -74,7 +76,8 @@ impl RustParser {
         let query = Query::new(&tree_sitter_rust::LANGUAGE.into(), &query_text)?;
         let mut cursor = QueryCursor::new();
 
-        for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+        let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+        while let Some(m) = matches.next() {
             for capture in m.captures {
                 if capture.index == query.capture_index_for_name("enum").unwrap() {
                     return Ok(Some(capture.node));
@@ -102,7 +105,8 @@ impl RustParser {
         let mut cursor = QueryCursor::new();
         let mut results = Vec::new();
 
-        for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+        let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+        while let Some(m) = matches.next() {
             for capture in m.captures {
                 if capture.index == query.capture_index_for_name("impl").unwrap() {
                     results.push(capture.node);
@@ -151,7 +155,8 @@ impl RustParser {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut names = Vec::new();
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if let Some(name_index) = query.capture_index_for_name("name")
                         && capture.index == name_index
@@ -178,7 +183,8 @@ impl RustParser {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut names = Vec::new();
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if let Some(name_index) = query.capture_index_for_name("name")
                         && capture.index == name_index
@@ -204,7 +210,8 @@ impl RustParser {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut names = Vec::new();
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if let Some(name_index) = query.capture_index_for_name("name")
                         && capture.index == name_index
@@ -231,7 +238,8 @@ impl RustParser {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut names = Vec::new();
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if let Some(name_index) = query.capture_index_for_name("type_name")
                         && capture.index == name_index
@@ -258,7 +266,8 @@ impl RustParser {
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut names = Vec::new();
 
-            for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+            let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+            while let Some(m) = matches.next() {
                 for capture in m.captures {
                     if let Some(name_index) = query.capture_index_for_name("name")
                         && capture.index == name_index
