@@ -1,10 +1,13 @@
 use crate::parsers::{TreeSitterParser, detect_language_from_path};
 use anyhow::{Result, anyhow};
 
+mod context_validator;
+pub use context_validator::{ContextValidator, ValidationResult, ContextViolation, OperationType};
+
 pub struct SyntaxValidator;
 
 impl SyntaxValidator {
-    pub fn validate_file(file_path: &str) -> Result<ValidationResult> {
+    pub fn validate_file(file_path: &str) -> Result<BasicValidationResult> {
         let language = detect_language_from_path(file_path)
             .ok_or_else(|| anyhow!("Unable to detect language from file path: {}", file_path))?;
 
@@ -12,7 +15,7 @@ impl SyntaxValidator {
         Self::validate_content(&content, &language)
     }
 
-    pub fn validate_content(content: &str, language: &str) -> Result<ValidationResult> {
+    pub fn validate_content(content: &str, language: &str) -> Result<BasicValidationResult> {
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(language, content)?;
 
@@ -24,7 +27,7 @@ impl SyntaxValidator {
             Self::collect_errors(root_node, content, &mut errors);
         }
 
-        Ok(ValidationResult {
+        Ok(BasicValidationResult {
             is_valid: !has_errors,
             language: language.to_string(),
             errors,
@@ -70,7 +73,7 @@ impl SyntaxValidator {
 }
 
 #[derive(Debug)]
-pub struct ValidationResult {
+pub struct BasicValidationResult {
     pub is_valid: bool,
     pub language: String,
     pub errors: Vec<SyntaxError>,
@@ -109,7 +112,7 @@ pub enum SyntaxWarningType {
     StyleViolation,
 }
 
-impl std::fmt::Display for ValidationResult {
+impl std::fmt::Display for BasicValidationResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Validation Result for {} code:", self.language)?;
 

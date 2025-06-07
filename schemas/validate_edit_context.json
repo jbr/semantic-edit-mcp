@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+    },
+    "selector": {
+      "type": "object",
+      "description": "Node selector for the target location where content would be placed",
+      "properties": {
+        "line": {
+          "type": "number",
+          "description": "⚠️  Line number (1-indexed) - May select small tokens, use with caution"
+        },
+        "column": {
+          "type": "number", 
+          "description": "⚠️  Column number (1-indexed) - May select small tokens, use with caution"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the node - RECOMMENDED for reliable selection"
+        },
+        "type": {
+          "type": "string",
+          "description": "Node type (e.g., 'function_item') - RECOMMENDED for reliable selection"
+        },
+        "query": {
+          "type": "string",
+          "description": "Tree-sitter query - RECOMMENDED for precise selection"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Optional scope hint for position selection: 'token' (default), 'expression', 'statement', 'item'"
+        }
+      }
+    },
+    "content": {
+      "type": "string",
+      "description": "Content that would be inserted/replaced at the target location"
+    },
+    "operation_type": {
+      "type": "string",
+      "enum": ["insert_before", "insert_after", "replace", "wrap"],
+      "description": "Type of edit operation to validate"
+    }
+  },
+  "required": ["file_path", "selector", "content", "operation_type"]
+}
