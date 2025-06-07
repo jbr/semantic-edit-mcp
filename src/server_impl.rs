@@ -1,7 +1,7 @@
-use crate::server::{Tool, McpMessage, McpRequest, McpResponse, ToolCallParams};
-use crate::tools::ToolRegistry;
 use crate::handlers::RequestHandler;
 use crate::parsers::TreeSitterParser;
+use crate::server::{McpMessage, McpRequest, McpResponse, Tool, ToolCallParams};
+use crate::tools::ToolRegistry;
 use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -82,13 +82,11 @@ impl SemanticEditServer {
     async fn handle_request(&self, request: McpRequest) -> McpResponse {
         match request.method.as_str() {
             "initialize" => self.request_handler.handle_initialize(request.id),
-            "tools/list" => self.request_handler.handle_tools_list(request.id, &self.tools),
+            "tools/list" => self
+                .request_handler
+                .handle_tools_list(request.id, &self.tools),
             "tools/call" => self.handle_tool_call(request.id, request.params).await,
-            _ => McpResponse::error(
-                request.id,
-                -32601,
-                "Method not found".to_string(),
-            ),
+            _ => McpResponse::error(request.id, -32601, "Method not found".to_string()),
         }
     }
 
@@ -107,22 +105,14 @@ impl SemanticEditServer {
         let tool_call: ToolCallParams = match serde_json::from_value(params) {
             Ok(tc) => tc,
             Err(e) => {
-                return McpResponse::error(
-                    id,
-                    -32602,
-                    format!("Invalid tool call params: {e}"),
-                );
+                return McpResponse::error(id, -32602, format!("Invalid tool call params: {e}"));
             }
         };
 
         let result = match self.tool_registry.execute_tool(&tool_call).await {
             Ok(output) => output,
             Err(e) => {
-                return McpResponse::error(
-                    id,
-                    -32603,
-                    format!("Tool execution failed: {e}"),
-                );
+                return McpResponse::error(id, -32603, format!("Tool execution failed: {e}"));
             }
         };
 

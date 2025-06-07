@@ -1,5 +1,5 @@
-use semantic_edit_mcp::validation::ContextValidator;
 use semantic_edit_mcp::parsers::TreeSitterParser;
+use semantic_edit_mcp::validation::ContextValidator;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test case 1: Valid placement - function at module level
@@ -28,9 +28,10 @@ struct Point {
     println!("Test 1: Valid function placement after struct");
     let tree = parser.parse("rust", valid_rust_code)?;
     let root = tree.root_node();
-    
+
     // Find the struct node
-    let struct_node = root.children(&mut root.walk())
+    let struct_node = root
+        .children(&mut root.walk())
         .find(|n| n.kind() == "struct_item")
         .expect("Should find struct");
 
@@ -58,14 +59,15 @@ fn main() {
     // Trying to insert a struct here would be invalid
 }
 "#;
-    
+
     let struct_content = "struct InvalidStruct { field: i32 }";
-    
+
     let func_tree = parser.parse("rust", function_code)?;
     let func_root = func_tree.root_node();
-    
+
     // Find the function node
-    let function_node = func_root.children(&mut func_root.walk())
+    let function_node = func_root
+        .children(&mut func_root.walk())
         .find(|n| n.kind() == "function_item")
         .expect("Should find function");
 

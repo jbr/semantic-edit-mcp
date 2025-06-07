@@ -220,13 +220,11 @@ impl NodeSelector {
                                         name,
                                     )
                                 }
-                                "enum_item" => {
-                                    crate::parsers::rust::RustParser::find_enum_by_name(
-                                        tree,
-                                        source_code,
-                                        name,
-                                    )
-                                }
+                                "enum_item" => crate::parsers::rust::RustParser::find_enum_by_name(
+                                    tree,
+                                    source_code,
+                                    name,
+                                ),
                                 _ => Err(anyhow!("Unsupported node type for name search: {}", nt)),
                             }
                         } else {

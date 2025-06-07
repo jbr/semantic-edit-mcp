@@ -1,8 +1,8 @@
-use crate::server::{Tool, ToolCallParams};
-use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
-use crate::validation::SyntaxValidator;
 use crate::editors::rust::RustEditor;
+use crate::operations::{EditOperation, NodeSelector};
+use crate::parsers::{TreeSitterParser, detect_language_from_path};
+use crate::server::{Tool, ToolCallParams};
+use crate::validation::SyntaxValidator;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
@@ -51,28 +51,33 @@ impl ToolRegistry {
             },
             Tool {
                 name: "insert_after_struct".to_string(),
-                description: "Insert content after a struct definition (safe structural boundary)".to_string(),
+                description: "Insert content after a struct definition (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_struct.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_enum".to_string(),
-                description: "Insert content after an enum definition (safe structural boundary)".to_string(),
+                description: "Insert content after an enum definition (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_enum.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_impl".to_string(),
-                description: "Insert content after an impl block (safe structural boundary)".to_string(),
+                description: "Insert content after an impl block (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_impl.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_function".to_string(),
-                description: "Insert content after a function definition (safe structural boundary)".to_string(),
+                description:
+                    "Insert content after a function definition (safe structural boundary)"
+                        .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_function.json"
                 ))?,
@@ -93,7 +98,7 @@ impl ToolRegistry {
         self.tools.clone()
     }
 
-        pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<String> {
+    pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<String> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
 
@@ -117,7 +122,7 @@ impl ToolRegistry {
 
 // Core tool implementations
 impl ToolRegistry {
-        async fn replace_node(&self, args: &Value) -> Result<String> {
+    async fn replace_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -150,12 +155,12 @@ impl ToolRegistry {
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
         let validation_result = validator.validate_insertion(
-            &tree, 
-            &source_code, 
-            &target_node, 
-            new_content, 
-            &language, 
-            &crate::validation::OperationType::Replace
+            &tree,
+            &source_code,
+            &target_node,
+            new_content,
+            &language,
+            &crate::validation::OperationType::Replace,
         )?;
 
         if !validation_result.is_valid {
@@ -172,10 +177,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -215,10 +221,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -228,7 +235,7 @@ impl ToolRegistry {
         ))
     }
 
-        async fn insert_after_node(&self, args: &Value) -> Result<String> {
+    async fn insert_after_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -260,12 +267,12 @@ impl ToolRegistry {
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
         let validation_result = validator.validate_insertion(
-            &tree, 
-            &source_code, 
-            &target_node, 
-            content, 
-            &language, 
-            &crate::validation::OperationType::InsertAfter
+            &tree,
+            &source_code,
+            &target_node,
+            content,
+            &language,
+            &crate::validation::OperationType::InsertAfter,
         )?;
 
         if !validation_result.is_valid {
@@ -282,10 +289,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -324,10 +332,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
@@ -372,7 +381,7 @@ impl ToolRegistry {
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
         }
     }
-    
+
     async fn validate_edit_context(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
@@ -414,16 +423,19 @@ impl ToolRegistry {
         // Perform context validation
         let validator = crate::validation::ContextValidator::new()?;
         let validation_result = validator.validate_insertion(
-            &tree, 
-            &source_code, 
-            &target_node, 
-            content, 
-            &language, 
-            &operation_type
+            &tree,
+            &source_code,
+            &target_node,
+            content,
+            &language,
+            &operation_type,
         )?;
 
         if validation_result.is_valid {
-            Ok("✅ Edit context validation passed - this placement is semantically valid".to_string())
+            Ok(
+                "✅ Edit context validation passed - this placement is semantically valid"
+                    .to_string(),
+            )
         } else {
             Ok(validation_result.format_errors())
         }
