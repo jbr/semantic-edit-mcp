@@ -1,4 +1,9 @@
 #![allow(dead_code)] // temporary, remove when no longer necessary
+#![allow(
+    clippy::collapsible_if,
+    reason = "let expressions in this position are unstable
+            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
+)]
 
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
@@ -98,170 +103,38 @@ impl SemanticEditServer {
             Tool {
                 name: "replace_node".to_string(),
                 description: "Replace an entire AST node with new content".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file"
-                        },
-                        "selector": {
-                            "type": "object",
-                            "description": "Node selector (by name, type, query, or position). RECOMMENDED: Use semantic selectors (name/type/query) for reliable targeting. Position-based selection may select unexpected small nodes.",
-                            "properties": {
-                                "type": {"type": "string", "description": "Node type (e.g., 'function_item') - RECOMMENDED for reliable selection"},
-                                "name": {"type": "string", "description": "Name of the node - RECOMMENDED for reliable selection"},
-                                "query": {"type": "string", "description": "Tree-sitter query - RECOMMENDED for precise selection"},
-                                "line": {"type": "number", "description": "⚠️  Line number (1-indexed) - May select small tokens, use with caution"},
-                                "column": {"type": "number", "description": "⚠️  Column number (1-indexed) - May select small tokens, use with caution"},
-                                "scope": {"type": "string", "description": "Optional scope hint for position selection: 'token' (default), 'expression', 'statement', 'item'"}
-                            }
-                        },
-                        "new_content": {
-                            "type": "string",
-                            "description": "New content to replace the node"
-                        }
-                    },
-                    "required": ["file_path", "selector", "new_content"]
-                }),
+                input_schema: serde_json::from_str(include_str!("../schemas/replace_node.json"))?,
             },
             Tool {
                 name: "insert_before_node".to_string(),
                 description: "Insert content before a specified AST node".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file"
-                        },
-                        "selector": {
-                            "type": "object",
-                            "description": "Node selector for the target node",
-                            "properties": {
-                                "type": {"type": "string", "description": "Node type - RECOMMENDED"},
-                                "name": {"type": "string", "description": "Node name - RECOMMENDED"},
-                                "query": {"type": "string", "description": "Tree-sitter query - RECOMMENDED"},
-                                "line": {"type": "number", "description": "⚠️  Line (1-indexed) - use with caution"},
-                                "column": {"type": "number", "description": "⚠️  Column (1-indexed) - use with caution"},
-                                "scope": {"type": "string", "description": "Scope hint: 'token', 'expression', 'statement', 'item'"}
-                            }
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Content to insert"
-                        }
-                    },
-                    "required": ["file_path", "selector", "content"]
-                }),
+                input_schema: serde_json::from_str(include_str!(
+                    "../schemas/insert_before_node.json"
+                ))?,
             },
             Tool {
                 name: "insert_after_node".to_string(),
                 description: "Insert content after a specified AST node".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file"
-                        },
-                        "selector": {
-                            "type": "object",
-                            "description": "Node selector for the target node",
-                            "properties": {
-                                "type": {"type": "string", "description": "Node type - RECOMMENDED"},
-                                "name": {"type": "string", "description": "Node name - RECOMMENDED"},
-                                "query": {"type": "string", "description": "Tree-sitter query - RECOMMENDED"},
-                                "line": {"type": "number", "description": "⚠️  Line (1-indexed) - use with caution"},
-                                "column": {"type": "number", "description": "⚠️  Column (1-indexed) - use with caution"},
-                                "scope": {"type": "string", "description": "Scope hint: 'token', 'expression', 'statement', 'item'"}
-                            }
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Content to insert"
-                        }
-                    },
-                    "required": ["file_path", "selector", "content"]
-                }),
+                input_schema: serde_json::from_str(include_str!(
+                    "../schemas/insert_after_node.json"
+                ))?,
             },
             Tool {
                 name: "wrap_node".to_string(),
                 description: "Wrap an AST node with new syntax".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file"
-                        },
-                        "selector": {
-                            "type": "object",
-                            "description": "Node selector for the target node",
-                            "properties": {
-                                "type": {"type": "string", "description": "Node type - RECOMMENDED"},
-                                "name": {"type": "string", "description": "Node name - RECOMMENDED"},
-                                "query": {"type": "string", "description": "Tree-sitter query - RECOMMENDED"},
-                                "line": {"type": "number", "description": "⚠️  Line (1-indexed) - use with caution"},
-                                "column": {"type": "number", "description": "⚠️  Column (1-indexed) - use with caution"},
-                                "scope": {"type": "string", "description": "Scope hint: 'token', 'expression', 'statement', 'item'"}
-                            }
-                        },
-                        "wrapper_template": {
-                            "type": "string",
-                            "description": "Template for wrapping (use {{content}} as placeholder)"
-                        }
-                    },
-                    "required": ["file_path", "selector", "wrapper_template"]
-                }),
+                input_schema: serde_json::from_str(include_str!("../schemas/wrap_node.json"))?,
             },
             Tool {
                 name: "validate_syntax".to_string(),
                 description: "Validate that a file or code snippet has correct syntax".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file (optional if content provided)"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Code content to validate (optional if file_path provided)"
-                        },
-                        "language": {
-                            "type": "string",
-                            "description": "Programming language (rust, typescript, etc.)",
-                            "default": "rust"
-                        }
-                    }
-                }),
+                input_schema: serde_json::from_str(include_str!(
+                    "../schemas/validate_syntax.json"
+                ))?,
             },
             Tool {
                 name: "get_node_info".to_string(),
                 description: "Get information about a node at a specific location".to_string(),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "file_path": {
-                            "type": "string",
-                            "description": "Path to the source file"
-                        },
-                        "selector": {
-                            "type": "object",
-                            "description": "Node selector",
-                            "properties": {
-                                "type": {"type": "string", "description": "Node type - RECOMMENDED"},
-                                "name": {"type": "string", "description": "Node name - RECOMMENDED"},
-                                "query": {"type": "string", "description": "Tree-sitter query - RECOMMENDED"},
-                                "line": {"type": "number", "description": "⚠️  Line (1-indexed) - use with caution"},
-                                "column": {"type": "number", "description": "⚠️  Column (1-indexed) - use with caution"},
-                                "scope": {"type": "string", "description": "Scope hint: 'token', 'expression', 'statement', 'item'"}
-                            }
-                        }
-                    },
-                    "required": ["file_path", "selector"]
-                }),
+                input_schema: serde_json::from_str(include_str!("../schemas/get_node_info.json"))?,
             },
         ];
 
@@ -418,11 +291,17 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("new_content is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let source_code = std::fs::read_to_string(file_path)?;
 
         let operation = EditOperation::Replace {
             target: selector,
             new_content: new_content.to_string(),
+            preview_only: Some(preview_only),
         };
 
         let language = detect_language_from_path(file_path)
@@ -430,18 +309,17 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        #[allow(
-            clippy::collapsible_if,
-            reason = "let expressions in this position are unstable
-            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
-        )]
-        if result.success {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
         }
 
-        Ok(format!("Replace operation result:\n{}", result.message))
+        let prefix = if preview_only { "PREVIEW: " } else { "" };
+        Ok(format!(
+            "{prefix}Replace operation result:\n{}",
+            result.message
+        ))
     }
 
     async fn insert_before_node(&self, args: &Value) -> Result<String> {
@@ -456,11 +334,17 @@ impl SemanticEditServer {
             .ok_or_else(|| anyhow!("content is required"))?;
 
         let selector = self.parse_selector(args.get("selector"))?;
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let source_code = std::fs::read_to_string(file_path)?;
 
         let operation = EditOperation::InsertBefore {
             target: selector,
             content: content.to_string(),
+            preview_only: Some(preview_only),
         };
 
         let language = detect_language_from_path(file_path)
@@ -468,19 +352,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        #[allow(
-            clippy::collapsible_if,
-            reason = "let expressions in this position are unstable
-            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
-        )]
-        if result.success {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
         }
 
+        let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "Insert before operation result:\n{}",
+            "{prefix}Insert before operation result:\n{}",
             result.message
         ))
     }
@@ -498,10 +378,15 @@ impl SemanticEditServer {
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let operation = EditOperation::InsertAfter {
             target: selector,
             content: content.to_string(),
+            preview_only: Some(preview_only),
         };
 
         let language = detect_language_from_path(file_path)
@@ -509,19 +394,15 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        #[allow(
-            clippy::collapsible_if,
-            reason = "let expressions in this position are unstable
-            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
-        )]
-        if result.success {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
         }
 
+        let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "Insert after operation result:\n{}",
+            "{prefix}Insert after operation result:\n{}",
             result.message
         ))
     }
@@ -539,10 +420,15 @@ impl SemanticEditServer {
 
         let selector = self.parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let operation = EditOperation::Wrap {
             target: selector,
             wrapper_template: wrapper_template.to_string(),
+            preview_only: Some(preview_only),
         };
 
         let language = detect_language_from_path(file_path)
@@ -550,18 +436,16 @@ impl SemanticEditServer {
 
         let result = operation.apply(&source_code, &language)?;
 
-        #[allow(
-            clippy::collapsible_if,
-            reason = "let expressions in this position are unstable
-            see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information"
-        )]
-        if result.success {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
         }
-
-        Ok(format!("Wrap operation result:\n{}", result.message))
+        let prefix = if preview_only { "PREVIEW: " } else { "" };
+        Ok(format!(
+            "{prefix}Wrap operation result:\n{}",
+            result.message
+        ))
     }
 
     async fn validate_syntax(&self, args: &Value) -> Result<String> {

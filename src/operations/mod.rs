@@ -41,21 +41,26 @@ pub enum EditOperation {
     Replace {
         target: NodeSelector,
         new_content: String,
+        preview_only: Option<bool>,
     },
     InsertBefore {
         target: NodeSelector,
         content: String,
+        preview_only: Option<bool>,
     },
     InsertAfter {
         target: NodeSelector,
         content: String,
+        preview_only: Option<bool>,
     },
     Wrap {
         target: NodeSelector,
         wrapper_template: String,
+        preview_only: Option<bool>,
     },
     Delete {
         target: NodeSelector,
+        preview_only: Option<bool>,
     },
 }
 
@@ -67,7 +72,81 @@ pub struct EditResult {
     pub affected_range: Option<(usize, usize)>,
 }
 
+#[derive(Debug, Clone)]
+pub struct NodeNotFoundError {
+    pub selector: NodeSelector,
+    pub suggestions: Vec<String>,
+    pub available_options: Vec<String>,
+}
+
+impl NodeNotFoundError {
+    pub fn new(selector: NodeSelector) -> Self {
+        Self {
+            selector,
+            suggestions: Vec::new(),
+            available_options: Vec::new(),
+        }
+    }
+
+    pub fn with_suggestions(mut self, suggestions: Vec<String>) -> Self {
+        self.suggestions = suggestions;
+        self
+    }
+
+    pub fn with_available_options(mut self, available_options: Vec<String>) -> Self {
+        self.available_options = available_options;
+        self
+    }
+
+    pub fn to_detailed_message(&self) -> String {
+        let mut message = match &self.selector {
+            NodeSelector::Name { name, node_type } => {
+                if let Some(nt) = node_type {
+                    format!("Node '{name}' of type '{nt}' not found")
+                } else {
+                    format!("Node '{name}' not found")
+                }
+            }
+            NodeSelector::Type { node_type } => {
+                format!("No nodes of type '{node_type}' found")
+            }
+            NodeSelector::Query { query } => {
+                format!("Query '{query}' returned no results")
+            }
+            NodeSelector::Position { line, column, .. } => {
+                format!("No suitable node found at position {line}:{column}")
+            }
+        };
+
+        if !self.available_options.is_empty() {
+            message.push_str(&format!(
+                "\n\nAvailable options: {}",
+                self.available_options.join(", ")
+            ));
+        }
+
+        if !self.suggestions.is_empty() {
+            message.push_str(&format!(
+                "\n\nDid you mean: {}",
+                self.suggestions.join(", ")
+            ));
+        }
+
+        message
+    }
+}
+
 impl EditOperation {
+    pub fn is_preview_only(&self) -> bool {
+        match self {
+            EditOperation::Replace { preview_only, .. } => preview_only.unwrap_or(false),
+            EditOperation::InsertBefore { preview_only, .. } => preview_only.unwrap_or(false),
+            EditOperation::InsertAfter { preview_only, .. } => preview_only.unwrap_or(false),
+            EditOperation::Wrap { preview_only, .. } => preview_only.unwrap_or(false),
+            EditOperation::Delete { preview_only, .. } => preview_only.unwrap_or(false),
+        }
+    }
+
     pub fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
         // This will be implemented in the specific language editors
         match language {
@@ -185,6 +264,142 @@ impl NodeSelector {
                 self.execute_query(tree, source_code, language, query)
             }
         }
+    }
+
+    pub fn find_node_with_suggestions<'a>(
+        &self,
+        tree: &'a tree_sitter::Tree,
+        source_code: &str,
+        language: &str,
+    ) -> Result<Option<Node<'a>>> {
+        match self.find_node(tree, source_code, language) {
+            Ok(Some(node)) => Ok(Some(node)),
+            Ok(None) => {
+                // Generate helpful suggestions and available options
+                let error = match language {
+                    "rust" => self.generate_rust_suggestions(tree, source_code),
+                    _ => NodeNotFoundError::new(self.clone()),
+                };
+                Err(anyhow!(error.to_detailed_message()))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn generate_rust_suggestions(
+        &self,
+        tree: &tree_sitter::Tree,
+        source_code: &str,
+    ) -> NodeNotFoundError {
+        let mut error = NodeNotFoundError::new(self.clone());
+
+        match self {
+            NodeSelector::Name { name, node_type } => {
+                // Get all available functions and structs for suggestions
+                let all_functions =
+                    crate::parsers::rust::RustParser::get_all_function_names(tree, source_code);
+                let all_structs =
+                    crate::parsers::rust::RustParser::get_all_struct_names(tree, source_code);
+
+                let mut available = Vec::new();
+                let mut suggestions = Vec::new();
+
+                if node_type.as_deref() == Some("function_item") || node_type.is_none() {
+                    available.extend(all_functions.iter().map(|f| format!("function: {f}")));
+                    suggestions.extend(Self::fuzzy_match(name, &all_functions));
+                }
+
+                if node_type.as_deref() == Some("struct_item") || node_type.is_none() {
+                    available.extend(all_structs.iter().map(|s| format!("struct: {s}")));
+                    suggestions.extend(Self::fuzzy_match(name, &all_structs));
+                }
+
+                error = error
+                    .with_available_options(available)
+                    .with_suggestions(suggestions);
+            }
+            NodeSelector::Type { node_type } => {
+                // List available node types
+                let available_types = Self::get_common_rust_node_types();
+                let suggestions = Self::fuzzy_match(node_type, &available_types);
+                error = error
+                    .with_available_options(available_types)
+                    .with_suggestions(suggestions);
+            }
+            _ => {}
+        }
+
+        error
+    }
+
+    fn fuzzy_match(input: &str, candidates: &[String]) -> Vec<String> {
+        let input_lower = input.to_lowercase();
+        let mut matches: Vec<_> = candidates
+            .iter()
+            .filter_map(|candidate| {
+                let candidate_lower = candidate.to_lowercase();
+                if candidate_lower.contains(&input_lower) {
+                    Some((candidate.clone(), 0)) // Exact substring match gets priority
+                } else if Self::levenshtein_distance(&input_lower, &candidate_lower) <= 2 {
+                    Some((candidate.clone(), 1)) // Close matches
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        matches.sort_by_key(|(_, priority)| *priority);
+        matches
+            .into_iter()
+            .map(|(candidate, _)| candidate)
+            .take(3)
+            .collect()
+    }
+
+    #[allow(clippy::needless_range_loop)]
+    fn levenshtein_distance(a: &str, b: &str) -> usize {
+        let a_chars: Vec<char> = a.chars().collect();
+        let b_chars: Vec<char> = b.chars().collect();
+        let mut dp = vec![vec![0; b_chars.len() + 1]; a_chars.len() + 1];
+
+        for i in 0..=a_chars.len() {
+            dp[i][0] = i;
+        }
+        for j in 0..=b_chars.len() {
+            dp[0][j] = j;
+        }
+
+        for i in 1..=a_chars.len() {
+            for j in 1..=b_chars.len() {
+                if a_chars[i - 1] == b_chars[j - 1] {
+                    dp[i][j] = dp[i - 1][j - 1];
+                } else {
+                    dp[i][j] = 1 + dp[i - 1][j].min(dp[i][j - 1]).min(dp[i - 1][j - 1]);
+                }
+            }
+        }
+
+        dp[a_chars.len()][b_chars.len()]
+    }
+
+    fn get_common_rust_node_types() -> Vec<String> {
+        vec![
+            "function_item".to_string(),
+            "struct_item".to_string(),
+            "impl_item".to_string(),
+            "enum_item".to_string(),
+            "mod_item".to_string(),
+            "use_declaration".to_string(),
+            "let_declaration".to_string(),
+            "expression_statement".to_string(),
+            "call_expression".to_string(),
+            "macro_invocation".to_string(),
+            "if_expression".to_string(),
+            "match_expression".to_string(),
+            "for_expression".to_string(),
+            "while_expression".to_string(),
+            "block".to_string(),
+        ]
     }
 
     fn execute_query<'a>(
