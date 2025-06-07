@@ -7,12 +7,14 @@
 
 A Model Context Protocol (MCP) server for semantic code editing using tree-sitter. This server provides safe, AST-aware code editing operations that preserve syntax structure and formatting.
 
-## Features
+## ✨ Features
 
 - **🔍 Semantic node targeting**: Find nodes by name, type, tree-sitter query, or position
 - **🛡️ Safe structural editing**: Replace, insert, wrap, or delete AST nodes while maintaining syntax
 - **✅ Syntax validation**: Validate code before and after edits to prevent breaking changes
 - **👁️ Preview mode**: Test operations safely with `preview_only: true` - see changes without applying them
+- **🎯 Specialized insertion tools**: Smart, safe insertion at structural boundaries
+- **💡 Enhanced error messages**: Intelligent suggestions and fuzzy matching for targeting mistakes
 - **🦀 Rust support**: Currently supports Rust with extensible architecture for more languages
 - **⚡ Transaction safety**: All edits are validated before being applied to files
 
@@ -40,7 +42,9 @@ The server communicates via JSON-RPC over stdin/stdout and provides the followin
 
 All editing tools support a `preview_only` parameter for safe testing:
 
-#### `replace_node`
+#### Core Editing Tools
+
+##### `replace_node`
 
 Replace an entire AST node with new content.
 
@@ -56,7 +60,7 @@ Replace an entire AST node with new content.
 }
 ```
 
-#### `insert_before_node` / `insert_after_node`
+##### `insert_before_node` / `insert_after_node`
 
 Insert content before or after a specified node.
 
@@ -72,7 +76,7 @@ Insert content before or after a specified node.
 }
 ```
 
-#### `wrap_node`
+##### `wrap_node`
 
 Wrap an existing node with new syntax.
 
@@ -88,7 +92,87 @@ Wrap an existing node with new syntax.
 }
 ```
 
-#### `validate_syntax`
+#### ✨ Specialized Insertion Tools (New!)
+
+These tools provide safer, more semantic insertion at structural boundaries:
+
+##### `insert_after_struct`
+
+Insert content after a struct definition.
+
+```json
+{
+  "file_path": "src/lib.rs",
+  "struct_name": "MyStruct",
+  "content": "impl Default for MyStruct {\n    fn default() -> Self {\n        Self::new()\n    }\n}",
+  "preview_only": true
+}
+```
+
+##### `insert_after_enum`
+
+Insert content after an enum definition.
+
+```json
+{
+  "file_path": "src/lib.rs", 
+  "enum_name": "Color",
+  "content": "impl Color {\n    fn is_primary(&self) -> bool {\n        matches!(self, Color::Red | Color::Blue | Color::Yellow)\n    }\n}",
+  "preview_only": false
+}
+```
+
+##### `insert_after_impl`
+
+Insert content after an impl block.
+
+```json
+{
+  "file_path": "src/lib.rs",
+  "impl_type": "MyStruct",
+  "content": "impl Display for MyStruct {\n    fn fmt(&self, f: &mut Formatter) -> fmt::Result {\n        write!(f, \"MyStruct\")\n    }\n}",
+  "preview_only": true
+}
+```
+
+##### `insert_after_function`
+
+Insert content after a function definition.
+
+```json
+{
+  "file_path": "src/lib.rs",
+  "function_name": "main",
+  "content": "fn helper_function() -> i32 {\n    42\n}",
+  "preview_only": false
+}
+```
+
+##### `insert_in_module`
+
+Smart module-level insertion with positioning control.
+
+```json
+{
+  "file_path": "src/lib.rs",
+  "content": "use std::collections::HashMap;",
+  "position": "start",
+  "preview_only": true
+}
+```
+
+```json
+{
+  "file_path": "src/lib.rs", 
+  "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n}",
+  "position": "end",
+  "preview_only": false
+}
+```
+
+#### Utility Tools
+
+##### `validate_syntax`
 
 Validate code syntax.
 
@@ -107,7 +191,7 @@ Or validate content directly:
 }
 ```
 
-#### `get_node_info`
+##### `get_node_info`
 
 Get information about a node at a specific location.
 
@@ -121,9 +205,9 @@ Get information about a node at a specific location.
 }
 ```
 
-## Preview Mode
+## 👁️ Preview Mode
 
-**New in this release!** All editing operations support a `preview_only` parameter for safe exploration:
+**Safe Testing**: All editing operations support a `preview_only` parameter:
 
 - **`preview_only: true`**: Shows what would happen without modifying files, output prefixed with "PREVIEW:"
 - **`preview_only: false`** (default): Actually applies the changes to files
@@ -145,7 +229,30 @@ This is perfect for:
 }
 ```
 
-## Node Selectors
+## 💡 Enhanced Error Messages
+
+Get intelligent error messages with suggestions when targeting fails:
+
+**Before:**
+```
+Error: Target node not found
+```
+
+**Now:**
+```
+Function 'mian' not found.
+
+Available options: function: main, function: add, function: multiply
+
+Did you mean: main
+```
+
+Features:
+- **Fuzzy matching**: Suggests corrections for typos ("mian" → "main", "Pointt" → "Point")
+- **Available options**: Lists all available functions, structs, enums, etc.
+- **Context-aware**: Different suggestions based on what you're looking for
+
+## 🎯 Node Selectors
 
 Node selectors allow you to target specific AST nodes using different strategies:
 
@@ -179,25 +286,40 @@ Node selectors allow you to target specific AST nodes using different strategies
 }
 ```
 
-## Architecture
+## 🏗️ Architecture
 
-The project is organized into several modules:
+The project is organized into focused modules:
 
+- **`server/`**: MCP protocol handling and server implementation
+- **`tools/`**: Tool registry and core implementations
+- **`specialized_tools/`**: Specialized insertion tools
 - **`parsers/`**: Tree-sitter integration and language-specific parsing
 - **`editors/`**: Language-specific editing logic (currently Rust)
 - **`operations/`**: Core edit operations and node selection
 - **`validation/`**: Syntax validation and error reporting
+- **`handlers/`**: Request handling logic
 - **`schemas/`**: JSON schemas for tool parameters
 
-## Safety Features
+## 🛡️ Safety Features
 
 1. **👁️ Preview Mode**: Test operations with `preview_only: true` before applying
 2. **✅ Syntax Validation**: All edits are validated before being applied
 3. **🎯 AST-Aware Positioning**: Edits respect semantic boundaries
 4. **⚡ Atomic Operations**: File changes are applied atomically
 5. **📐 Format Preservation**: Maintains indentation and structure context
+6. **💡 Smart Error Messages**: Intelligent suggestions help avoid mistakes
+7. **🔒 Specialized Tools**: Safe insertion at structural boundaries
 
-## Extending to New Languages
+## 🚀 Recent Improvements
+
+### Phase 1 Features (Completed)
+- ✅ **Preview Mode**: Safe testing for all operations
+- ✅ **Enhanced Error Messages**: Fuzzy matching and intelligent suggestions
+- ✅ **Specialized Insertion Tools**: 5 new tools for safer editing
+- ✅ **Architecture Refactoring**: Modular, maintainable codebase
+- ✅ **Extended Rust Support**: Comprehensive enum, impl, and module support
+
+## 🔮 Extending to New Languages
 
 To add support for a new language:
 
@@ -206,7 +328,7 @@ To add support for a new language:
 3. Create a new editor module in `src/editors/`
 4. Update the language detection and dispatch logic
 
-## Examples
+## 📚 Examples
 
 ### Preview a function replacement (safe testing)
 
@@ -225,35 +347,29 @@ To add support for a new language:
 }
 ```
 
-### Add documentation to a struct (actually apply changes)
+### Add a trait implementation after a struct
 
 ```json
 {
-  "name": "insert_before_node",
+  "name": "insert_after_struct",
   "arguments": {
     "file_path": "src/lib.rs",
-    "selector": {
-      "type": "struct_item",
-      "name": "MyStruct"
-    },
-    "content": "/// A well-documented struct\n/// \n/// This struct represents...",
+    "struct_name": "Point",
+    "content": "impl Display for Point {\n    fn fmt(&self, f: &mut Formatter) -> fmt::Result {\n        write!(f, \"({}, {})\", self.x, self.y)\n    }\n}",
     "preview_only": false
   }
 }
 ```
 
-### Test wrapping code in a conditional
+### Add tests at module level
 
 ```json
 {
-  "name": "wrap_node",
+  "name": "insert_in_module",
   "arguments": {
-    "file_path": "src/main.rs",
-    "selector": {
-      "line": 25,
-      "column": 4
-    },
-    "wrapper_template": "#[cfg(feature = \"advanced\")]\n{{content}}",
+    "file_path": "src/lib.rs",
+    "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_basic_functionality() {\n        assert!(true);\n    }\n}",
+    "position": "end",
     "preview_only": true
   }
 }
