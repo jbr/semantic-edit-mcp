@@ -15,18 +15,58 @@ impl RustEditor {
             EditOperation::Replace {
                 target,
                 new_content,
-            } => Self::replace_node(&tree, source_code, target, new_content),
-            EditOperation::InsertBefore { target, content } => {
-                Self::insert_before_node(&tree, source_code, target, content)
+                preview_only,
+            } => {
+                let mut result = Self::replace_node(&tree, source_code, target, new_content)?;
+                if preview_only.unwrap_or(false) {
+                    result.message = format!("PREVIEW: {}", result.message);
+                    // Don't modify the file in preview mode, but show what would happen
+                }
+                Ok(result)
             }
-            EditOperation::InsertAfter { target, content } => {
-                Self::insert_after_node(&tree, source_code, target, content)
+            EditOperation::InsertBefore {
+                target,
+                content,
+                preview_only,
+            } => {
+                let mut result = Self::insert_before_node(&tree, source_code, target, content)?;
+                if preview_only.unwrap_or(false) {
+                    result.message = format!("PREVIEW: {}", result.message);
+                }
+                Ok(result)
+            }
+            EditOperation::InsertAfter {
+                target,
+                content,
+                preview_only,
+            } => {
+                let mut result = Self::insert_after_node(&tree, source_code, target, content)?;
+                if preview_only.unwrap_or(false) {
+                    result.message = format!("PREVIEW: {}", result.message);
+                }
+                Ok(result)
             }
             EditOperation::Wrap {
                 target,
                 wrapper_template,
-            } => Self::wrap_node(&tree, source_code, target, wrapper_template),
-            EditOperation::Delete { target } => Self::delete_node(&tree, source_code, target),
+                preview_only,
+            } => {
+                let mut result = Self::wrap_node(&tree, source_code, target, wrapper_template)?;
+                if preview_only.unwrap_or(false) {
+                    result.message = format!("PREVIEW: {}", result.message);
+                }
+                Ok(result)
+            }
+            EditOperation::Delete {
+                target,
+                preview_only,
+            } => {
+                let mut result = Self::delete_node(&tree, source_code, target)?;
+                if preview_only.unwrap_or(false) {
+                    result.message = format!("PREVIEW: {}", result.message);
+                }
+                Ok(result)
+            }
         }
     }
 

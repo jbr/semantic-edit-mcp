@@ -1,0 +1,40 @@
+{
+    "type": "object",
+    "properties": {
+        "file_path": {
+            "type": "string",
+            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+        },
+        "selector": {
+            "type": "object",
+            "description": "Node selector",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "Node type - RECOMMENDED"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Node name - RECOMMENDED"
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Tree-sitter query - RECOMMENDED"
+                },
+                "line": {
+                    "type": "number",
+                    "description": "⚠️  Line (1-indexed) - use with caution"
+                },
+                "column": {
+                    "type": "number",
+                    "description": "⚠️  Column (1-indexed) - use with caution"
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "Scope hint: 'token', 'expression', 'statement', 'item'"
+                }
+            }
+        }
+    },
+    "required": ["file_path", "selector"]
+}

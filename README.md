@@ -9,11 +9,12 @@ A Model Context Protocol (MCP) server for semantic code editing using tree-sitte
 
 ## Features
 
-- **Semantic node targeting**: Find nodes by name, type, tree-sitter query, or position
-- **Safe structural editing**: Replace, insert, wrap, or delete AST nodes while maintaining syntax
-- **Syntax validation**: Validate code before and after edits to prevent breaking changes
-- **Multiple languages**: Currently supports Rust with extensible architecture for more languages
-- **Transaction safety**: All edits are validated before being applied to files
+- **🔍 Semantic node targeting**: Find nodes by name, type, tree-sitter query, or position
+- **🛡️ Safe structural editing**: Replace, insert, wrap, or delete AST nodes while maintaining syntax
+- **✅ Syntax validation**: Validate code before and after edits to prevent breaking changes
+- **👁️ Preview mode**: Test operations safely with `preview_only: true` - see changes without applying them
+- **🦀 Rust support**: Currently supports Rust with extensible architecture for more languages
+- **⚡ Transaction safety**: All edits are validated before being applied to files
 
 ## Installation
 
@@ -35,6 +36,10 @@ The server communicates via JSON-RPC over stdin/stdout and provides the followin
 
 ### Available Tools
 
+> **Note**: All tools currently support **Rust files only** (.rs files). Other languages will be added in future releases.
+
+All editing tools support a `preview_only` parameter for safe testing:
+
 #### `replace_node`
 
 Replace an entire AST node with new content.
@@ -46,7 +51,8 @@ Replace an entire AST node with new content.
     "type": "function_item",
     "name": "main"
   },
-  "new_content": "fn main() {\n    println!(\"Hello, semantic editing!\");\n}"
+  "new_content": "fn main() {\n    println!(\"Hello, semantic editing!\");\n}",
+  "preview_only": true
 }
 ```
 
@@ -61,7 +67,8 @@ Insert content before or after a specified node.
     "type": "function_item",
     "name": "existing_function"
   },
-  "content": "/// New documentation\n#[derive(Debug)]"
+  "content": "/// New documentation\n#[derive(Debug)]",
+  "preview_only": false
 }
 ```
 
@@ -76,7 +83,8 @@ Wrap an existing node with new syntax.
     "line": 42,
     "column": 10
   },
-  "wrapper_template": "if some_condition {\n    {{content}}\n}"
+  "wrapper_template": "if some_condition {\n    {{content}}\n}",
+  "preview_only": true
 }
 ```
 
@@ -113,6 +121,30 @@ Get information about a node at a specific location.
 }
 ```
 
+## Preview Mode
+
+**New in this release!** All editing operations support a `preview_only` parameter for safe exploration:
+
+- **`preview_only: true`**: Shows what would happen without modifying files, output prefixed with "PREVIEW:"
+- **`preview_only: false`** (default): Actually applies the changes to files
+
+This is perfect for:
+- Testing complex operations safely
+- Exploring AST structure and targeting
+- AI agents "thinking through" edits before applying them
+
+```json
+{
+  "name": "replace_node",
+  "arguments": {
+    "file_path": "src/main.rs",
+    "selector": {"name": "main"},
+    "new_content": "fn main() { println!(\"Testing!\"); }",
+    "preview_only": true
+  }
+}
+```
+
 ## Node Selectors
 
 Node selectors allow you to target specific AST nodes using different strategies:
@@ -125,7 +157,7 @@ Node selectors allow you to target specific AST nodes using different strategies
 }
 ```
 
-### By Name and Type
+### By Name and Type (Recommended)
 ```json
 {
   "type": "function_item",
@@ -140,7 +172,7 @@ Node selectors allow you to target specific AST nodes using different strategies
 }
 ```
 
-### By Tree-sitter Query
+### By Tree-sitter Query (Advanced)
 ```json
 {
   "query": "(function_item name: (identifier) @name (#eq? @name \"main\")) @function"
@@ -155,13 +187,15 @@ The project is organized into several modules:
 - **`editors/`**: Language-specific editing logic (currently Rust)
 - **`operations/`**: Core edit operations and node selection
 - **`validation/`**: Syntax validation and error reporting
+- **`schemas/`**: JSON schemas for tool parameters
 
 ## Safety Features
 
-1. **Syntax Validation**: All edits are validated before being applied
-2. **AST-Aware Positioning**: Edits respect semantic boundaries
-3. **Atomic Operations**: File changes are applied atomically
-4. **Format Preservation**: Maintains indentation and structure context
+1. **👁️ Preview Mode**: Test operations with `preview_only: true` before applying
+2. **✅ Syntax Validation**: All edits are validated before being applied
+3. **🎯 AST-Aware Positioning**: Edits respect semantic boundaries
+4. **⚡ Atomic Operations**: File changes are applied atomically
+5. **📐 Format Preservation**: Maintains indentation and structure context
 
 ## Extending to New Languages
 
@@ -174,7 +208,7 @@ To add support for a new language:
 
 ## Examples
 
-### Replace a function with error handling
+### Preview a function replacement (safe testing)
 
 ```json
 {
@@ -185,12 +219,13 @@ To add support for a new language:
       "type": "function_item",
       "name": "risky_operation"
     },
-    "new_content": "fn risky_operation() -> Result<(), Box<dyn Error>> {\n    // Safe implementation\n    Ok(())\n}"
+    "new_content": "fn risky_operation() -> Result<(), Box<dyn Error>> {\n    // Safe implementation\n    Ok(())\n}",
+    "preview_only": true
   }
 }
 ```
 
-### Add documentation to a struct
+### Add documentation to a struct (actually apply changes)
 
 ```json
 {
@@ -201,12 +236,13 @@ To add support for a new language:
       "type": "struct_item",
       "name": "MyStruct"
     },
-    "content": "/// A well-documented struct\n/// \n/// This struct represents..."
+    "content": "/// A well-documented struct\n/// \n/// This struct represents...",
+    "preview_only": false
   }
 }
 ```
 
-### Wrap code in a conditional
+### Test wrapping code in a conditional
 
 ```json
 {
@@ -217,7 +253,8 @@ To add support for a new language:
       "line": 25,
       "column": 4
     },
-    "wrapper_template": "#[cfg(feature = \"advanced\")]\n{{content}}"
+    "wrapper_template": "#[cfg(feature = \"advanced\")]\n{{content}}",
+    "preview_only": true
   }
 }
 ```
