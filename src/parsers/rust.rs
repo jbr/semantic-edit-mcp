@@ -145,7 +145,7 @@ impl RustParser {
         }
     }
 
-    pub fn get_all_function_names(tree: &Tree, source_code: &str) -> Vec<String> {
+        pub fn get_all_function_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (function_item
                 name: (identifier) @name) @function
@@ -158,12 +158,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -173,7 +173,7 @@ impl RustParser {
         }
     }
 
-    pub fn get_all_struct_names(tree: &Tree, source_code: &str) -> Vec<String> {
+        pub fn get_all_struct_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (struct_item
                 name: (type_identifier) @name) @struct
@@ -186,12 +186,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -200,7 +200,7 @@ impl RustParser {
             Vec::new()
         }
     }
-    pub fn get_all_enum_names(tree: &Tree, source_code: &str) -> Vec<String> {
+        pub fn get_all_enum_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (enum_item
                 name: (type_identifier) @name) @enum
@@ -213,12 +213,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -228,7 +228,7 @@ impl RustParser {
         }
     }
 
-    pub fn get_all_impl_types(tree: &Tree, source_code: &str) -> Vec<String> {
+        pub fn get_all_impl_types(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (impl_item
                 type: (type_identifier) @type_name) @impl
@@ -241,12 +241,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("type_name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("type_name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
@@ -256,7 +256,7 @@ impl RustParser {
         }
     }
 
-    pub fn get_all_mod_names(tree: &Tree, source_code: &str) -> Vec<String> {
+        pub fn get_all_mod_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (mod_item
                 name: (identifier) @name) @mod
@@ -269,12 +269,12 @@ impl RustParser {
             let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
             while let Some(m) = matches.next() {
                 for capture in m.captures {
-                    if let Some(name_index) = query.capture_index_for_name("name")
-                        && capture.index == name_index
-                    {
-                        let name_text =
-                            &source_code[capture.node.start_byte()..capture.node.end_byte()];
-                        names.push(name_text.to_string());
+                    if let Some(name_index) = query.capture_index_for_name("name") {
+                        if capture.index == name_index {
+                            let name_text =
+                                &source_code[capture.node.start_byte()..capture.node.end_byte()];
+                            names.push(name_text.to_string());
+                        }
                     }
                 }
             }
