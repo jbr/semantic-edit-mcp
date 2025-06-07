@@ -5,6 +5,9 @@
 > ([jbr](https://github.com/jbr)) review every line, the code quality is not necessarily identical
 > to what I would have written. Caveat usor.
 
+> [!IMPORTANT]
+> **FOR AI ASSISTANTS**: You cannot test changes to this MCP server without asking the user to restart Claude Desktop first. The MCP server must be recompiled and reloaded to test any code changes. Always pause and ask the user to restart Claude Desktop before attempting to test modifications.
+
 A Model Context Protocol (MCP) server for semantic code editing using tree-sitter. This server provides safe, AST-aware code editing operations that preserve syntax structure and formatting.
 
 ## ✨ Features
