@@ -1,10 +1,10 @@
 use crate::editors::rust::RustEditor;
 use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{TreeSitterParser, detect_language_from_path};
+use crate::parsers::{detect_language_from_path, TreeSitterParser};
 use crate::server::{Tool, ToolCallParams};
 use crate::validation::SyntaxValidator;
-use anyhow::{Result, anyhow};
-use serde_json::{Value, json};
+use anyhow::{anyhow, Result};
+use serde_json::{json, Value};
 
 pub struct ToolRegistry {
     tools: Vec<Tool>,
@@ -141,8 +141,15 @@ impl ToolRegistry {
 
         let source_code = std::fs::read_to_string(file_path)?;
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
 
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
@@ -154,18 +161,21 @@ impl ToolRegistry {
 
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
-        let validation_result = validator.validate_insertion(
-            &tree,
-            &source_code,
-            &target_node,
-            new_content,
-            &language,
-            &crate::validation::OperationType::Replace,
-        )?;
 
-        if !validation_result.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                new_content,
+                &language,
+                &crate::validation::OperationType::Replace,
+            )?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
         }
 
         // Continue with existing logic if validation passes
@@ -177,16 +187,30 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                // Validate syntax before writing
+                match SyntaxValidator::validate_and_write(
+                    file_path,
+                    new_code,
+                    &language,
+                    preview_only,
+                ) {
+                    Ok(msg) if msg.contains("❌") => return Ok(msg),
+                    Ok(_) => {} // Success, continue
+                    Err(e) => return Err(e),
+                }
+            }
         }
 
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Replace operation result:\n{}",
+            "{prefix}Replace operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -210,27 +234,74 @@ impl ToolRegistry {
 
         let source_code = std::fs::read_to_string(file_path)?;
 
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Find the target node
+        let target_node = selector
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // Context validation using tree-sitter queries
+        let validator = crate::validation::ContextValidator::new()?;
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                content,
+                &language,
+                &crate::validation::OperationType::InsertBefore,
+            )?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
+        }
+
         let operation = EditOperation::InsertBefore {
             target: selector,
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                // Validate syntax before writing
+                match SyntaxValidator::validate_and_write(
+                    file_path,
+                    new_code,
+                    &language,
+                    preview_only,
+                ) {
+                    Ok(msg) if msg.contains("❌") => return Ok(msg),
+                    Ok(_) => {} // Success, continue
+                    Err(e) => return Err(e),
+                }
+            }
         }
 
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Insert before operation result:\n{}",
+            "{prefix}Insert before operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -253,8 +324,15 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
 
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
@@ -266,18 +344,20 @@ impl ToolRegistry {
 
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
-        let validation_result = validator.validate_insertion(
-            &tree,
-            &source_code,
-            &target_node,
-            content,
-            &language,
-            &crate::validation::OperationType::InsertAfter,
-        )?;
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                content,
+                &language,
+                &crate::validation::OperationType::InsertAfter,
+            )?;
 
-        if !validation_result.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
         }
 
         // Continue with existing logic if validation passes
@@ -289,16 +369,31 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                // Validate syntax before writing
+                match SyntaxValidator::validate_and_write(
+                    file_path,
+                    new_code,
+                    &language,
+                    preview_only,
+                ) {
+                    Ok(msg) if msg.contains("❌") => return Ok(msg),
+                    Ok(_) => {} // Success, continue
+                    Err(e) => return Err(e),
+                }
+            }
         }
+
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Insert after operation result:\n{}",
+            "{prefix}Insert after operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -321,26 +416,75 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Find the target node
+        let target_node = selector
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // Context validation using tree-sitter queries
+        let validator = crate::validation::ContextValidator::new()?;
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                wrapper_template,
+                &language,
+                &crate::validation::OperationType::Wrap,
+            )?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
+        }
+
         let operation = EditOperation::Wrap {
             target: selector,
             wrapper_template: wrapper_template.to_string(),
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+        if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                // Validate syntax before writing
+                match SyntaxValidator::validate_and_write(
+                    file_path,
+                    new_code,
+                    &language,
+                    preview_only,
+                ) {
+                    Ok(msg) if msg.contains("❌") => return Ok(msg),
+                    Ok(_) => {} // Success, continue
+                    Err(e) => return Err(e),
+                }
+            }
         }
+
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
+
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Wrap operation result:\n{}",
+            "{prefix}Wrap operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -370,9 +514,32 @@ impl ToolRegistry {
         let selector = Self::parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
 
+        // For new multi-language support, use the language registry
+        if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+            if let Some(lang_support) = registry.get_language(&language) {
+                // Use the new language-specific editor
+                let mut parser = tree_sitter::Parser::new();
+                parser.set_language(&lang_support.tree_sitter_language())?;
+                let tree = parser
+                    .parse(&source_code, None)
+                    .ok_or_else(|| anyhow!("Failed to parse {} code", language))?;
+
+                let editor = lang_support.editor();
+                return editor.get_node_info(&tree, &source_code, &selector);
+            }
+        }
+
+        // Fallback to old Rust-only logic
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
 
@@ -422,6 +589,11 @@ impl ToolRegistry {
 
         // Perform context validation
         let validator = crate::validation::ContextValidator::new()?;
+        if !validator.supports_language(&language) {
+            return Ok(format!(
+                "ℹ️ Context validation is not available for {language} files. Only syntax validation is supported for this language.",
+            ));
+        }
         let validation_result = validator.validate_insertion(
             &tree,
             &source_code,

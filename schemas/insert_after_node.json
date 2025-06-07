@@ -3,7 +3,7 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+            "description": "Path to the source file. Supports Rust (.rs), JSON (.json), and other languages."
         },
         "selector": {
             "type": "object",
@@ -43,6 +43,11 @@
             "type": "boolean",
             "description": "If true, show preview of changes without writing to file",
             "default": false
+        },
+        "language": {
+            "type": "string",
+            "description": "Optional language hint (e.g., 'rust', 'json', 'toml'). If not provided, language will be detected from file extension.",
+            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"]
         }
     },
     "required": ["file_path", "selector", "content"]

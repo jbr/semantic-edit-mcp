@@ -1,6 +1,6 @@
 pub mod rust;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use tree_sitter::{Node, Parser, Tree};
 
@@ -16,6 +16,11 @@ impl TreeSitterParser {
         let mut rust_parser = Parser::new();
         rust_parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
         parsers.insert("rust".to_string(), rust_parser);
+
+        // Initialize JSON parser
+        let mut json_parser = Parser::new();
+        json_parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
+        parsers.insert("json".to_string(), json_parser);
 
         // TODO: Add more languages as needed
         // let mut ts_parser = Parser::new();
@@ -42,16 +47,23 @@ impl TreeSitterParser {
 }
 
 pub fn detect_language_from_path(file_path: &str) -> Option<String> {
-    if let Some(extension) = std::path::Path::new(file_path).extension() {
-        match extension.to_str()? {
-            "rs" => Some("rust".to_string()),
-            "ts" | "tsx" => Some("typescript".to_string()),
-            "js" | "jsx" => Some("javascript".to_string()),
-            "py" => Some("python".to_string()),
-            _ => None,
-        }
+    // Use the new language registry for detection
+    if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+        registry.detect_language_from_path(file_path)
     } else {
-        None
+        // Fallback to the old logic if registry fails
+        if let Some(extension) = std::path::Path::new(file_path).extension() {
+            match extension.to_str()? {
+                "rs" => Some("rust".to_string()),
+                "json" => Some("json".to_string()),
+                "ts" | "tsx" => Some("typescript".to_string()),
+                "js" | "jsx" => Some("javascript".to_string()),
+                "py" => Some("python".to_string()),
+                _ => None,
+            }
+        } else {
+            None
+        }
     }
 }
 
