@@ -122,7 +122,7 @@ impl ToolRegistry {
 
 // Core tool implementations
 impl ToolRegistry {
-    async fn replace_node(&self, args: &Value) -> Result<String> {
+        async fn replace_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -141,8 +141,13 @@ impl ToolRegistry {
 
         let source_code = std::fs::read_to_string(file_path)?;
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| anyhow!("Unable to detect language from file path and no language hint provided"))?;
 
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
@@ -177,7 +182,7 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-                if result.success && !preview_only {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
@@ -190,7 +195,7 @@ impl ToolRegistry {
         ))
     }
 
-    async fn insert_before_node(&self, args: &Value) -> Result<String> {
+        async fn insert_before_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -215,12 +220,17 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| anyhow!("Unable to detect language from file path and no language hint provided"))?;
 
         let result = operation.apply(&source_code, &language)?;
 
-                if result.success && !preview_only {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
@@ -233,7 +243,7 @@ impl ToolRegistry {
         ))
     }
 
-    async fn insert_after_node(&self, args: &Value) -> Result<String> {
+        async fn insert_after_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -251,8 +261,13 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| anyhow!("Unable to detect language from file path and no language hint provided"))?;
 
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
@@ -287,7 +302,7 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-                if result.success && !preview_only {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
@@ -300,7 +315,7 @@ impl ToolRegistry {
         ))
     }
 
-    async fn wrap_node(&self, args: &Value) -> Result<String> {
+        async fn wrap_node(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -324,12 +339,17 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| anyhow!("Unable to detect language from file path and no language hint provided"))?;
 
         let result = operation.apply(&source_code, &language)?;
 
-                if result.success && !preview_only {
+        if result.success && !preview_only {
             if let Some(new_code) = &result.new_content {
                 std::fs::write(file_path, new_code)?;
             }
@@ -357,7 +377,7 @@ impl ToolRegistry {
         }
     }
 
-    async fn get_node_info(&self, args: &Value) -> Result<String> {
+        async fn get_node_info(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -366,9 +386,29 @@ impl ToolRegistry {
         let selector = Self::parse_selector(args.get("selector"))?;
         let source_code = std::fs::read_to_string(file_path)?;
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| anyhow!("Unable to detect language from file path and no language hint provided"))?;
 
+        // For new multi-language support, use the language registry
+        if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+            if let Some(lang_support) = registry.get_language(&language) {
+                // Use the new language-specific editor
+                let mut parser = tree_sitter::Parser::new();
+                parser.set_language(&lang_support.tree_sitter_language())?;
+                let tree = parser.parse(&source_code, None)
+                    .ok_or_else(|| anyhow!("Failed to parse {} code", language))?;
+                
+                let editor = lang_support.editor();
+                return editor.get_node_info(&tree, &source_code, &selector);
+            }
+        }
+        
+        // Fallback to old Rust-only logic
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
 
