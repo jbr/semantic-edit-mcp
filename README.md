@@ -23,6 +23,8 @@ A Model Context Protocol (MCP) server for semantic code editing using tree-sitte
 
 ## Installation
 
+This project only builds on nightly rust because we use [let chains](https://github.com/rust-lang/rust/issues/53667)
+
 ```bash
 cargo install semantic-edit-mcp
 ```

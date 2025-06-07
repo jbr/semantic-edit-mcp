@@ -252,14 +252,6 @@ impl ToolRegistry {
         let operation = if position == "start" {
             // Strategy for "start": Insert after the last use statement, or after any top-level attributes/comments
 
-            // First, try to find the last use statement
-            let use_query = NodeSelector::Query {
-                query: r#"
-                    (source_file (use_declaration) @use)
-                "#
-                .to_string(),
-            };
-
             // Get all use statements and find the last one
             let language_obj = tree_sitter_rust::LANGUAGE.into();
             let query =
@@ -275,7 +267,8 @@ impl ToolRegistry {
                 }
             }
 
-            if let Some(use_node) = last_use_node {
+            // TODO(jbr): either use this _use_node variable or change to .is_some()
+            if let Some(_use_node) = last_use_node {
                 // Insert after the last use statement
                 EditOperation::InsertAfter {
                     target: NodeSelector::Query {
@@ -358,7 +351,6 @@ impl ToolRegistry {
             if let Some(last_node) = last_item_node {
                 // Insert after the last item by finding its specific type and name
                 let node_kind = last_node.kind();
-                let node_text = &source_code[last_node.start_byte()..last_node.end_byte()];
 
                 // For functions, structs, etc., we can target them specifically
                 match node_kind {
@@ -424,7 +416,7 @@ impl ToolRegistry {
                 let new_content = if source_code.trim().is_empty() {
                     content.to_string()
                 } else {
-                    format!("{}\n\n{}", source_code.trim_end(), content)
+                    format!("{}\n\n{content}", source_code.trim_end())
                 };
 
                 if !preview_only {
