@@ -1,5 +1,5 @@
 use crate::parsers::TreeSitterParser;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator, Tree};
 
@@ -53,13 +53,13 @@ pub enum OperationType {
 
 impl ContextValidator {
     pub fn new() -> Result<Self> {
+        // Only initialize validation for languages we support
         let mut validation_queries = HashMap::new();
         let mut language_objects = HashMap::new();
 
         // Initialize Rust support
         let rust_lang = tree_sitter_rust::LANGUAGE.into();
         let rust_query = Self::load_validation_query("rust", &rust_lang)?;
-
         language_objects.insert("rust".to_string(), rust_lang);
         validation_queries.insert("rust".to_string(), rust_query);
 
@@ -67,6 +67,10 @@ impl ContextValidator {
             validation_queries,
             language_objects,
         })
+    }
+
+    pub fn supports_language(&self, language: &str) -> bool {
+        self.validation_queries.contains_key(language)
     }
 
     fn load_validation_query(language: &str, lang_obj: &Language) -> Result<Query> {

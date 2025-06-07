@@ -161,18 +161,21 @@ impl ToolRegistry {
 
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
-        let validation_result = validator.validate_insertion(
-            &tree,
-            &source_code,
-            &target_node,
-            new_content,
-            &language,
-            &crate::validation::OperationType::Replace,
-        )?;
 
-        if !validation_result.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                new_content,
+                &language,
+                &crate::validation::OperationType::Replace,
+            )?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
         }
 
         // Continue with existing logic if validation passes
@@ -200,9 +203,14 @@ impl ToolRegistry {
             }
         }
 
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Replace operation result:\n{}",
+            "{prefix}Replace operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -305,18 +313,20 @@ impl ToolRegistry {
 
         // NEW: Context validation using tree-sitter queries
         let validator = crate::validation::ContextValidator::new()?;
-        let validation_result = validator.validate_insertion(
-            &tree,
-            &source_code,
-            &target_node,
-            content,
-            &language,
-            &crate::validation::OperationType::InsertAfter,
-        )?;
+        if validator.supports_language(&language) {
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                content,
+                &language,
+                &crate::validation::OperationType::InsertAfter,
+            )?;
 
-        if !validation_result.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
         }
 
         // Continue with existing logic if validation passes
@@ -344,9 +354,15 @@ impl ToolRegistry {
             }
         }
 
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
+
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
-            "{prefix}Insert after operation result:\n{}",
+            "{prefix}Insert after operation result ({validation_note}):\n{}",
             result.message
         ))
     }
@@ -509,6 +525,11 @@ impl ToolRegistry {
 
         // Perform context validation
         let validator = crate::validation::ContextValidator::new()?;
+        if !validator.supports_language(&language) {
+            return Ok(format!(
+                "ℹ️ Context validation is not available for {language} files. Only syntax validation is supported for this language.",
+            ));
+        }
         let validation_result = validator.validate_insertion(
             &tree,
             &source_code,
