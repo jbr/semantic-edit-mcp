@@ -1,6 +1,6 @@
-use crate::tools::ToolRegistry;
 use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
+use crate::parsers::{TreeSitterParser, detect_language_from_path};
+use crate::tools::ToolRegistry;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
@@ -45,10 +45,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -97,10 +98,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -155,10 +157,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -207,10 +210,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -220,7 +224,7 @@ impl ToolRegistry {
         ))
     }
 
-        pub async fn insert_in_module(&self, args: &Value) -> Result<String> {
+    pub async fn insert_in_module(&self, args: &Value) -> Result<String> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -247,20 +251,22 @@ impl ToolRegistry {
 
         let operation = if position == "start" {
             // Strategy for "start": Insert after the last use statement, or after any top-level attributes/comments
-            
+
             // First, try to find the last use statement
             let use_query = NodeSelector::Query {
                 query: r#"
                     (source_file (use_declaration) @use)
-                "#.to_string(),
+                "#
+                .to_string(),
             };
-            
+
             // Get all use statements and find the last one
             let language_obj = tree_sitter_rust::LANGUAGE.into();
-            let query = tree_sitter::Query::new(&language_obj, "(source_file (use_declaration) @use)")?;
+            let query =
+                tree_sitter::Query::new(&language_obj, "(source_file (use_declaration) @use)")?;
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut last_use_node = None;
-            
+
             for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
                 for capture in m.captures {
                     if capture.index == query.capture_index_for_name("use").unwrap() {
@@ -268,14 +274,12 @@ impl ToolRegistry {
                     }
                 }
             }
-            
+
             if let Some(use_node) = last_use_node {
                 // Insert after the last use statement
                 EditOperation::InsertAfter {
                     target: NodeSelector::Query {
-                        query: format!(
-                            r#"(use_declaration) @target"#
-                        ),
+                        query: r#"(use_declaration) @target"#.to_string(),
                     },
                     content: format!("\n{content}"),
                     preview_only: Some(preview_only),
@@ -296,11 +300,11 @@ impl ToolRegistry {
                             (trait_item) @item
                         ])
                 "#;
-                
+
                 let selector = NodeSelector::Query {
                     query: first_item_query.to_string(),
                 };
-                
+
                 match selector.find_node(&tree, &source_code, "rust")? {
                     Some(_) => EditOperation::InsertBefore {
                         target: selector,
@@ -336,13 +340,13 @@ impl ToolRegistry {
                         (use_declaration) @item
                     ])
             "#;
-            
+
             // Find all top-level items and get the last one
             let language_obj = tree_sitter_rust::LANGUAGE.into();
             let query = tree_sitter::Query::new(&language_obj, last_item_query)?;
             let mut cursor = tree_sitter::QueryCursor::new();
             let mut last_item_node = None;
-            
+
             for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
                 for capture in m.captures {
                     if capture.index == query.capture_index_for_name("item").unwrap() {
@@ -350,12 +354,12 @@ impl ToolRegistry {
                     }
                 }
             }
-            
+
             if let Some(last_node) = last_item_node {
                 // Insert after the last item by finding its specific type and name
                 let node_kind = last_node.kind();
                 let node_text = &source_code[last_node.start_byte()..last_node.end_byte()];
-                
+
                 // For functions, structs, etc., we can target them specifically
                 match node_kind {
                     "function_item" => {
@@ -374,15 +378,15 @@ impl ToolRegistry {
                             // Fallback to generic query
                             EditOperation::InsertAfter {
                                 target: NodeSelector::Query {
-                                    query: format!("({}) @target", node_kind),
+                                    query: format!("({node_kind}) @target"),
                                 },
                                 content: format!("\n{content}"),
                                 preview_only: Some(preview_only),
                             }
                         }
-                    },
+                    }
                     "struct_item" | "enum_item" => {
-                        // Extract type name for precise targeting  
+                        // Extract type name for precise targeting
                         if let Some(name_node) = last_node.child_by_field_name("name") {
                             let name = &source_code[name_node.start_byte()..name_node.end_byte()];
                             EditOperation::InsertAfter {
@@ -396,18 +400,18 @@ impl ToolRegistry {
                         } else {
                             EditOperation::InsertAfter {
                                 target: NodeSelector::Query {
-                                    query: format!("({}) @target", node_kind),
+                                    query: format!("({node_kind}) @target"),
                                 },
                                 content: format!("\n{content}"),
                                 preview_only: Some(preview_only),
                             }
                         }
-                    },
+                    }
                     _ => {
                         // For other items, use a generic approach
                         EditOperation::InsertAfter {
                             target: NodeSelector::Query {
-                                query: format!("({}) @target", node_kind),
+                                query: format!("({node_kind}) @target"),
                             },
                             content: format!("\n{content}"),
                             preview_only: Some(preview_only),
@@ -422,11 +426,11 @@ impl ToolRegistry {
                 } else {
                     format!("{}\n\n{}", source_code.trim_end(), content)
                 };
-                
+
                 if !preview_only {
                     std::fs::write(file_path, &new_content)?;
                 }
-                
+
                 let prefix = if preview_only { "PREVIEW: " } else { "" };
                 return Ok(format!(
                     "{prefix}Insert in module operation result:\nSuccessfully appended content to end of file"
@@ -439,10 +443,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };

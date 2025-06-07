@@ -2,7 +2,7 @@ use crate::parsers::{TreeSitterParser, detect_language_from_path};
 use anyhow::{Result, anyhow};
 
 mod context_validator;
-pub use context_validator::{ContextValidator, ValidationResult, ContextViolation, OperationType};
+pub use context_validator::{ContextValidator, OperationType};
 
 pub struct SyntaxValidator;
 

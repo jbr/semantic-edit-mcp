@@ -1,5 +1,4 @@
-use crate::server::{Tool, McpResponse};
-use anyhow::Result;
+use crate::server::{McpResponse, Tool};
 use serde_json::{Value, json};
 
 pub struct RequestHandler;
