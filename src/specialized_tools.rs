@@ -46,11 +46,10 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+                if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -99,11 +98,10 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+                if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -158,11 +156,10 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+                if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -211,11 +208,10 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+                if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -438,11 +434,10 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success
-            && !preview_only
-            && let Some(new_code) = &result.new_content
-        {
-            std::fs::write(file_path, new_code)?;
+                if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                std::fs::write(file_path, new_code)?;
+            }
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
