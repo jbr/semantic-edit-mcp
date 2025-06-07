@@ -1,6 +1,6 @@
 pub mod rust;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use tree_sitter::{Node, Parser, Tree};
 
@@ -9,7 +9,7 @@ pub struct TreeSitterParser {
 }
 
 impl TreeSitterParser {
-        pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let mut parsers = HashMap::new();
 
         // Initialize Rust parser

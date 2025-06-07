@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, StreamingIterator};
 
@@ -147,7 +147,7 @@ impl EditOperation {
         }
     }
 
-        pub fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
+    pub fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
         // Try to use the new language registry first
         if let Ok(registry) = crate::languages::LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(language) {
@@ -155,7 +155,7 @@ impl EditOperation {
                 return editor.apply_operation(self, source_code);
             }
         }
-        
+
         // Fallback to old Rust-only logic
         match language {
             "rust" => crate::editors::rust::RustEditor::apply_operation(self, source_code),
@@ -165,7 +165,7 @@ impl EditOperation {
 }
 
 impl NodeSelector {
-        pub fn find_node<'a>(
+    pub fn find_node<'a>(
         &self,
         tree: &'a tree_sitter::Tree,
         source_code: &str,
@@ -175,7 +175,7 @@ impl NodeSelector {
         if let Ok(registry) = crate::languages::LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(language) {
                 let parser = lang_support.parser();
-                
+
                 match self {
                     NodeSelector::Position {
                         line,
@@ -226,9 +226,11 @@ impl NodeSelector {
                                 "markdown" => vec!["atx_heading", "fenced_code_block"],
                                 _ => vec!["function_item", "struct_item"], // fallback
                             };
-                            
+
                             for nt in node_types {
-                                if let Ok(Some(node)) = parser.find_by_name(tree, source_code, nt, name) {
+                                if let Ok(Some(node)) =
+                                    parser.find_by_name(tree, source_code, nt, name)
+                                {
                                     return Ok(Some(node));
                                 }
                             }
@@ -246,7 +248,7 @@ impl NodeSelector {
                 }
             }
         }
-        
+
         // Fallback to old Rust-only logic
         match self {
             NodeSelector::Position {

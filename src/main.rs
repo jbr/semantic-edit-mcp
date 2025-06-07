@@ -2,6 +2,7 @@
 
 mod editors;
 mod handlers;
+mod languages;
 mod operations;
 mod parsers;
 mod server;
@@ -9,7 +10,6 @@ mod server_impl;
 mod specialized_tools;
 mod tools;
 mod validation;
-mod languages;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};

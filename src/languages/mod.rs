@@ -1,11 +1,11 @@
+pub mod json;
+pub mod query_parser;
 pub mod traits;
 pub mod utils;
-pub mod query_parser;
-pub mod json;
 
 // Re-export key types for easier access
-pub use traits::LanguageSupport;
 pub use query_parser::QueryBasedParser;
+pub use traits::LanguageSupport;
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -18,22 +18,22 @@ pub struct LanguageRegistry {
 impl LanguageRegistry {
     pub fn new() -> Result<Self> {
         let mut languages: HashMap<String, Box<dyn LanguageSupport>> = HashMap::new();
-        
+
         // Register JSON language
         languages.insert("json".to_string(), Box::new(json::JsonLanguage::new()?));
-        
+
         // TODO: Register other languages here as we implement them
         // languages.insert("toml".to_string(), Box::new(TomlLanguage::new()?));
         // languages.insert("markdown".to_string(), Box::new(MarkdownLanguage::new()?));
         // languages.insert("rust".to_string(), Box::new(RustLanguage::new()?));
-        
+
         Ok(Self { languages })
     }
-    
+
     pub fn get_language(&self, name: &str) -> Option<&dyn LanguageSupport> {
         self.languages.get(name).map(|l| l.as_ref())
     }
-    
+
     pub fn detect_language_from_path(&self, file_path: &str) -> Option<String> {
         if let Some(extension) = std::path::Path::new(file_path).extension() {
             match extension.to_str()? {
@@ -50,7 +50,7 @@ impl LanguageRegistry {
             None
         }
     }
-    
+
     pub fn supported_languages(&self) -> Vec<&String> {
         self.languages.keys().collect()
     }

@@ -1,7 +1,7 @@
 use crate::languages::traits::LanguageEditor;
 use crate::operations::{EditOperation, EditResult, NodeSelector};
 use crate::parsers::get_node_text;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use ropey::Rope;
 use tree_sitter::{Node, Tree};
 
@@ -11,11 +11,12 @@ impl JsonEditor {
     pub fn new() -> Self {
         Self
     }
-    
+
     fn apply_json_operation(operation: &EditOperation, source_code: &str) -> Result<EditResult> {
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
-        let tree = parser.parse(source_code, None)
+        let tree = parser
+            .parse(source_code, None)
             .ok_or_else(|| anyhow!("Failed to parse JSON"))?;
 
         match operation {
@@ -35,7 +36,8 @@ impl JsonEditor {
                 content,
                 preview_only,
             } => {
-                let mut result = Self::insert_before_json_node(&tree, source_code, target, content)?;
+                let mut result =
+                    Self::insert_before_json_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -57,7 +59,8 @@ impl JsonEditor {
                 wrapper_template,
                 preview_only,
             } => {
-                let mut result = Self::wrap_json_node(&tree, source_code, target, wrapper_template)?;
+                let mut result =
+                    Self::wrap_json_node(&tree, source_code, target, wrapper_template)?;
                 if preview_only.unwrap_or(false) {
                     result.message = format!("PREVIEW: {}", result.message);
                 }
@@ -239,7 +242,11 @@ impl JsonEditor {
         })
     }
 
-    fn delete_json_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
+    fn delete_json_node(
+        tree: &Tree,
+        source_code: &str,
+        selector: &NodeSelector,
+    ) -> Result<EditResult> {
         let node = selector
             .find_node(tree, source_code, "json")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
@@ -268,7 +275,11 @@ impl JsonEditor {
         })
     }
 
-    fn validate_json_replacement(original_code: &str, node: &Node, replacement: &str) -> Result<bool> {
+    fn validate_json_replacement(
+        original_code: &str,
+        node: &Node,
+        replacement: &str,
+    ) -> Result<bool> {
         let rope = Rope::from_str(original_code);
         let start_char = rope.byte_to_char(node.start_byte());
         let end_char = rope.byte_to_char(node.end_byte());
@@ -282,7 +293,7 @@ impl JsonEditor {
         // Parse and check for JSON syntax errors
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
-        
+
         if let Some(tree) = parser.parse(&temp_code, None) {
             Ok(!tree.root_node().has_error())
         } else {
@@ -321,14 +332,14 @@ impl JsonEditor {
                 return (start_char, comma_end);
             }
         }
-        
+
         if let Some(prev_sibling) = node.prev_sibling() {
             if prev_sibling.kind() == "," {
                 let comma_start = rope.byte_to_char(prev_sibling.start_byte());
                 return (comma_start, end_char);
             }
         }
-        
+
         (start_char, end_char)
     }
 }

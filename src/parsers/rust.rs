@@ -145,7 +145,7 @@ impl RustParser {
         }
     }
 
-        pub fn get_all_function_names(tree: &Tree, source_code: &str) -> Vec<String> {
+    pub fn get_all_function_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (function_item
                 name: (identifier) @name) @function
@@ -173,7 +173,7 @@ impl RustParser {
         }
     }
 
-        pub fn get_all_struct_names(tree: &Tree, source_code: &str) -> Vec<String> {
+    pub fn get_all_struct_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (struct_item
                 name: (type_identifier) @name) @struct
@@ -200,7 +200,7 @@ impl RustParser {
             Vec::new()
         }
     }
-        pub fn get_all_enum_names(tree: &Tree, source_code: &str) -> Vec<String> {
+    pub fn get_all_enum_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (enum_item
                 name: (type_identifier) @name) @enum
@@ -228,7 +228,7 @@ impl RustParser {
         }
     }
 
-        pub fn get_all_impl_types(tree: &Tree, source_code: &str) -> Vec<String> {
+    pub fn get_all_impl_types(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (impl_item
                 type: (type_identifier) @type_name) @impl
@@ -256,7 +256,7 @@ impl RustParser {
         }
     }
 
-        pub fn get_all_mod_names(tree: &Tree, source_code: &str) -> Vec<String> {
+    pub fn get_all_mod_names(tree: &Tree, source_code: &str) -> Vec<String> {
         let query_text = r#"
             (mod_item
                 name: (identifier) @name) @mod
