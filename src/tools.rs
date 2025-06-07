@@ -1,8 +1,8 @@
-use crate::server::{Tool, ToolCallParams};
-use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
-use crate::validation::SyntaxValidator;
 use crate::editors::rust::RustEditor;
+use crate::operations::{EditOperation, NodeSelector};
+use crate::parsers::{TreeSitterParser, detect_language_from_path};
+use crate::server::{Tool, ToolCallParams};
+use crate::validation::SyntaxValidator;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
@@ -51,28 +51,33 @@ impl ToolRegistry {
             },
             Tool {
                 name: "insert_after_struct".to_string(),
-                description: "Insert content after a struct definition (safe structural boundary)".to_string(),
+                description: "Insert content after a struct definition (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_struct.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_enum".to_string(),
-                description: "Insert content after an enum definition (safe structural boundary)".to_string(),
+                description: "Insert content after an enum definition (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_enum.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_impl".to_string(),
-                description: "Insert content after an impl block (safe structural boundary)".to_string(),
+                description: "Insert content after an impl block (safe structural boundary)"
+                    .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_impl.json"
                 ))?,
             },
             Tool {
                 name: "insert_after_function".to_string(),
-                description: "Insert content after a function definition (safe structural boundary)".to_string(),
+                description:
+                    "Insert content after a function definition (safe structural boundary)"
+                        .to_string(),
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_function.json"
                 ))?,
@@ -103,6 +108,7 @@ impl ToolRegistry {
             "insert_after_node" => self.insert_after_node(args).await,
             "wrap_node" => self.wrap_node(args).await,
             "validate_syntax" => self.validate_syntax(args).await,
+            "validate_edit_context" => self.validate_edit_context(args).await,
             "get_node_info" => self.get_node_info(args).await,
             "insert_after_struct" => self.insert_after_struct(args).await,
             "insert_after_enum" => self.insert_after_enum(args).await,
@@ -135,21 +141,47 @@ impl ToolRegistry {
 
         let source_code = std::fs::read_to_string(file_path)?;
 
+        let language = detect_language_from_path(file_path)
+            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Find the target node
+        let target_node = selector
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // NEW: Context validation using tree-sitter queries
+        let validator = crate::validation::ContextValidator::new()?;
+        let validation_result = validator.validate_insertion(
+            &tree,
+            &source_code,
+            &target_node,
+            new_content,
+            &language,
+            &crate::validation::OperationType::Replace,
+        )?;
+
+        if !validation_result.is_valid {
+            let prefix = if preview_only { "PREVIEW: " } else { "" };
+            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+        }
+
+        // Continue with existing logic if validation passes
         let operation = EditOperation::Replace {
             target: selector,
             new_content: new_content.to_string(),
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -189,10 +221,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -220,21 +253,47 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        let language = detect_language_from_path(file_path)
+            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Find the target node
+        let target_node = selector
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // NEW: Context validation using tree-sitter queries
+        let validator = crate::validation::ContextValidator::new()?;
+        let validation_result = validator.validate_insertion(
+            &tree,
+            &source_code,
+            &target_node,
+            content,
+            &language,
+            &crate::validation::OperationType::InsertAfter,
+        )?;
+
+        if !validation_result.is_valid {
+            let prefix = if preview_only { "PREVIEW: " } else { "" };
+            return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+        }
+
+        // Continue with existing logic if validation passes
         let operation = EditOperation::InsertAfter {
             target: selector,
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
 
         let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -273,10 +332,11 @@ impl ToolRegistry {
 
         let result = operation.apply(&source_code, &language)?;
 
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
+        if result.success
+            && !preview_only
+            && let Some(new_code) = &result.new_content
+        {
+            std::fs::write(file_path, new_code)?;
         }
         let prefix = if preview_only { "PREVIEW: " } else { "" };
         Ok(format!(
@@ -319,6 +379,65 @@ impl ToolRegistry {
         match language.as_str() {
             "rust" => RustEditor::get_node_info(&tree, &source_code, &selector),
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
+        }
+    }
+
+    async fn validate_edit_context(&self, args: &Value) -> Result<String> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let operation_type_str = args
+            .get("operation_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("operation_type is required"))?;
+
+        let operation_type = match operation_type_str {
+            "insert_before" => crate::validation::OperationType::InsertBefore,
+            "insert_after" => crate::validation::OperationType::InsertAfter,
+            "replace" => crate::validation::OperationType::Replace,
+            "wrap" => crate::validation::OperationType::Wrap,
+            _ => return Err(anyhow!("Invalid operation_type: {}", operation_type_str)),
+        };
+
+        let selector = Self::parse_selector(args.get("selector"))?;
+        let source_code = std::fs::read_to_string(file_path)?;
+
+        let language = detect_language_from_path(file_path)
+            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Find the target node
+        let target_node = selector
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // Perform context validation
+        let validator = crate::validation::ContextValidator::new()?;
+        let validation_result = validator.validate_insertion(
+            &tree,
+            &source_code,
+            &target_node,
+            content,
+            &language,
+            &operation_type,
+        )?;
+
+        if validation_result.is_valid {
+            Ok(
+                "✅ Edit context validation passed - this placement is semantically valid"
+                    .to_string(),
+            )
+        } else {
+            Ok(validation_result.format_errors())
         }
     }
 

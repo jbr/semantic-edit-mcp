@@ -70,7 +70,7 @@ impl RustEditor {
         }
     }
 
-        fn replace_node(
+    fn replace_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -111,7 +111,7 @@ impl RustEditor {
         })
     }
 
-        fn insert_before_node(
+    fn insert_before_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -146,7 +146,7 @@ impl RustEditor {
         })
     }
 
-        fn insert_after_node(
+    fn insert_after_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -182,7 +182,7 @@ impl RustEditor {
         })
     }
 
-        fn wrap_node(
+    fn wrap_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -230,7 +230,7 @@ impl RustEditor {
         })
     }
 
-        fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
+    fn delete_node(tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<EditResult> {
         let node = selector
             .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
@@ -274,7 +274,7 @@ impl RustEditor {
         Ok(source_code.to_string())
     }
 
-        pub fn get_node_info(
+    pub fn get_node_info(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
