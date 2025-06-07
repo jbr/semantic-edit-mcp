@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use tree_sitter::Node;
+use tree_sitter::{Node, StreamingIterator};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -451,7 +451,8 @@ impl NodeSelector {
         let query = tree_sitter::Query::new(&language_obj, query_text)?;
         let mut cursor = tree_sitter::QueryCursor::new();
 
-        for m in cursor.matches(&query, tree.root_node(), source_code.as_bytes()) {
+        let mut matches = cursor.matches(&query, tree.root_node(), source_code.as_bytes());
+        while let Some(m) = matches.next() {
             if let Some(capture) = m.captures.first() {
                 return Ok(Some(capture.node));
             }
