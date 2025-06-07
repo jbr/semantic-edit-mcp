@@ -137,7 +137,7 @@ impl JsonEditor {
             "pair" => {
                 // If inserting before a property, add comma after new content
                 if Self::needs_comma_after(&node) {
-                    format!("{},", content)
+                    format!("{content},")
                 } else {
                     content.to_string()
                 }
@@ -175,7 +175,7 @@ impl JsonEditor {
             "pair" => {
                 // If inserting after a property, add comma before new content
                 if Self::needs_comma_before(&node) {
-                    format!(",{}", content)
+                    format!(",{content}")
                 } else {
                     content.to_string()
                 }
