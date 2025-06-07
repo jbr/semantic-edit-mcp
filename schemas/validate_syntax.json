@@ -1,0 +1,18 @@
+{
+    "type": "object",
+    "properties": {
+        "file_path": {
+            "type": "string",
+            "description": "Path to the source file (optional if content provided)"
+        },
+        "content": {
+            "type": "string",
+            "description": "Code content to validate (optional if file_path provided)"
+        },
+        "language": {
+            "type": "string",
+            "description": "Programming language (rust, typescript, etc.)",
+            "default": "rust"
+        }
+    }
+}
