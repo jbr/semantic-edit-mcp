@@ -1,5 +1,8 @@
 # Semantic Edit MCP - Project Summary
 
+> [!IMPORTANT]
+> **FOR AI ASSISTANTS**: You cannot test changes to this MCP server without asking the user to restart Claude Desktop first. The MCP server must be recompiled and reloaded to test any code changes. Always pause and ask the user to restart Claude Desktop before attempting to test modifications.
+
 ## What We've Built
 
 We've successfully created a **semantic-edit-mcp** server that provides safe, AST-aware code editing operations using tree-sitter. This is a major improvement over traditional line-based editing tools because it understands code structure and prevents syntax-breaking edits.

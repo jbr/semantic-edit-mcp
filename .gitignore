@@ -19,4 +19,4 @@ target/
 .DS_Store
 Thumbs.db
 
-test_example.rs
+examples

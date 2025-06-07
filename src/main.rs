@@ -1,12 +1,14 @@
+#![allow(dead_code)]
+
 mod editors;
+mod handlers;
 mod operations;
 mod parsers;
-mod validation;
 mod server;
 mod server_impl;
-mod tools;
-mod handlers;
 mod specialized_tools;
+mod tools;
+mod validation;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};

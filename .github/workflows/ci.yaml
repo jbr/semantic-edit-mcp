@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        rust: [stable, nightly]
+        rust: [nightly]
     steps:
     - uses: actions/checkout@master
     - name: Install ${{ matrix.rust }}
@@ -41,7 +41,7 @@ jobs:
     - uses: actions/checkout@master
     - uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: nightly
         components: rustfmt, clippy
         override: true
 
