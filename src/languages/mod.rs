@@ -1,4 +1,5 @@
 pub mod json;
+pub mod markdown;
 pub mod query_parser;
 pub mod traits;
 pub mod utils;
@@ -22,9 +23,11 @@ impl LanguageRegistry {
         // Register JSON language
         languages.insert("json".to_string(), Box::new(json::JsonLanguage::new()?));
 
+        // Register Markdown language
+        languages.insert("markdown".to_string(), Box::new(markdown::MarkdownLanguage::new()?));
+
         // TODO: Register other languages here as we implement them
         // languages.insert("toml".to_string(), Box::new(TomlLanguage::new()?));
-        // languages.insert("markdown".to_string(), Box::new(MarkdownLanguage::new()?));
         // languages.insert("rust".to_string(), Box::new(RustLanguage::new()?));
 
         Ok(Self { languages })

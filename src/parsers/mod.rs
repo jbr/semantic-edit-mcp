@@ -9,7 +9,7 @@ pub struct TreeSitterParser {
 }
 
 impl TreeSitterParser {
-    pub fn new() -> Result<Self> {
+        pub fn new() -> Result<Self> {
         let mut parsers = HashMap::new();
 
         // Initialize Rust parser
@@ -21,6 +21,11 @@ impl TreeSitterParser {
         let mut json_parser = Parser::new();
         json_parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
         parsers.insert("json".to_string(), json_parser);
+
+        // Initialize Markdown parser
+        let mut markdown_parser = Parser::new();
+        markdown_parser.set_language(&tree_sitter_md::LANGUAGE.into())?;
+        parsers.insert("markdown".to_string(), markdown_parser);
 
         // TODO: Add more languages as needed
         // let mut ts_parser = Parser::new();

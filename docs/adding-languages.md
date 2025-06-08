@@ -7,7 +7,12 @@ This guide explains how to add support for a new programming language to the sem
 The semantic editing system has a multi-layered architecture for language support:
 
 1. **Basic parsing** - Tree-sitter grammar for syntax understanding
-2. **Language-specific editing** - Custom logic for each language  
+## Current Language Support Status
+
+- ✅ **Rust** - Full support (parsing, editing, context validation, syntax validation)
+- ✅ **JSON** - Full support (parsing, editing, syntax validation)
+- ✅ **Markdown** - Full support (parsing, editing, syntax validation)
+- ⚠️ **Others** - Syntax validation only**Language-specific editing** - Custom logic for each language  
 3. **Context validation** - Semantic rules to prevent invalid edits
 4. **Syntax validation** - Tree-sitter based syntax checking (automatic)
 
@@ -34,42 +39,33 @@ tree-sitter-python = "0.20"  # Example for Python
 Create a new file: `src/languages/{language}.rs`
 
 ```rust
-use crate::languages::traits::{LanguageEditor, LanguageSupport};
-use crate::operations::NodeSelector;
-use anyhow::Result;
-use tree_sitter::{Language, Tree};
+### Step 4: Add to TreeSitterParser Registry
 
-pub struct PythonSupport;
+**CRITICAL**: Add your language to the parser registry in `src/parsers/mod.rs`:
 
-impl LanguageSupport for PythonSupport {
-    fn name(&self) -> &'static str {
-        "python"
-    }
+```rust
+impl TreeSitterParser {
+    pub fn new() -> Result<Self> {
+        let mut parsers = HashMap::new();
 
-    fn file_extensions(&self) -> &'static [&'static str] {
-        &["py", "pyw"]
-    }
+        // Existing parsers...
+        let mut rust_parser = Parser::new();
+        rust_parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
+        parsers.insert("rust".to_string(), rust_parser);
 
-    fn tree_sitter_language(&self) -> Language {
-        tree_sitter_python::LANGUAGE.into()
-    }
+        // Add your new language parser
+        let mut python_parser = Parser::new();
+        python_parser.set_language(&tree_sitter_python::LANGUAGE.into())?;
+        parsers.insert("python".to_string(), python_parser);
 
-    fn editor(&self) -> Box<dyn LanguageEditor> {
-        Box::new(PythonEditor)
-    }
-}
-
-pub struct PythonEditor;
-
-impl LanguageEditor for PythonEditor {
-    fn get_node_info(&self, tree: &Tree, source_code: &str, selector: &NodeSelector) -> Result<String> {
-        // Implement language-specific node info logic
-        // For now, you can copy the generic implementation from RustEditor
-        // and adapt it for Python-specific node types
-        todo!("Implement Python-specific node info")
+        Ok(Self { parsers })
     }
 }
 ```
+
+**Without this step, you'll get "Unsupported language" errors even if everything else is set up correctly.**
+
+### Step 5: Update Parser Detection```
 
 ### Step 3: Register in Language Registry
 
@@ -100,58 +96,14 @@ impl LanguageRegistry {
 Update `src/parsers/mod.rs` to include your language in `detect_language_from_path()`:
 
 ```rust
-pub fn detect_language_from_path(file_path: &str) -> Option<String> {
-    let extension = std::path::Path::new(file_path)
-        .extension()?
-        .to_str()?
-        .to_lowercase();
-
-    match extension.as_str() {
-        "rs" => Some("rust".to_string()),
-        "json" => Some("json".to_string()),
-        "toml" => Some("toml".to_string()),
-        "py" | "pyw" => Some("python".to_string()),  // Add this line
-        _ => None,
-    }
-}
-```
+### Step 6: Add Context Validation (Optional)```
 
 ### Step 5: Add Context Validation (Optional)
 
 If you want semantic validation for your language, update `src/validation/context_validator.rs`:
 
 ```rust
-impl ContextValidator {
-    pub fn new() -> Result<Self> {
-        let mut validation_queries = HashMap::new();
-        let mut language_objects = HashMap::new();
-
-        // Existing Rust support...
-        
-        // Add Python support
-        let python_lang = tree_sitter_python::LANGUAGE.into();
-        let python_query = Self::load_validation_query("python", &python_lang)?;
-        language_objects.insert("python".to_string(), python_lang);
-        validation_queries.insert("python".to_string(), python_query);
-
-        Ok(Self { validation_queries, language_objects })
-    }
-    
-    fn default_validation_query(language: &str) -> String {
-        match language {
-            "rust" => { /* existing rust queries */ }
-            "python" => r#"
-                ;; Python-specific validation rules
-                ;; Example: no function definitions inside other functions (unless nested properly)
-                (function_definition 
-                  body: (block 
-                    (function_definition) @invalid.function.in.function))
-            "#.to_string(),
-            _ => "".to_string(),
-        }
-    }
-}
-```
+### Step 7: Test Your Implementation```
 
 ### Step 6: Test Your Implementation
 
