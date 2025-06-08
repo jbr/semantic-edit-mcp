@@ -165,7 +165,7 @@ impl ASTExplorer {
             selectors.push(NodeSelector {
                 selector_type: "name".to_string(),
                 selector_value: serde_json::json!({"name": name}),
-                description: format!("Select by name: {}", name),
+                description: format!("Select by name: {name}"),
                 confidence: 0.95,
             });
         }
@@ -215,30 +215,20 @@ impl ASTExplorer {
     fn generate_query_selector(node: &Node, source: &str) -> Option<String> {
         match node.kind() {
             "function_item" => {
-                if let Some(name) = Self::extract_node_name(node, source) {
-                    Some(format!(
-                        "(function_item name: (identifier) @name (#eq? @name \"{}\"))",
-                        name
+                Self::extract_node_name(node, source).map(|name| format!(
+                        "(function_item name: (identifier) @name (#eq? @name \"{name}\"))"
                     ))
-                } else {
-                    None
-                }
             }
             "struct_item" => {
-                if let Some(name) = Self::extract_node_name(node, source) {
-                    Some(format!(
-                        "(struct_item name: (type_identifier) @name (#eq? @name \"{}\"))",
-                        name
+                Self::extract_node_name(node, source).map(|name| format!(
+                        "(struct_item name: (type_identifier) @name (#eq? @name \"{name}\"))"
                     ))
-                } else {
-                    None
-                }
             }
             "atx_heading" => {
                 // For markdown headings, try to match by content
                 let content = get_node_text(node, source).trim();
                 if content.len() < 100 {
-                    Some(format!("(atx_heading) @heading"))
+                    Some("(atx_heading) @heading".to_string())
                 } else {
                     None
                 }
@@ -366,7 +356,7 @@ impl ASTExplorer {
                 } else {
                     "N"
                 };
-                Some(format!("Heading Level {}", level))
+                Some(format!("Heading Level {level}"))
             }
             ("markdown", "list") => Some("List".to_string()),
             ("markdown", "list_item") => Some("List Item".to_string()),
@@ -381,7 +371,7 @@ impl ASTExplorer {
                     })
                     .map(|lang_node| get_node_text(&lang_node, source).trim().to_string())
                     .unwrap_or_else(|| "unknown".to_string());
-                Some(format!("Code Block ({})", lang))
+                Some(format!("Code Block ({lang})"))
             }
             ("markdown", "block_quote") => Some("Block Quote".to_string()),
             ("markdown", "section") => Some("Document Section".to_string()),
@@ -466,13 +456,13 @@ impl ASTExplorer {
         // Add edit suitability assessment
         match &focus.edit_suitability {
             EditSuitability::Excellent { reason } => {
-                explanation.push_str(&format!("\n\n✅ Excellent edit target: {}", reason));
+                explanation.push_str(&format!("\n\n✅ Excellent edit target: {reason}"));
             }
             EditSuitability::Good {
                 reason,
                 considerations,
             } => {
-                explanation.push_str(&format!("\n\n✓ Good edit target: {}", reason));
+                explanation.push_str(&format!("\n\n✓ Good edit target: {reason}"));
                 if !considerations.is_empty() {
                     explanation
                         .push_str(&format!("\n   💡 Consider: {}", considerations.join(", ")));
@@ -482,7 +472,7 @@ impl ASTExplorer {
                 reason,
                 better_alternatives,
             } => {
-                explanation.push_str(&format!("\n\n⚠️ Poor edit target: {}", reason));
+                explanation.push_str(&format!("\n\n⚠️ Poor edit target: {reason}"));
                 if !better_alternatives.is_empty() {
                     explanation.push_str(&format!(
                         "\n   💡 Try instead: {}",
@@ -491,8 +481,8 @@ impl ASTExplorer {
                 }
             }
             EditSuitability::Terrible { reason, why_avoid } => {
-                explanation.push_str(&format!("\n\n❌ Avoid editing this: {}", reason));
-                explanation.push_str(&format!("\n   🚫 {}", why_avoid));
+                explanation.push_str(&format!("\n\n❌ Avoid editing this: {reason}"));
+                explanation.push_str(&format!("\n   🚫 {why_avoid}"));
             }
         }
 

@@ -84,7 +84,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     pub async fn insert_after_impl(&self, args: &Value) -> Result<String> {
@@ -129,7 +129,7 @@ impl ToolRegistry {
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     pub async fn insert_after_function(&self, args: &Value) -> Result<String> {

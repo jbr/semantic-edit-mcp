@@ -156,7 +156,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     async fn insert_before_node(&self, args: &Value) -> Result<String> {
@@ -185,7 +185,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     async fn insert_after_node(&self, args: &Value) -> Result<String> {
@@ -211,7 +211,7 @@ impl ToolRegistry {
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     async fn wrap_node(&self, args: &Value) -> Result<String> {
@@ -239,7 +239,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        operation.apply_with_validation(language_hint, &file_path, preview_only)
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     async fn validate_syntax(&self, args: &Value) -> Result<String> {
@@ -467,7 +467,7 @@ impl ToolRegistry {
 
         // Format the results in a nice, readable way
         let mut output = String::new();
-        output.push_str(&format!("🔍 AST Exploration at {}:{}\n\n", line, column));
+        output.push_str(&format!("🔍 AST Exploration at {line}:{column}\n\n"));
 
         // Show the focus node
         output.push_str(&format!(
@@ -475,7 +475,7 @@ impl ToolRegistry {
             exploration_result.focus_node.kind, exploration_result.focus_node.id
         ));
         if let Some(role) = &exploration_result.focus_node.semantic_role {
-            output.push_str(&format!("   Role: {}\n", role));
+            output.push_str(&format!("   Role: {role}\n"));
         }
         output.push_str(&format!(
             "   Content: \"{}\"\n",
@@ -508,7 +508,7 @@ impl ToolRegistry {
                 serde_json::to_string_pretty(&selector.selector_value)?
             ));
         }
-        output.push_str("\n");
+        output.push('\n');
 
         // Show context hierarchy (ancestors)
         if !exploration_result.ancestors.is_empty() {
@@ -523,9 +523,9 @@ impl ToolRegistry {
                     ancestor.id
                 ));
                 if let Some(role) = &ancestor.semantic_role {
-                    output.push_str(&format!(" - {}", role));
+                    output.push_str(&format!(" - {role}"));
                 }
-                output.push_str("\n");
+                output.push('\n');
                 if !ancestor.text_preview.is_empty() && ancestor.text_preview.len() < 60 {
                     output.push_str(&format!(
                         "{}   Content: \"{}\"\n",
@@ -533,7 +533,7 @@ impl ToolRegistry {
                     ));
                 }
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Show children
@@ -542,9 +542,9 @@ impl ToolRegistry {
             for (i, child) in exploration_result.children.iter().take(10).enumerate() {
                 output.push_str(&format!("  {}. {} (ID: {})", i + 1, child.kind, child.id));
                 if let Some(role) = &child.semantic_role {
-                    output.push_str(&format!(" - {}", role));
+                    output.push_str(&format!(" - {role}"));
                 }
-                output.push_str("\n");
+                output.push('\n');
             }
             if exploration_result.children.len() > 10 {
                 output.push_str(&format!(
@@ -552,7 +552,7 @@ impl ToolRegistry {
                     exploration_result.children.len() - 10
                 ));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Show siblings
@@ -566,9 +566,9 @@ impl ToolRegistry {
                     sibling.id
                 ));
                 if let Some(role) = &sibling.semantic_role {
-                    output.push_str(&format!(" - {}", role));
+                    output.push_str(&format!(" - {role}"));
                 }
-                output.push_str("\n");
+                output.push('\n');
             }
             if exploration_result.siblings.len() > 8 {
                 output.push_str(&format!(
@@ -576,7 +576,7 @@ impl ToolRegistry {
                     exploration_result.siblings.len() - 8
                 ));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Show edit recommendations
@@ -592,7 +592,7 @@ impl ToolRegistry {
                 output.push_str(&format!("     Operation: {}\n", rec.operation));
                 output.push_str(&format!("     Example: {}\n", rec.example_usage));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Show context explanation
