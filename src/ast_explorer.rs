@@ -38,10 +38,21 @@ pub struct NodeSelector {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EditSuitability {
-    Excellent { reason: String },
-    Good { reason: String, considerations: Vec<String> },
-    Poor { reason: String, better_alternatives: Vec<String> },
-    Terrible { reason: String, why_avoid: String },
+    Excellent {
+        reason: String,
+    },
+    Good {
+        reason: String,
+        considerations: Vec<String>,
+    },
+    Poor {
+        reason: String,
+        better_alternatives: Vec<String>,
+    },
+    Terrible {
+        reason: String,
+        why_avoid: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -75,7 +86,8 @@ impl ASTExplorer {
         let children = Self::collect_children(&focus_node, source, language);
         let siblings = Self::collect_siblings(&focus_node, source, language);
 
-        let context_explanation = Self::generate_context_explanation(&focus_info, &ancestors, language);
+        let context_explanation =
+            Self::generate_context_explanation(&focus_info, &ancestors, language);
         let edit_recommendations = Self::generate_edit_recommendations(
             &focus_info,
             &ancestors,
@@ -94,7 +106,7 @@ impl ASTExplorer {
         })
     }
 
-    fn analyze_node(node: &Node, source: &str, language: &str) -> ASTNodeInfo {
+    pub fn analyze_node(node: &Node, source: &str, language: &str) -> ASTNodeInfo {
         let text = get_node_text(node, source);
         let text_preview = if text.len() > 150 {
             format!("{}...", &text[..147])
@@ -116,10 +128,7 @@ impl ASTExplorer {
             kind: node.kind().to_string(),
             text_preview,
             byte_range: (node.start_byte(), node.end_byte()),
-            line_range: (
-                node.start_position().row + 1,
-                node.end_position().row + 1,
-            ),
+            line_range: (node.start_position().row + 1, node.end_position().row + 1),
             char_range: (start_char, end_char),
             is_named: node.is_named(),
             child_count: node.child_count(),
@@ -207,14 +216,20 @@ impl ASTExplorer {
         match node.kind() {
             "function_item" => {
                 if let Some(name) = Self::extract_node_name(node, source) {
-                    Some(format!("(function_item name: (identifier) @name (#eq? @name \"{}\"))", name))
+                    Some(format!(
+                        "(function_item name: (identifier) @name (#eq? @name \"{}\"))",
+                        name
+                    ))
                 } else {
                     None
                 }
             }
             "struct_item" => {
                 if let Some(name) = Self::extract_node_name(node, source) {
-                    Some(format!("(struct_item name: (type_identifier) @name (#eq? @name \"{}\"))", name))
+                    Some(format!(
+                        "(struct_item name: (type_identifier) @name (#eq? @name \"{}\"))",
+                        name
+                    ))
                 } else {
                     None
                 }
@@ -246,13 +261,17 @@ impl ASTExplorer {
             },
             ("rust", "identifier") => EditSuitability::Poor {
                 reason: "Just a name token, not the full construct".to_string(),
-                better_alternatives: vec!["Select the parent function_item, struct_item, etc.".to_string()],
+                better_alternatives: vec![
+                    "Select the parent function_item, struct_item, etc.".to_string()
+                ],
             },
 
             // Markdown patterns
             ("markdown", "document") => EditSuitability::Poor {
                 reason: "Entire document - usually too broad".to_string(),
-                better_alternatives: vec!["Select specific sections, headings, or lists".to_string()],
+                better_alternatives: vec![
+                    "Select specific sections, headings, or lists".to_string()
+                ],
             },
             ("markdown", "section") => EditSuitability::Good {
                 reason: "Document section with heading and content".to_string(),
@@ -274,12 +293,14 @@ impl ASTExplorer {
                     why_avoid: "This is only the bullet point, not the content".to_string(),
                 }
             }
-            ("markdown", "atx_h1_marker" | "atx_h2_marker" | "atx_h3_marker" | "atx_h4_marker" | "atx_h5_marker" | "atx_h6_marker") => {
-                EditSuitability::Terrible {
-                    reason: "Just the heading marker (# ## ###)".to_string(),
-                    why_avoid: "This is only the hash symbols, not the heading content".to_string(),
-                }
-            }
+            (
+                "markdown",
+                "atx_h1_marker" | "atx_h2_marker" | "atx_h3_marker" | "atx_h4_marker"
+                | "atx_h5_marker" | "atx_h6_marker",
+            ) => EditSuitability::Terrible {
+                reason: "Just the heading marker (# ## ###)".to_string(),
+                why_avoid: "This is only the hash symbols, not the heading content".to_string(),
+            },
             ("markdown", "inline") => EditSuitability::Good {
                 reason: "Inline content within paragraph or heading".to_string(),
                 considerations: vec!["Good for text content changes".to_string()],
@@ -301,7 +322,11 @@ impl ASTExplorer {
             },
 
             // Generic patterns
-            (_, kind) if kind.contains("_item") || kind.contains("_statement") || kind.contains("_declaration") => {
+            (_, kind)
+                if kind.contains("_item")
+                    || kind.contains("_statement")
+                    || kind.contains("_declaration") =>
+            {
                 EditSuitability::Good {
                     reason: "Appears to be a complete language construct".to_string(),
                     considerations: vec!["Language-specific analysis not available".to_string()],
@@ -315,7 +340,9 @@ impl ASTExplorer {
             }
             _ => EditSuitability::Good {
                 reason: "Generic node".to_string(),
-                considerations: vec!["No specific analysis available for this language/node type".to_string()],
+                considerations: vec![
+                    "No specific analysis available for this language/node type".to_string()
+                ],
             },
         }
     }
@@ -330,12 +357,17 @@ impl ASTExplorer {
             ("rust", "use_declaration") => Some("Import Statement".to_string()),
 
             ("markdown", "atx_heading") => {
-                let level = if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h1_marker" { "1" }
-                else if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h2_marker" { "2" }
-                else if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h3_marker" { "3" }
-                else { "N" };
+                let level = if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h1_marker" {
+                    "1"
+                } else if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h2_marker" {
+                    "2"
+                } else if node.child(0).map(|c| c.kind()).unwrap_or("") == "atx_h3_marker" {
+                    "3"
+                } else {
+                    "N"
+                };
                 Some(format!("Heading Level {}", level))
-            },
+            }
             ("markdown", "list") => Some("List".to_string()),
             ("markdown", "list_item") => Some("List Item".to_string()),
             ("markdown", "fenced_code_block") => {
@@ -350,7 +382,7 @@ impl ASTExplorer {
                     .map(|lang_node| get_node_text(&lang_node, source).trim().to_string())
                     .unwrap_or_else(|| "unknown".to_string());
                 Some(format!("Code Block ({})", lang))
-            },
+            }
             ("markdown", "block_quote") => Some("Block Quote".to_string()),
             ("markdown", "section") => Some("Document Section".to_string()),
 
@@ -369,7 +401,7 @@ impl ASTExplorer {
         while let Some(parent) = current {
             ancestors.push(Self::analyze_node(&parent, source, language));
             current = parent.parent();
-            
+
             // Prevent infinite recursion and limit depth
             if ancestors.len() > 20 {
                 break;
@@ -423,11 +455,8 @@ impl ASTExplorer {
             for (i, ancestor) in ancestors.iter().enumerate() {
                 let indent = "  ".repeat(i + 1);
                 let role = ancestor.semantic_role.as_deref().unwrap_or("structural");
-                explanation.push_str(&format!(
-                    "\n{}{} ({})",
-                    indent, ancestor.kind, role
-                ));
-                
+                explanation.push_str(&format!("\n{}{} ({})", indent, ancestor.kind, role));
+
                 if !ancestor.text_preview.is_empty() && ancestor.text_preview.len() < 50 {
                     explanation.push_str(&format!(" - \"{}\"", ancestor.text_preview));
                 }
@@ -439,16 +468,26 @@ impl ASTExplorer {
             EditSuitability::Excellent { reason } => {
                 explanation.push_str(&format!("\n\n✅ Excellent edit target: {}", reason));
             }
-            EditSuitability::Good { reason, considerations } => {
+            EditSuitability::Good {
+                reason,
+                considerations,
+            } => {
                 explanation.push_str(&format!("\n\n✓ Good edit target: {}", reason));
                 if !considerations.is_empty() {
-                    explanation.push_str(&format!("\n   💡 Consider: {}", considerations.join(", ")));
+                    explanation
+                        .push_str(&format!("\n   💡 Consider: {}", considerations.join(", ")));
                 }
             }
-            EditSuitability::Poor { reason, better_alternatives } => {
+            EditSuitability::Poor {
+                reason,
+                better_alternatives,
+            } => {
                 explanation.push_str(&format!("\n\n⚠️ Poor edit target: {}", reason));
                 if !better_alternatives.is_empty() {
-                    explanation.push_str(&format!("\n   💡 Try instead: {}", better_alternatives.join(", ")));
+                    explanation.push_str(&format!(
+                        "\n   💡 Try instead: {}",
+                        better_alternatives.join(", ")
+                    ));
                 }
             }
             EditSuitability::Terrible { reason, why_avoid } => {
@@ -470,23 +509,41 @@ impl ASTExplorer {
         let mut recommendations = Vec::new();
 
         // If current node is terrible/poor, recommend better ancestors
-        if matches!(focus.edit_suitability, EditSuitability::Terrible { .. } | EditSuitability::Poor { .. }) {
+        if matches!(
+            focus.edit_suitability,
+            EditSuitability::Terrible { .. } | EditSuitability::Poor { .. }
+        ) {
             for ancestor in ancestors.iter() {
-                if matches!(ancestor.edit_suitability, EditSuitability::Excellent { .. } | EditSuitability::Good { .. }) {
+                if matches!(
+                    ancestor.edit_suitability,
+                    EditSuitability::Excellent { .. } | EditSuitability::Good { .. }
+                ) {
                     recommendations.push(EditRecommendation {
                         target_node_id: ancestor.id,
                         operation: "replace_node".to_string(),
                         description: format!("Replace {} instead of {}", ancestor.kind, focus.kind),
-                        selector: ancestor.selector_options.first()
+                        selector: ancestor
+                            .selector_options
+                            .first()
                             .map(|s| s.selector_value.clone())
                             .unwrap_or_else(|| serde_json::json!({"type": ancestor.kind})),
                         confidence: 0.9,
-                        example_usage: format!("replace_node(file, {}, new_content)", serde_json::to_string(&ancestor.selector_options.first().unwrap_or(&NodeSelector {
-                            selector_type: "type".to_string(),
-                            selector_value: serde_json::json!({"type": ancestor.kind}),
-                            description: "fallback".to_string(),
-                            confidence: 0.5,
-                        }).selector_value).unwrap()),
+                        example_usage: format!(
+                            "replace_node(file, {}, new_content)",
+                            serde_json::to_string(
+                                &ancestor
+                                    .selector_options
+                                    .first()
+                                    .unwrap_or(&NodeSelector {
+                                        selector_type: "type".to_string(),
+                                        selector_value: serde_json::json!({"type": ancestor.kind}),
+                                        description: "fallback".to_string(),
+                                        confidence: 0.5,
+                                    })
+                                    .selector_value
+                            )
+                            .unwrap()
+                        ),
                     });
                     break; // Only suggest the first good ancestor
                 }
@@ -495,7 +552,9 @@ impl ASTExplorer {
 
         // Language-specific recommendations
         match language {
-            "markdown" => Self::generate_markdown_recommendations(focus, ancestors, &mut recommendations),
+            "markdown" => {
+                Self::generate_markdown_recommendations(focus, ancestors, &mut recommendations)
+            }
             "rust" => Self::generate_rust_recommendations(focus, ancestors, &mut recommendations),
             "json" => Self::generate_json_recommendations(focus, ancestors, &mut recommendations),
             _ => {}
@@ -517,7 +576,9 @@ impl ASTExplorer {
                     description: "Replace heading text".to_string(),
                     selector: serde_json::json!({"type": "atx_heading"}),
                     confidence: 0.95,
-                    example_usage: "replace_node(file, {\"type\": \"atx_heading\"}, \"# New Heading\")".to_string(),
+                    example_usage:
+                        "replace_node(file, {\"type\": \"atx_heading\"}, \"# New Heading\")"
+                            .to_string(),
                 });
 
                 recommendations.push(EditRecommendation {
@@ -536,7 +597,9 @@ impl ASTExplorer {
                     description: "Add new item to this list".to_string(),
                     selector: serde_json::json!({"type": "list"}),
                     confidence: 0.9,
-                    example_usage: "insert_after_node(file, {\"type\": \"list\"}, \"\\n- New item\")".to_string(),
+                    example_usage:
+                        "insert_after_node(file, {\"type\": \"list\"}, \"\\n- New item\")"
+                            .to_string(),
                 });
             }
             "list_item" => {
@@ -546,7 +609,9 @@ impl ASTExplorer {
                     description: "Replace this list item".to_string(),
                     selector: serde_json::json!({"type": "list_item"}),
                     confidence: 0.85,
-                    example_usage: "replace_node(file, {\"type\": \"list_item\"}, \"- Updated item\")".to_string(),
+                    example_usage:
+                        "replace_node(file, {\"type\": \"list_item\"}, \"- Updated item\")"
+                            .to_string(),
                 });
             }
             "section" => {
@@ -579,14 +644,21 @@ impl ASTExplorer {
                     example_usage: "replace_node(file, {\"type\": \"function_item\"}, \"fn new_function() { ... }\")".to_string(),
                 });
 
-                if let Some(name_selector) = focus.selector_options.iter().find(|s| s.selector_type == "name") {
+                if let Some(name_selector) = focus
+                    .selector_options
+                    .iter()
+                    .find(|s| s.selector_type == "name")
+                {
                     recommendations.push(EditRecommendation {
                         target_node_id: focus.id,
                         operation: "replace_node".to_string(),
                         description: "Replace function by name (safer)".to_string(),
                         selector: name_selector.selector_value.clone(),
                         confidence: 0.98,
-                        example_usage: format!("replace_node(file, {}, \"fn new_function() {{ ... }}\")", serde_json::to_string(&name_selector.selector_value).unwrap()),
+                        example_usage: format!(
+                            "replace_node(file, {}, \"fn new_function() {{ ... }}\")",
+                            serde_json::to_string(&name_selector.selector_value).unwrap()
+                        ),
                     });
                 }
             }
@@ -597,7 +669,9 @@ impl ASTExplorer {
                     description: "Add method to impl block".to_string(),
                     selector: serde_json::json!({"type": "impl_item"}),
                     confidence: 0.9,
-                    example_usage: "insert_after_impl(file, impl_type, \"fn new_method(&self) { ... }\")".to_string(),
+                    example_usage:
+                        "insert_after_impl(file, impl_type, \"fn new_method(&self) { ... }\")"
+                            .to_string(),
                 });
             }
             _ => {}
@@ -627,7 +701,9 @@ impl ASTExplorer {
                     description: "Add item to JSON array".to_string(),
                     selector: serde_json::json!({"type": "array"}),
                     confidence: 0.85,
-                    example_usage: "insert_after_node(file, {\"type\": \"array\"}, \", \\\"new_item\\\"\")".to_string(),
+                    example_usage:
+                        "insert_after_node(file, {\"type\": \"array\"}, \", \\\"new_item\\\"\")"
+                            .to_string(),
                 });
             }
             _ => {}

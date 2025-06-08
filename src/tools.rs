@@ -1,5 +1,5 @@
 use crate::editors::rust::RustEditor;
-use crate::operations::{EditOperation, NodeSelector};
+use crate::operations::{check_terrible_target, EditOperation, NodeSelector};
 use crate::parsers::{detect_language_from_path, TreeSitterParser};
 use crate::server::{Tool, ToolCallParams};
 use crate::validation::SyntaxValidator;
@@ -140,87 +140,23 @@ impl ToolRegistry {
             .get("new_content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("new_content is required"))?;
-
         let selector = Self::parse_selector(args.get("selector"))?;
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
-        let source_code = std::fs::read_to_string(file_path)?;
-
-        // Try language hint first, then fall back to auto-detection
-        let language = args
+        let language_hint = args
             .get("language")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| detect_language_from_path(file_path))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
+            .map(|s| s.to_string());
 
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
-
-        // Find the target node
-        let target_node = selector
-            .find_node_with_suggestions(&tree, &source_code, &language)?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
-        // NEW: Context validation using tree-sitter queries
-        let validator = crate::validation::ContextValidator::new()?;
-
-        if validator.supports_language(&language) {
-            let validation_result = validator.validate_insertion(
-                &tree,
-                &source_code,
-                &target_node,
-                new_content,
-                &language,
-                &crate::validation::OperationType::Replace,
-            )?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
-            }
-        }
-
-        // Continue with existing logic if validation passes
         let operation = EditOperation::Replace {
             target: selector,
             new_content: new_content.to_string(),
             preview_only: Some(preview_only),
         };
 
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                // Validate syntax before writing
-                match SyntaxValidator::validate_and_write(
-                    file_path,
-                    new_code,
-                    &language,
-                    preview_only,
-                ) {
-                    Ok(msg) if msg.contains("❌") => return Ok(msg),
-                    Ok(_) => {} // Success, continue
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        let validation_note = if validator.supports_language(&language) {
-            "with context validation"
-        } else {
-            "syntax validation only"
-        };
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Replace operation result ({validation_note}):\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     async fn insert_before_node(&self, args: &Value) -> Result<String> {
@@ -233,50 +169,15 @@ impl ToolRegistry {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
-
         let selector = Self::parse_selector(args.get("selector"))?;
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
-        let source_code = std::fs::read_to_string(file_path)?;
-
-        // Try language hint first, then fall back to auto-detection
-        let language = args
+        let language_hint = args
             .get("language")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| detect_language_from_path(file_path))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
-
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
-
-        // Find the target node
-        let target_node = selector
-            .find_node_with_suggestions(&tree, &source_code, &language)?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
-        // Context validation using tree-sitter queries
-        let validator = crate::validation::ContextValidator::new()?;
-        if validator.supports_language(&language) {
-            let validation_result = validator.validate_insertion(
-                &tree,
-                &source_code,
-                &target_node,
-                content,
-                &language,
-                &crate::validation::OperationType::InsertBefore,
-            )?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
-            }
-        }
+            .map(|s| s.to_string());
 
         let operation = EditOperation::InsertBefore {
             target: selector,
@@ -284,34 +185,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                // Validate syntax before writing
-                match SyntaxValidator::validate_and_write(
-                    file_path,
-                    new_code,
-                    &language,
-                    preview_only,
-                ) {
-                    Ok(msg) if msg.contains("❌") => return Ok(msg),
-                    Ok(_) => {} // Success, continue
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        let validation_note = if validator.supports_language(&language) {
-            "with context validation"
-        } else {
-            "syntax validation only"
-        };
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert before operation result ({validation_note}):\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     async fn insert_after_node(&self, args: &Value) -> Result<String> {
@@ -319,91 +193,25 @@ impl ToolRegistry {
             .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-
         let content = args
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
-
         let selector = Self::parse_selector(args.get("selector"))?;
-        let source_code = std::fs::read_to_string(file_path)?;
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
-        // Try language hint first, then fall back to auto-detection
-        let language = args
+        let language_hint = args
             .get("language")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| detect_language_from_path(file_path))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
-
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
-
-        // Find the target node
-        let target_node = selector
-            .find_node_with_suggestions(&tree, &source_code, &language)?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
-        // NEW: Context validation using tree-sitter queries
-        let validator = crate::validation::ContextValidator::new()?;
-        if validator.supports_language(&language) {
-            let validation_result = validator.validate_insertion(
-                &tree,
-                &source_code,
-                &target_node,
-                content,
-                &language,
-                &crate::validation::OperationType::InsertAfter,
-            )?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
-            }
-        }
-
-        // Continue with existing logic if validation passes
+            .map(|s| s.to_string());
         let operation = EditOperation::InsertAfter {
             target: selector,
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                // Validate syntax before writing
-                match SyntaxValidator::validate_and_write(
-                    file_path,
-                    new_code,
-                    &language,
-                    preview_only,
-                ) {
-                    Ok(msg) if msg.contains("❌") => return Ok(msg),
-                    Ok(_) => {} // Success, continue
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        let validation_note = if validator.supports_language(&language) {
-            "with context validation"
-        } else {
-            "syntax validation only"
-        };
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert after operation result ({validation_note}):\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     async fn wrap_node(&self, args: &Value) -> Result<String> {
@@ -411,54 +219,19 @@ impl ToolRegistry {
             .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
-
         let wrapper_template = args
             .get("wrapper_template")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("wrapper_template is required"))?;
-
         let selector = Self::parse_selector(args.get("selector"))?;
-        let source_code = std::fs::read_to_string(file_path)?;
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-
-        // Try language hint first, then fall back to auto-detection
-        let language = args
+        let language_hint = args
             .get("language")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .or_else(|| detect_language_from_path(file_path))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
-
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
-
-        // Find the target node
-        let target_node = selector
-            .find_node_with_suggestions(&tree, &source_code, &language)?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
-        // Context validation using tree-sitter queries
-        let validator = crate::validation::ContextValidator::new()?;
-        if validator.supports_language(&language) {
-            let validation_result = validator.validate_insertion(
-                &tree,
-                &source_code,
-                &target_node,
-                wrapper_template,
-                &language,
-                &crate::validation::OperationType::Wrap,
-            )?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
-            }
-        }
+            .map(|s| s.to_string());
 
         let operation = EditOperation::Wrap {
             target: selector,
@@ -466,35 +239,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                // Validate syntax before writing
-                match SyntaxValidator::validate_and_write(
-                    file_path,
-                    new_code,
-                    &language,
-                    preview_only,
-                ) {
-                    Ok(msg) if msg.contains("❌") => return Ok(msg),
-                    Ok(_) => {} // Success, continue
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
-        let validation_note = if validator.supports_language(&language) {
-            "with context validation"
-        } else {
-            "syntax validation only"
-        };
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Wrap operation result ({validation_note}):\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     async fn validate_syntax(&self, args: &Value) -> Result<String> {
@@ -594,6 +339,13 @@ impl ToolRegistry {
         let target_node = selector
             .find_node_with_suggestions(&tree, &source_code, &language)?
             .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // Check for terrible targets with auto-exploration
+        if let Some(error_msg) =
+            check_terrible_target(&selector, &target_node, &tree, &source_code, &language)?
+        {
+            return Ok(error_msg);
+        }
 
         // Perform context validation
         let validator = crate::validation::ContextValidator::new()?;

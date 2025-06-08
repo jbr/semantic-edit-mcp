@@ -38,7 +38,8 @@ Traditional code editing tools operate on text lines, leading to:
 ### Current Language Support
 - **🟢 Rust** - Full support (parsing, editing, context validation, syntax validation)
 - **🟢 JSON** - Full support (parsing, editing, syntax validation)
-- **🟡 Other languages** - Syntax validation only (easy to extend)
+- **🟢 Markdown** - Full support (parsing, editing, syntax validation)
+
 
 ### Language-Aware Tool Output
 ```
