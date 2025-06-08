@@ -12,8 +12,7 @@ A Model Context Protocol (MCP) server for semantic code editing using tree-sitte
 
 ## ✨ Features
 
-- **🌍 Multi-language support**: Rust (full), JSON (full), more languages easily added
-- **🌍 Multi-language support**: Rust (full), JSON (full), Markdown (full), more languages easily added**🛡️ Two-layer validation**: Context validation + syntax validation prevents file corruption
+- **🌍 Multi-language support**: Rust (full), JSON (full), Markdown (full), more languages easily added- **🌍 Multi-language support**: Rust (full), JSON (full), Markdown (full), more languages easily added**🛡️ Two-layer validation**: Context validation + syntax validation prevents file corruption
 - **🔍 Semantic node targeting**: Find nodes by name, type, tree-sitter query, or position
 - **👁️ Preview mode**: Test operations safely with `preview_only: true` - see changes without applying them
 - **🎯 Specialized insertion tools**: Smart, safe insertion at structural boundaries (Rust)

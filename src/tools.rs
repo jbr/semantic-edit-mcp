@@ -89,6 +89,13 @@ impl ToolRegistry {
                     "../schemas/insert_in_module.json"
                 ))?,
             },
+            Tool {
+                name: "explore_ast".to_string(),
+                description: "Explore the AST around a specific position with rich context and edit suggestions".to_string(),
+                input_schema: serde_json::from_str(include_str!(
+                    "../schemas/explore_ast.json"
+                ))?
+            },
         ];
 
         Ok(Self { tools })
@@ -115,6 +122,7 @@ impl ToolRegistry {
             "insert_after_impl" => self.insert_after_impl(args).await,
             "insert_after_function" => self.insert_after_function(args).await,
             "insert_in_module" => self.insert_in_module(args).await,
+            "explore_ast" => self.explore_ast(args).await,
             _ => Err(anyhow!("Unknown tool: {}", tool_call.name)),
         }
     }
@@ -663,5 +671,182 @@ impl ToolRegistry {
         Err(anyhow!(
             "Invalid selector: must specify position, query, type, or name"
         ))
+    }
+
+    async fn explore_ast(&self, args: &Value) -> Result<String> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let line = args
+            .get("line")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| anyhow!("line is required"))? as usize;
+
+        let column = args
+            .get("column")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| anyhow!("column is required"))? as usize;
+
+        let source_code = std::fs::read_to_string(file_path)?;
+
+        // Try language hint first, then fall back to auto-detection
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
+
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Use the AST explorer
+        let exploration_result = crate::ast_explorer::ASTExplorer::explore_around(
+            &tree,
+            &source_code,
+            line,
+            column,
+            &language,
+        )?;
+
+        // Format the results in a nice, readable way
+        let mut output = String::new();
+        output.push_str(&format!("🔍 AST Exploration at {}:{}\n\n", line, column));
+
+        // Show the focus node
+        output.push_str(&format!(
+            "🎯 **Focus Node**: {} (ID: {})\n",
+            exploration_result.focus_node.kind, exploration_result.focus_node.id
+        ));
+        if let Some(role) = &exploration_result.focus_node.semantic_role {
+            output.push_str(&format!("   Role: {}\n", role));
+        }
+        output.push_str(&format!(
+            "   Content: \"{}\"\n",
+            exploration_result.focus_node.text_preview
+        ));
+        output.push_str(&format!(
+            "   Position: lines {}-{}, chars {}-{}\n\n",
+            exploration_result.focus_node.line_range.0,
+            exploration_result.focus_node.line_range.1,
+            exploration_result.focus_node.char_range.0,
+            exploration_result.focus_node.char_range.1
+        ));
+
+        // Show selector options
+        output.push_str("🎯 **Available Selectors**:\n");
+        for (i, selector) in exploration_result
+            .focus_node
+            .selector_options
+            .iter()
+            .enumerate()
+        {
+            output.push_str(&format!(
+                "  {}. {} (confidence: {:.0}%)\n",
+                i + 1,
+                selector.description,
+                selector.confidence * 100.0
+            ));
+            output.push_str(&format!(
+                "     Selector: {}\n",
+                serde_json::to_string_pretty(&selector.selector_value)?
+            ));
+        }
+        output.push_str("\n");
+
+        // Show context hierarchy (ancestors)
+        if !exploration_result.ancestors.is_empty() {
+            output.push_str("📍 **Context Hierarchy** (inner → outer):\n");
+            for (i, ancestor) in exploration_result.ancestors.iter().enumerate() {
+                let indent = "  ".repeat(i + 1);
+                output.push_str(&format!(
+                    "{}{}. {} (ID: {})",
+                    indent,
+                    i + 1,
+                    ancestor.kind,
+                    ancestor.id
+                ));
+                if let Some(role) = &ancestor.semantic_role {
+                    output.push_str(&format!(" - {}", role));
+                }
+                output.push_str("\n");
+                if !ancestor.text_preview.is_empty() && ancestor.text_preview.len() < 60 {
+                    output.push_str(&format!(
+                        "{}   Content: \"{}\"\n",
+                        indent, ancestor.text_preview
+                    ));
+                }
+            }
+            output.push_str("\n");
+        }
+
+        // Show children
+        if !exploration_result.children.is_empty() {
+            output.push_str("👶 **Child Nodes**:\n");
+            for (i, child) in exploration_result.children.iter().take(10).enumerate() {
+                output.push_str(&format!("  {}. {} (ID: {})", i + 1, child.kind, child.id));
+                if let Some(role) = &child.semantic_role {
+                    output.push_str(&format!(" - {}", role));
+                }
+                output.push_str("\n");
+            }
+            if exploration_result.children.len() > 10 {
+                output.push_str(&format!(
+                    "  ... and {} more children\n",
+                    exploration_result.children.len() - 10
+                ));
+            }
+            output.push_str("\n");
+        }
+
+        // Show siblings
+        if !exploration_result.siblings.is_empty() {
+            output.push_str("👫 **Sibling Nodes**:\n");
+            for (i, sibling) in exploration_result.siblings.iter().take(8).enumerate() {
+                output.push_str(&format!(
+                    "  {}. {} (ID: {})",
+                    i + 1,
+                    sibling.kind,
+                    sibling.id
+                ));
+                if let Some(role) = &sibling.semantic_role {
+                    output.push_str(&format!(" - {}", role));
+                }
+                output.push_str("\n");
+            }
+            if exploration_result.siblings.len() > 8 {
+                output.push_str(&format!(
+                    "  ... and {} more siblings\n",
+                    exploration_result.siblings.len() - 8
+                ));
+            }
+            output.push_str("\n");
+        }
+
+        // Show edit recommendations
+        if !exploration_result.edit_recommendations.is_empty() {
+            output.push_str("💡 **Edit Recommendations**:\n");
+            for (i, rec) in exploration_result.edit_recommendations.iter().enumerate() {
+                output.push_str(&format!(
+                    "  {}. {} (confidence: {:.0}%)\n",
+                    i + 1,
+                    rec.description,
+                    rec.confidence * 100.0
+                ));
+                output.push_str(&format!("     Operation: {}\n", rec.operation));
+                output.push_str(&format!("     Example: {}\n", rec.example_usage));
+            }
+            output.push_str("\n");
+        }
+
+        // Show context explanation
+        output.push_str("📖 **Context Analysis**:\n");
+        output.push_str(&exploration_result.context_explanation);
+
+        Ok(output)
     }
 }

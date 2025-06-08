@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod ast_explorer;
 mod editors;
 mod handlers;
 mod languages;
