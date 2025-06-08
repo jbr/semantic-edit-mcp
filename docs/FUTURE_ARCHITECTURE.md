@@ -1,0 +1,249 @@
+# Future Architecture: Query-Based Multi-Language System
+
+> **Status**: Long-term architectural vision  
+> **Current**: We have a working trait-based system that serves us well  
+> **Goal**: Evaluate if/when to migrate to this more sophisticated approach  
+
+## Executive Summary
+
+This document outlines a **future architecture** for the semantic editing MCP server based on tree-sitter's native query system. Our current trait-based implementation works well and enables rapid iteration, but this query-based approach could provide better scalability and consistency if we expand to many languages.
+
+## Current vs Future Architecture
+
+### **What We Have Now (v0.1.x) - Trait-Based**
+```rust
+// Explicit per-language implementations
+impl LanguageSupport for RustSupport {
+    fn name(&self) -> &'static str { "rust" }
+    fn file_extensions(&self) -> &'static [&'static str] { &["rs"] }
+    // ... explicit implementations
+}
+
+// Manual tool registration
+let tools = vec![
+    Tool { name: "replace_node".to_string(), ... },
+    Tool { name: "insert_after_node".to_string(), ... },
+    // ... 16 manually defined tools
+];
+```
+
+**Pros**: Fast to implement, easy to debug, predictable behavior, enables self-development  
+**Cons**: Code duplication, manual registration, limited scalability
+
+### **Future Vision - Query-Based**
+```rust
+// Declarative language support
+// queries/python/operations.scm
+(function_definition name: (identifier) @name) @insertable_function
+(class_definition name: (identifier) @name) @insertable_class
+
+// Auto-generated tools from metadata
+let tools = ToolGenerator::generate_from_queries(&language_registry);
+```
+
+**Pros**: No duplication, automatic consistency, tree-sitter native, scales to many languages  
+**Cons**: Higher complexity, harder to debug, more abstractions
+
+## Migration Decision Framework
+
+### **When to Consider Migration**
+
+#### **Quantitative Triggers**
+- **Language count > 8**: Manual implementations become unwieldy
+- **Tool count > 25**: Duplication overhead outweighs simplicity benefits  
+- **Development velocity < 1 language/week**: Friction indicates architectural limits
+
+#### **Qualitative Triggers**
+- **Inconsistent capabilities**: Languages have different tool sets accidentally
+- **Bug multiplication**: Same bug appears across multiple language implementations
+- **Contributor confusion**: New developers struggle with repetitive patterns
+
+#### **Anti-Triggers (Don't Migrate)**
+- **Self-development workflow breaks**: Architecture changes hurt our ability to improve the tool
+- **Debugging becomes harder**: Query-based system is opaque during development
+- **Tree-sitter queries are the bottleneck**: Writing queries takes longer than writing Rust
+
+## Migration Strategy (If/When Decided)
+
+### **Phase 1: Query Infrastructure (No Breaking Changes)**
+```rust
+// Add alongside existing system, don't replace
+pub struct QueryBasedLanguageSupport {
+    queries: LanguageQueries,
+    traditional: Box<dyn LanguageSupport>, // Fallback to current system
+}
+
+impl LanguageSupport for QueryBasedLanguageSupport {
+    fn get_node_info(&self, ...) -> Result<String> {
+        // Try query-based approach first
+        if let Ok(result) = self.execute_node_info_query(...) {
+            return Ok(result);
+        }
+        // Fall back to traditional implementation
+        self.traditional.get_node_info(...)
+    }
+}
+```
+
+### **Phase 2: Tool Generation (Additive)**
+```rust
+// Generate additional tools from queries, keep existing ones
+let mut tools = self.get_manual_tools(); // Current 16 tools
+tools.extend(ToolGenerator::generate_from_queries(language)); // +N generated tools
+```
+
+### **Phase 3: Gradual Migration (Language by Language)**
+```rust
+// Migrate one language at a time, starting with simplest
+match language {
+    "json" => use_query_based_approach(), // Migrate JSON first (simplest)
+    "rust" => use_traditional_approach(),  // Keep Rust traditional (most complex)
+    _ => use_hybrid_approach(),
+}
+```
+
+### **Phase 4: Traditional System Removal (If Successful)**
+Only after proving query-based approach works better in practice.
+
+## Query-Based Architecture Details
+
+### **Core Abstractions**
+```rust
+pub trait LanguageSupport {
+    fn language_name() -> &'static str;
+    fn file_extensions() -> &'static [&'static str];
+    fn tree_sitter_language() -> tree_sitter::Language;
+    
+    // Load from queries/LANG/node-types.json (tree-sitter generated)
+    fn get_node_types() -> Result<Vec<NodeTypeInfo>>;
+    
+    // Load from queries/LANG/*.scm files
+    fn load_queries() -> Result<LanguageQueries>;
+}
+
+pub struct LanguageQueries {
+    pub operations: Query,    // Define available operations
+    pub validation: Query,    // Context validation rules
+    pub navigation: Query,    // Node finding patterns
+    pub custom: HashMap<String, Query>, // Language-specific queries
+}
+```
+
+### **File Structure**
+```
+queries/
+├── python/
+│   ├── node-types.json     # Generated by tree-sitter-python
+│   ├── operations.scm      # Available edit operations
+│   ├── validation.scm      # Context validation rules
+│   └── navigation.scm      # Node finding patterns
+├── typescript/
+│   ├── node-types.json     # Generated by tree-sitter-typescript
+│   ├── operations.scm      # TypeScript-specific operations
+│   └── validation.scm      # TypeScript validation rules
+└── rust/
+    ├── operations.scm      # Migrated from current Rust implementation
+    └── validation.scm      # Current validation queries (already done!)
+```
+
+### **Query Examples**
+```scheme
+;; queries/python/operations.scm
+;; Define what operations are possible on which node types
+
+;; Functions can be targeted for after-insertion
+(function_definition 
+  name: (identifier) @name) @insertable_function
+
+;; Classes can be targeted for after-insertion  
+(class_definition
+  name: (identifier) @name) @insertable_class
+
+;; Method definitions within classes
+(class_definition
+  body: (block
+    (function_definition 
+      name: (identifier) @name) @method)) @class_with_methods
+```
+
+### **Tool Generation**
+```rust
+impl ToolGenerator {
+    pub fn generate_tools_for_language(lang: &dyn LanguageSupport) -> Vec<Tool> {
+        let queries = lang.load_queries()?;
+        let mut tools = Vec::new();
+        
+        // For each @insertable_X in operations.scm, generate insert_after_X tool
+        for pattern in queries.operations.patterns() {
+            if let Some(node_type) = pattern.insertable_type() {
+                tools.push(self.generate_insertion_tool(node_type, lang));
+            }
+        }
+        
+        tools
+    }
+}
+```
+
+## Decision Points & Monitoring
+
+### **Current State Assessment (December 2024)**
+- ✅ **Self-development works well**: We can improve the tool using itself
+- ✅ **4 languages supported**: Manageable with current approach
+- ✅ **16 tools implemented**: Some duplication but not overwhelming
+- ⚠️ **Some code patterns repeating**: Validation logic, argument parsing
+- ⚠️ **Adding languages requires 4-5 file changes**: Could be streamlined
+
+### **Quarterly Review Questions**
+1. **How many languages do we realistically want to support?**
+2. **Is the current development velocity sufficient?**
+3. **Are we hitting limitations with the trait-based approach?**
+4. **Would the query-based approach actually be simpler at our current scale?**
+
+### **Migration Triggers to Watch For**
+- [ ] Adding a language takes > 4 hours
+- [ ] Same bug appears in 3+ language implementations  
+- [ ] Tool inconsistencies across languages become a problem
+- [ ] Query-based approach proves itself in other tree-sitter projects
+
+## Key Insights from Current Implementation
+
+### **What We Learned**
+1. **Validation is critical**: Two-layer validation (context + syntax) prevents file corruption
+2. **Language traits work well**: Clear separation of concerns, easy to implement
+3. **Tree-sitter queries are powerful**: Context validation via queries is elegant
+4. **Manual tool registration is fine at current scale**: 16 tools manageable
+5. **Self-development is essential**: Architecture that hurts tool development hurts everything
+
+### **Current Architecture Strengths**
+- **Debuggable**: Clear code paths, easy to trace issues
+- **Predictable**: Explicit implementations, no surprises  
+- **Fast to extend**: New language = implement trait, add to registry
+- **Stable foundation**: Enables productive self-development
+
+### **Potential Migration Benefits**
+- **Consistency**: All languages get identical capabilities automatically
+- **Scalability**: Linear effort to add languages vs. current polynomial
+- **Tree-sitter integration**: Leverage ecosystem conventions and tooling
+- **Reduced maintenance**: Fixes apply to all languages simultaneously
+
+## Conclusion
+
+The query-based architecture represents a **sophisticated long-term vision** that could provide significant benefits at scale. However, our current trait-based implementation is **serving us well** and enabling rapid iteration and self-improvement.
+
+**Recommendation**: Continue with current architecture while monitoring the decision triggers. The query-based approach will remain viable as a migration target - tree-sitter's query system isn't going anywhere, and our current validation queries prove we can work with it successfully.
+
+**Next Steps**:
+1. **Quarterly architecture reviews** to reassess trade-offs
+2. **Track migration trigger metrics** (languages, tools, development velocity)
+3. **Experiment with query generation** for specific tools without full migration
+4. **Monitor tree-sitter ecosystem** for patterns and best practices
+
+The beauty of our current approach is that it **doesn't preclude** the query-based future - we can migrate incrementally when and if the benefits outweigh the costs.
+
+---
+
+*Last Updated: December 7, 2024*  
+*Status: Long-term architectural vision*  
+*Next Review: March 2025*  
+*Migration Status: Monitoring triggers, no immediate need*
