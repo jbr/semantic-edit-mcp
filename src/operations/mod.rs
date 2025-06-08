@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, StreamingIterator};
 
+use crate::parsers::detect_language_from_path;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum NodeSelector {
@@ -147,7 +149,7 @@ impl EditOperation {
         }
     }
 
-    pub fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
+    fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
         // Try to use the new language registry first
         if let Ok(registry) = crate::languages::LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(language) {
@@ -159,8 +161,157 @@ impl EditOperation {
         // Fallback to old Rust-only logic
         match language {
             "rust" => crate::editors::rust::RustEditor::apply_operation(self, source_code),
-            _ => Err(anyhow!("Unsupported language for editing: {}", language)),
+            _ => Err(anyhow!("Unsupported language for editing: {language}")),
         }
+    }
+
+    /// Apply operation with full validation pipeline (terrible target check, context validation, syntax validation)
+    pub fn apply_with_validation(
+        &self,
+        language_hint: Option<String>,
+        file_path: &str,
+        preview_only: bool,
+    ) -> Result<String> {
+        let source_code = std::fs::read_to_string(file_path)?;
+
+        let language = language_hint
+            .or_else(|| detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
+
+        // 1. Parse tree (needed for validation)
+        let mut parser = crate::parsers::TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // 2. Find target node
+        let target_node = self
+            .target_selector()
+            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .ok_or_else(|| anyhow!("Target node not found"))?;
+
+        // 3. Terrible target validation with auto-exploration
+        if let Some(error) =
+            self.check_terrible_target(&target_node, &tree, &source_code, &language)?
+        {
+            return Ok(error);
+        }
+
+        // 4. Context validation
+        let validator = crate::validation::ContextValidator::new()?;
+        if validator.supports_language(&language) {
+            let operation_type = match self {
+                EditOperation::Replace { .. } => crate::validation::OperationType::Replace,
+                EditOperation::InsertBefore { .. } => {
+                    crate::validation::OperationType::InsertBefore
+                }
+                EditOperation::InsertAfter { .. } => crate::validation::OperationType::InsertAfter,
+                EditOperation::Wrap { .. } => crate::validation::OperationType::Wrap,
+                EditOperation::Delete { .. } => {
+                    return Err(anyhow!(
+                        "Delete operation not yet supported with validation"
+                    ))
+                }
+            };
+
+            let validation_result = validator.validate_insertion(
+                &tree,
+                &source_code,
+                &target_node,
+                self.content(),
+                &language,
+                &operation_type,
+            )?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+            }
+        }
+
+        // 5. Apply operation (existing logic)
+        let result = self.apply(&source_code, &language)?;
+
+        // 6. Syntax validation and file writing
+        if result.success && !preview_only {
+            if let Some(new_code) = &result.new_content {
+                match crate::validation::SyntaxValidator::validate_and_write(
+                    file_path,
+                    new_code,
+                    &language,
+                    preview_only,
+                ) {
+                    Ok(msg) if msg.contains("❌") => return Ok(msg),
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        // 7. Format response
+        let validation_note = if validator.supports_language(&language) {
+            "with context validation"
+        } else {
+            "syntax validation only"
+        };
+        let prefix = if preview_only { "PREVIEW: " } else { "" };
+        Ok(format!(
+            "{prefix}{} operation result ({validation_note}):\n{}",
+            self.operation_name(),
+            result.message
+        ))
+    }
+
+    /// Get the target selector for this operation
+    fn target_selector(&self) -> &NodeSelector {
+        match self {
+            EditOperation::Replace { target, .. } => target,
+            EditOperation::InsertBefore { target, .. } => target,
+            EditOperation::InsertAfter { target, .. } => target,
+            EditOperation::Wrap { target, .. } => target,
+            EditOperation::Delete { target, .. } => target,
+        }
+    }
+
+    /// Get the content for this operation
+    fn content(&self) -> &str {
+        match self {
+            EditOperation::Replace { new_content, .. } => new_content,
+            EditOperation::InsertBefore { content, .. } => content,
+            EditOperation::InsertAfter { content, .. } => content,
+            EditOperation::Wrap {
+                wrapper_template, ..
+            } => wrapper_template,
+            EditOperation::Delete { .. } => "",
+        }
+    }
+
+    /// Get a human-readable operation name
+    fn operation_name(&self) -> &str {
+        match self {
+            EditOperation::Replace { .. } => "Replace",
+            EditOperation::InsertBefore { .. } => "Insert before",
+            EditOperation::InsertAfter { .. } => "Insert after",
+            EditOperation::Wrap { .. } => "Wrap",
+            EditOperation::Delete { .. } => "Delete",
+        }
+    }
+
+    /// Check if target is terrible and return enhanced error with auto-exploration
+    fn check_terrible_target(
+        &self,
+        target_node: &tree_sitter::Node<'_>,
+        tree: &tree_sitter::Tree,
+        source_code: &str,
+        language: &str,
+    ) -> Result<Option<String>> {
+        check_terrible_target(
+            self.target_selector(),
+            target_node,
+            tree,
+            source_code,
+            language,
+        )
     }
 }
 
@@ -547,4 +698,83 @@ impl NodeSelector {
 
         Ok(None)
     }
+}
+
+pub fn check_terrible_target(
+    selector: &NodeSelector,
+    target_node: &tree_sitter::Node<'_>,
+    tree: &tree_sitter::Tree,
+    source_code: &str,
+    language: &str,
+) -> Result<Option<String>> {
+    use crate::ast_explorer::{ASTExplorer, EditSuitability};
+
+    let node_info = ASTExplorer::analyze_node(target_node, source_code, language);
+
+    if let EditSuitability::Terrible { reason, why_avoid } = node_info.edit_suitability {
+        // Only run exploration for position-based selectors (where we have line/column)
+        if let NodeSelector::Position { line, column, .. } = selector {
+            let exploration =
+                ASTExplorer::explore_around(tree, source_code, *line, *column, language)?;
+
+            let mut output = String::new();
+            output.push_str(&format!("❌ Edit blocked: {reason}\n"));
+            output.push_str(&format!("🚫 {why_avoid}\n\n"));
+            output.push_str(&format!(
+                "🔍 Auto-exploration at {line}:{column} shows better targets:\n\n",
+            ));
+
+            // Find excellent and good targets from ancestors
+            let good_targets: Vec<_> = exploration
+                .ancestors
+                .iter()
+                .filter(|node| {
+                    matches!(
+                        node.edit_suitability,
+                        EditSuitability::Excellent { .. } | EditSuitability::Good { .. }
+                    )
+                })
+                .collect();
+
+            if !good_targets.is_empty() {
+                output.push_str("✅ **RECOMMENDED TARGETS**:\n");
+                for (i, target) in good_targets.iter().take(3).enumerate() {
+                    let quality = match target.edit_suitability {
+                        EditSuitability::Excellent { .. } => "Excellent",
+                        EditSuitability::Good { .. } => "Good",
+                        _ => "OK",
+                    };
+
+                    output.push_str(&format!(
+                        "  {}. {} ({}) - {}\n",
+                        i + 1,
+                        target.kind,
+                        quality,
+                        target
+                            .semantic_role
+                            .as_deref()
+                            .unwrap_or("structural element")
+                    ));
+
+                    if let Some(selector_opt) = target.selector_options.first() {
+                        output.push_str(&format!(
+                            "     Selector: {}\n\n",
+                            serde_json::to_string(&selector_opt.selector_value).unwrap_or_default()
+                        ));
+                    }
+                }
+            }
+
+            output
+                .push_str("💡 Use one of the recommended selectors above to target a better node.");
+            return Ok(Some(output));
+        } else {
+            // For non-position selectors, just return a simple error
+            return Ok(Some(format!(
+                    "❌ Edit blocked: {reason}\n🚫 {why_avoid}\n\n💡 Try using a different selector type or explore_ast to find better targets.",
+                )));
+        }
+    }
+
+    Ok(None) // No terrible target detected
 }

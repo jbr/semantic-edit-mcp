@@ -1,5 +1,5 @@
 use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
+use crate::parsers::TreeSitterParser;
 use crate::tools::ToolRegistry;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
@@ -28,7 +28,10 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let source_code = std::fs::read_to_string(file_path)?;
+        let language_hint = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let selector = NodeSelector::Name {
             node_type: Some("struct_item".to_string()),
@@ -41,22 +44,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert after struct operation result:\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     pub async fn insert_after_enum(&self, args: &Value) -> Result<String> {
@@ -80,7 +68,10 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let source_code = std::fs::read_to_string(file_path)?;
+        let language_hint = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let selector = NodeSelector::Name {
             node_type: Some("enum_item".to_string()),
@@ -93,22 +84,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert after enum operation result:\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     pub async fn insert_after_impl(&self, args: &Value) -> Result<String> {
@@ -132,7 +108,10 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let source_code = std::fs::read_to_string(file_path)?;
+        let language_hint = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         // For impl blocks, we need to find them by their type
         let selector = NodeSelector::Query {
@@ -150,23 +129,7 @@ impl ToolRegistry {
             content: content.to_string(),
             preview_only: Some(preview_only),
         };
-
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert after impl operation result:\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, &file_path, preview_only)
     }
 
     pub async fn insert_after_function(&self, args: &Value) -> Result<String> {
@@ -190,7 +153,10 @@ impl ToolRegistry {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let source_code = std::fs::read_to_string(file_path)?;
+        let language_hint = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let selector = NodeSelector::Name {
             node_type: Some("function_item".to_string()),
@@ -203,22 +169,7 @@ impl ToolRegistry {
             preview_only: Some(preview_only),
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert after function operation result:\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
     pub async fn insert_in_module(&self, args: &Value) -> Result<String> {
@@ -241,6 +192,11 @@ impl ToolRegistry {
             .get("position")
             .and_then(|v| v.as_str())
             .unwrap_or("end"); // "start" or "end"
+
+        let language_hint = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let source_code = std::fs::read_to_string(file_path)?;
         let mut parser = TreeSitterParser::new()?;
@@ -429,21 +385,6 @@ impl ToolRegistry {
             }
         };
 
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path"))?;
-
-        let result = operation.apply(&source_code, &language)?;
-
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                std::fs::write(file_path, new_code)?;
-            }
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}Insert in module operation result:\n{}",
-            result.message
-        ))
+        operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 }
