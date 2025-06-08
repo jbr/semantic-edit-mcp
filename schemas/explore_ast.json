@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the source file to explore"
+    },
+    "line": {
+      "type": "integer",
+      "description": "Line number (1-indexed) to explore around"
+    },
+    "column": {
+      "type": "integer", 
+      "description": "Column number (1-indexed) to explore around"
+    },
+    "language": {
+      "type": "string",
+      "description": "Programming language hint (optional, auto-detected if not provided)"
+    }
+  },
+  "required": ["file_path", "line", "column"],
+  "additionalProperties": false
+}
