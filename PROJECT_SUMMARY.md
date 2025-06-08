@@ -18,18 +18,11 @@ Traditional code editing tools operate on text lines, leading to:
 
 ### Our Solution: Comprehensive Validation
 ```
-1. Context Validation (semantic rules)
-   ├─ Language-specific semantic rules
-   ├─ Prevents functions inside struct fields
-   ├─ Prevents types inside function bodies  
-   └─ Available for Rust (more languages planned)
-
-2. Syntax Validation (universal)
-   ├─ Tree-sitter parsing validation
-   ├─ Prevents syntax errors before writing
-   ├─ Works with any tree-sitter language
-   └─ Blocks invalid edits with clear messages
-```
+### Current Language Support
+- **🟢 Rust** - Full support (parsing, editing, context validation, syntax validation)
+- **🟢 JSON** - Full support (parsing, editing, syntax validation)
+- **🟢 Markdown** - Full support (parsing, editing, syntax validation)
+- **🟡 Other languages** - Syntax validation only (easy to extend)```
 
 **Result**: Zero file corruption incidents since implementation.
 
@@ -247,16 +240,10 @@ fn calculate_total(items: &[Item]) -> f64 {
 
 ### ✅ Semantic Editing with Validation
 ```json
-{
-  "name": "replace_node",
-  "arguments": {
-    "file_path": "src/calc.rs",
-    "selector": {"type": "function_item", "name": "calculate_total"},
-    "new_content": "fn calculate_total(items: &[Item]) -> Result<f64, TaxError> {\n    // Safe implementation\n    Ok(total)\n}",
-    "preview_only": true
-  }
-}
-```
+### 🚧 In Progress: Documentation & Expansion
+- **Complete language addition guide** - [docs/adding-languages.md](docs/adding-languages.md) ✅ Updated
+- **Markdown support** - ✅ Complete! Full parsing and editing with syntax validation
+- **Performance optimization** - Validation efficiency for large files```
 
 **Benefits:**
 - ✅ Guaranteed syntactic correctness through validation
