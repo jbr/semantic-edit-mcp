@@ -289,48 +289,42 @@ impl MarkdownEditor {
                 // Headings and sections need blank lines around them
                 if before {
                     if content.ends_with('\n') {
-                        format!("{}\n", content)
+                        format!("{content}\n")
                     } else {
-                        format!("{}\n\n", content)
+                        format!("{content}\n\n")
                     }
+                } else if content.starts_with('\n') {
+                    format!("\n{content}")
                 } else {
-                    if content.starts_with('\n') {
-                        format!("\n{}", content)
-                    } else {
-                        format!("\n\n{}", content)
-                    }
+                    format!("\n\n{content}")
                 }
             }
             "paragraph" => {
                 // Paragraphs need blank lines around them for separation
                 if before {
                     if content.ends_with('\n') {
-                        format!("{}\n", content)
+                        format!("{content}\n")
                     } else {
-                        format!("{}\n\n", content)
+                        format!("{content}\n\n")
                     }
+                } else if content.starts_with('\n') {
+                    format!("\n{content}")
                 } else {
-                    if content.starts_with('\n') {
-                        format!("\n{}", content)
-                    } else {
-                        format!("\n\n{}", content)
-                    }
+                    format!("\n\n{content}")
                 }
             }
             "fenced_code_block" => {
                 // Code blocks need blank lines around them
                 if before {
                     if content.ends_with('\n') {
-                        format!("{}\n", content)
+                        format!("{content}\n")
                     } else {
-                        format!("{}\n\n", content)
+                        format!("{content}\n\n")
                     }
+                } else if content.starts_with('\n') {
+                    format!("\n{content}")
                 } else {
-                    if content.starts_with('\n') {
-                        format!("\n{}", content)
-                    } else {
-                        format!("\n\n{}", content)
-                    }
+                    format!("\n\n{content}")
                 }
             }
             "list_item" => {
@@ -339,14 +333,12 @@ impl MarkdownEditor {
                     if content.ends_with('\n') {
                         content.to_string()
                     } else {
-                        format!("{}\n", content)
+                        format!("{content}\n")
                     }
+                } else if content.starts_with('\n') {
+                    content.to_string()
                 } else {
-                    if content.starts_with('\n') {
-                        content.to_string()
-                    } else {
-                        format!("\n{}", content)
-                    }
+                    format!("\n{content}")
                 }
             }
             _ => content.to_string(),
@@ -411,7 +403,7 @@ impl LanguageEditor for MarkdownEditor {
                 } else {
                     "unknown"
                 };
-                format!("\n- Heading level: {}", level)
+                format!("\n- Heading level: {level}")
             }
             "fenced_code_block" => {
                 // Try to get the language
@@ -420,7 +412,7 @@ impl LanguageEditor for MarkdownEditor {
                 } else {
                     "none"
                 };
-                format!("\n- Code language: {}", language)
+                format!("\n- Code language: {language}")
             }
             "link" => {
                 // Try to get link text and destination
