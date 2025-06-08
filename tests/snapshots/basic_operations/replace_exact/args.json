@@ -1,0 +1,16 @@
+[
+  {
+    "arguments": {
+      "content": "has had",
+      "anchor": "will have",
+      "operation": "replace_exact"
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

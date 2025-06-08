@@ -1,44 +1,27 @@
-#![allow(dead_code)]
+#![allow(clippy::collapsible_if)]
 
-mod editors;
-mod handlers;
+mod editor;
 mod languages;
-mod operations;
-mod parsers;
-mod server;
-mod server_impl;
-mod specialized_tools;
+mod selector;
+mod state;
 mod tools;
 mod validation;
 
-use anyhow::Result;
-use clap::{Parser, Subcommand};
-use server_impl::SemanticEditServer;
+use mcplease::server_info;
+use state::SemanticEditTools;
+use std::env;
+use tools::Tools;
 
-#[derive(Parser)]
-#[command(name = "semantic-edit-mcp")]
-#[command(about = "A Model Context Protocol server for semantic code editing")]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
+const INSTRUCTIONS: &str = "Semantic code editing with tree-sitter. Use stage_operation to preview changes, retarget_staged to adjust targeting, and commit_staged to apply.";
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Start the MCP server
-    Serve,
-}
+fn main() {
+    let mut state = SemanticEditTools::new(
+        env::var("MCP_SESSION_STORAGE_PATH")
+            .ok()
+            .as_deref()
+            .or(Some("~/.ai-tools/sessions/semantic-edit.json")),
+    )
+    .unwrap();
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    match cli.command {
-        Some(Commands::Serve) | None => {
-            let server = SemanticEditServer::new()?;
-            server.run().await?;
-        }
-    }
-
-    Ok(())
+    mcplease::run::<Tools, _>(&mut state, server_info!(), Some(INSTRUCTIONS)).unwrap()
 }
