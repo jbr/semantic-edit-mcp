@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node", 
+  "arguments": {
+    "selector": {
+      "line": 2,
+      "column": 5
+    },
+    "new_content": "// This should be rejected",
+    "preview_only": true
+  }
+}

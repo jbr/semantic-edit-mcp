@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "name": "old_function",
+      "type": "function_item"
+    },
+    "new_content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
+    "preview_only": true
+  }
+}
