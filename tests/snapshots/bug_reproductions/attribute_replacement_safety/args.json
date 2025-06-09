@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "name": "original_async_test",
+      "type": "function_item"
+    },
+    "new_content": "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}",
+    "preview_only": true
+  }
+}

@@ -5,9 +5,10 @@ use std::env;
 
 #[tokio::test]
 async fn run_snapshot_tests() {
-    // Check for --update flag in environment or test args
+    // Check for --update flag in environment, test args, or flag file
     let update_mode = env::var("UPDATE_SNAPSHOTS").is_ok() 
-        || env::args().any(|arg| arg == "--update");
+        || env::args().any(|arg| arg == "--update")
+        || std::path::Path::new("UPDATE_SNAPSHOTS").exists();
 
     let runner = SnapshotRunner::new(update_mode)
         .expect("Failed to create snapshot runner");

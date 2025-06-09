@@ -1,0 +1,8 @@
+{
+  "tool": "insert_after_function",
+  "arguments": {
+    "function_name": "existing_function",
+    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
+    "preview_only": true
+  }
+}

@@ -1,0 +1,3 @@
+Node 'NonexistentStruct' of type 'struct_item' not found
+
+Available options: struct: ExistingStruct
