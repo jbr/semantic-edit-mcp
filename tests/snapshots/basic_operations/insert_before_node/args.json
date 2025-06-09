@@ -1,0 +1,11 @@
+{
+  "tool": "insert_before_node",
+  "arguments": {
+    "selector": {
+      "name": "target_function",
+      "type": "function_item"
+    },
+    "content": "// This comment is inserted before the target function\n",
+    "preview_only": true
+  }
+}

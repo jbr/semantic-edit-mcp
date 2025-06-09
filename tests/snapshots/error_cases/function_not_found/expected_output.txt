@@ -1,0 +1,3 @@
+Node 'nonexistent_function' of type 'function_item' not found
+
+Available options: function: existing_function, function: another_function

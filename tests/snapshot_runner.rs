@@ -246,6 +246,7 @@ impl SnapshotRunner {
 
     /// Print a summary of test results
         /// Print a summary of test results
+        /// Print a summary of test results
     pub fn print_summary(&self, results: &[SnapshotResult]) {
         let total = results.len();
         let passed = results.iter().filter(|r| r.passed).count();
@@ -262,6 +263,13 @@ impl SnapshotRunner {
             println!("  Mode:   VERIFY");
         }
 
+        if passed > 0 {
+            println!("\n✅ Passed tests:");
+            for result in results.iter().filter(|r| r.passed) {
+                println!("  • {}", result.test.name);
+            }
+        }
+
         if failed > 0 {
             println!("\n❌ Failed tests:");
             for result in results.iter().filter(|r| !r.passed) {
@@ -276,13 +284,6 @@ impl SnapshotRunner {
                     println!("\n    ACTUAL OUTPUT:");
                     println!("    {}", result.actual_output.replace('\n', "\n    "));
                 }
-            }
-        }
-
-        if passed > 0 {
-            println!("\n✅ Passed tests:");
-            for result in results.iter().filter(|r| r.passed) {
-                println!("  • {}", result.test.name);
             }
         }
     }

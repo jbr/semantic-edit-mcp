@@ -1,0 +1,9 @@
+{
+  "tool": "get_node_info",
+  "arguments": {
+    "selector": {
+      "name": "sample_function",
+      "type": "function_item"
+    }
+  }
+}

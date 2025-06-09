@@ -1,0 +1,3 @@
+Query error at 1:37. Invalid syntax:
+(pair key: (string) @key (#eq? @key '"version"')) @target
+                                    ^

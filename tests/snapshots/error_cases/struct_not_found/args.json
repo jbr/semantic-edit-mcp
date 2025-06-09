@@ -1,0 +1,8 @@
+{
+  "tool": "insert_after_struct",
+  "arguments": {
+    "struct_name": "NonexistentStruct",
+    "content": "\n// This should fail",
+    "preview_only": true
+  }
+}
