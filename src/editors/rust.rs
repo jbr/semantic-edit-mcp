@@ -70,7 +70,7 @@ impl RustEditor {
         }
     }
 
-    fn replace_node(
+        fn replace_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -80,20 +80,25 @@ impl RustEditor {
             .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
+        // Smart attribute handling for function replacements
+        let (actual_start_byte, actual_end_byte) = if node.kind() == "function_item" {
+            Self::calculate_function_replacement_range(tree, source_code, &node, new_content)?
+        } else {
+            (node.start_byte(), node.end_byte())
+        };
+
         // Validate the new content would create valid syntax
-        if !Self::validate_replacement(source_code, &node, new_content)? {
+        if !Self::validate_replacement_with_range(source_code, actual_start_byte, actual_end_byte, new_content)? {
             return Ok(EditResult::Error(
                 "Replacement would create invalid syntax".to_string(),
             ));
         }
 
         let rope = Rope::from_str(source_code);
-        let start_byte = node.start_byte();
-        let end_byte = node.end_byte();
 
         // Convert byte positions to character positions
-        let start_char = rope.byte_to_char(start_byte);
-        let end_char = rope.byte_to_char(end_byte);
+        let start_char = rope.byte_to_char(actual_start_byte);
+        let end_char = rope.byte_to_char(actual_end_byte);
 
         // Create new rope with replacement
         let mut new_rope = rope.clone();
@@ -105,6 +110,110 @@ impl RustEditor {
             new_content: new_rope.to_string(),
             affected_range: (start_char, start_char + new_content.len()),
         })
+    }
+        
+    /// Calculate the correct replacement range for functions, including attributes if appropriate
+    fn calculate_function_replacement_range(
+        tree: &Tree,
+        source_code: &str,
+        function_node: &Node,
+        new_content: &str,
+    ) -> Result<(usize, usize)> {
+        // Check if the new content starts with attributes
+        let new_content_has_attributes = new_content.trim_start().starts_with('#');
+        
+        if !new_content_has_attributes {
+            // No attributes in replacement, preserve existing ones by only replacing the function
+            return Ok((function_node.start_byte(), function_node.end_byte()));
+        }
+        
+        // New content has attributes, so include any existing attributes in replacement
+        // to prevent duplication
+        if let Some((attr_start, func_end)) = Self::find_function_attributes_range(tree, source_code, function_node) {
+            Ok((attr_start, func_end))
+        } else {
+            // No existing attributes found, just replace the function
+            Ok((function_node.start_byte(), function_node.end_byte()))
+        }
+    }
+    
+    /// Find the range that includes any attributes immediately preceding a function
+    fn find_function_attributes_range(
+        tree: &Tree,
+        source_code: &str,
+        function_node: &Node,
+    ) -> Option<(usize, usize)> {
+        let root = tree.root_node();
+        let mut cursor = root.walk();
+        
+        // Find all top-level nodes (children of source_file)
+        if !cursor.goto_first_child() {
+            return None;
+        }
+        
+        let mut preceding_attributes = Vec::new();
+        let mut found_function = false;
+        
+        loop {
+            let current_node = cursor.node();
+            
+            // If we found our target function, stop
+            if current_node.id() == function_node.id() {
+                found_function = true;
+                break;
+            }
+            
+            // Track attribute_items
+            if current_node.kind() == "attribute_item" {
+                preceding_attributes.push(current_node);
+            } else if current_node.kind() != "attribute_item" {
+                // Non-attribute node resets our attribute collection
+                // (they don't belong to our function)
+                preceding_attributes.clear();
+            }
+            
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        
+        if !found_function || preceding_attributes.is_empty() {
+            return None;
+        }
+        
+        // Verify the attributes are immediately before the function (only whitespace in between)
+        let last_attr = preceding_attributes.last()?;
+        let last_attr_end = last_attr.end_byte();
+        let function_start = function_node.start_byte();
+        
+        let between_text = &source_code[last_attr_end..function_start];
+        if !between_text.trim().is_empty() {
+            // There's non-whitespace content between the attribute and function
+            return None;
+        }
+        
+        // Return range from first attribute to end of function
+        let first_attr = preceding_attributes.first()?;
+        Some((first_attr.start_byte(), function_node.end_byte()))
+    }
+    
+    /// Validate replacement with custom byte range
+    fn validate_replacement_with_range(
+        original_code: &str, 
+        start_byte: usize, 
+        end_byte: usize, 
+        replacement: &str
+    ) -> Result<bool> {
+        let rope = Rope::from_str(original_code);
+        let start_char = rope.byte_to_char(start_byte);
+        let end_char = rope.byte_to_char(end_byte);
+
+        let mut temp_rope = rope.clone();
+        temp_rope.remove(start_char..end_char);
+        temp_rope.insert(start_char, replacement);
+
+        let temp_code = temp_rope.to_string();
+        crate::parsers::rust::RustParser::validate_rust_syntax(&temp_code)
     }
 
     fn insert_before_node(

@@ -11,7 +11,11 @@ pub fn regular_function() {
 
 #[tokio::test]
 async fn async_test() {
-    // Modified async test with debug
-    println!("Debug output");
+    // Original async test with tokio::test attribute
     assert!(true);
+}
+
+#[derive(Debug, Clone)]
+struct TestStruct {
+    value: i32,
 }

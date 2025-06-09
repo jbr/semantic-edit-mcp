@@ -1,0 +1,2 @@
+Replace operation result (with context validation):
+Successfully replaced function_item node
