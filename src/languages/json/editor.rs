@@ -7,6 +7,12 @@ use tree_sitter::{Node, Tree};
 
 pub struct JsonEditor;
 
+impl Default for JsonEditor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JsonEditor {
     pub fn new() -> Self {
         Self

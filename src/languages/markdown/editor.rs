@@ -7,6 +7,12 @@ use tree_sitter::{Node, Tree};
 
 pub struct MarkdownEditor;
 
+impl Default for MarkdownEditor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MarkdownEditor {
     pub fn new() -> Self {
         Self
