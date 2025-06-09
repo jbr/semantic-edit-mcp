@@ -20,18 +20,6 @@
                 "query": {
                     "type": "string",
                     "description": "Tree-sitter query - RECOMMENDED"
-                },
-                "line": {
-                    "type": "number",
-                    "description": "⚠️  Line (1-indexed) - use with caution"
-                },
-                "column": {
-                    "type": "number",
-                    "description": "⚠️  Column (1-indexed) - use with caution"
-                },
-                "scope": {
-                    "type": "string",
-                    "description": "Scope hint: 'token', 'expression', 'statement', 'item'"
                 }
             }
         },

@@ -7,7 +7,7 @@
         },
         "selector": {
             "type": "object",
-            "description": "Node selector (by name, type, query, or position). RECOMMENDED: Use semantic selectors (name/type/query) for reliable targeting. Position-based selection may select unexpected small nodes.",
+            "description": "Node selector (by name, type, or query). Use semantic selectors for reliable targeting.",
             "properties": {
                 "type": {
                     "type": "string",
@@ -20,18 +20,6 @@
                 "query": {
                     "type": "string",
                     "description": "Tree-sitter query - RECOMMENDED for precise selection"
-                },
-                "line": {
-                    "type": "number",
-                    "description": "⚠️  Line number (1-indexed) - May select small tokens, use with caution"
-                },
-                "column": {
-                    "type": "number",
-                    "description": "⚠️  Column number (1-indexed) - May select small tokens, use with caution"
-                },
-                "scope": {
-                    "type": "string",
-                    "description": "Optional scope hint for position selection: 'token' (default), 'expression', 'statement', 'item'"
                 }
             }
         },
