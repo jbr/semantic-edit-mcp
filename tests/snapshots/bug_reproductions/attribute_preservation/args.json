@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "name": "async_test",
+      "type": "function_item"
+    },
+    "new_content": "async fn async_test() {\n    // Modified without any attributes - should preserve existing #[tokio::test]\n    println!(\"Debug output\");\n    assert!(true);\n}",
+    "preview_only": false
+  }
+}
