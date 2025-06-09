@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "name": "helper_function",
+      "type": "function_item"
+    },
+    "new_content": "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}",
+    "preview_only": false
+  }
+}
