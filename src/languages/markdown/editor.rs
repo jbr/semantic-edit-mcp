@@ -366,7 +366,7 @@ impl MarkdownEditor {
                         .slice(end_char..std::cmp::min(end_char + 2, total_chars))
                         .into();
                     if next_chars.starts_with("\n\n") {
-                        return (start_char, end_char + 1);
+                        return (start_char, end_char + 2);
                     } else if next_chars.starts_with('\n') {
                         return (start_char, end_char + 1);
                     }
