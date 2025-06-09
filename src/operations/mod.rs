@@ -249,17 +249,22 @@ impl EditOperation {
         }
 
         // 7. Format response
-        let validation_note = if validator.supports_language(&language) {
-            "with context validation"
+        if preview_only {
+            // Generate contextual preview showing insertion point
+            self.generate_contextual_preview(&target_node, &source_code, &language)
         } else {
-            "syntax validation only"
-        };
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}{} operation result ({validation_note}):\n{}",
-            self.operation_name(),
-            result.message
-        ))
+            // Normal response for actual operations
+            let validation_note = if validator.supports_language(&language) {
+                "with context validation"
+            } else {
+                "syntax validation only"
+            };
+            Ok(format!(
+                "{} operation result ({validation_note}):\n{}",
+                self.operation_name(),
+                result.message
+            ))
+        }
     }
 
     /// Get the target selector for this operation
@@ -297,7 +302,161 @@ impl EditOperation {
         }
     }
 
-    /// Check if target is terrible and return enhanced error with auto-exploration
+    /// Generate contextual preview showing insertion point with surrounding code
+        /// Generate contextual preview showing insertion point with surrounding code
+    fn generate_contextual_preview(
+        &self,
+        target_node: &tree_sitter::Node<'_>,
+        source_code: &str,
+        language: &str,
+    ) -> Result<String> {
+        // Create placeholder operation using our existing AST machinery
+        let placeholder_op = self.with_placeholder_content();
+        
+        // Apply using the SAME logic that handles the real operation
+        let result = placeholder_op.apply(source_code, language)?;
+        
+        if let Some(new_content) = result.new_content {
+            // Find lines containing our placeholder markers
+            let lines: Vec<&str> = new_content.lines().collect();
+            let mut placeholder_lines = Vec::new();
+            
+            for (i, line) in lines.iter().enumerate() {
+                if line.contains("🎯") {
+                    placeholder_lines.push(i);
+                }
+            }
+            
+            if placeholder_lines.is_empty() {
+                return Ok("🔍 **PREVIEW**: Operation completed, but placeholder not found in result".to_string());
+            }
+            
+            // Show context around all placeholder lines
+            let first_placeholder = placeholder_lines[0];
+            let last_placeholder = placeholder_lines.last().copied().unwrap_or(first_placeholder);
+            
+            let context_before = 5;
+            let context_after = 5;
+            let start_line = first_placeholder.saturating_sub(context_before);
+            let end_line = std::cmp::min(last_placeholder + context_after, lines.len().saturating_sub(1));
+            
+            let mut preview = String::new();
+            preview.push_str("🔍 **INSERTION PREVIEW** - Showing file after operation:\n");
+            preview.push_str("ℹ️  NEW CONTENT MARKED WITH 🎯\n\n");
+            
+            for line_idx in start_line..=end_line {
+                if line_idx < lines.len() {
+                    let line_num = line_idx + 1;
+                    let line_content = lines[line_idx];
+                    
+                    if line_content.contains("🎯") {
+                        // Highlight placeholder lines
+                        preview.push_str(&format!("{:4} | {} ← NEW CONTENT LOCATION\n", line_num, line_content));
+                    } else {
+                        preview.push_str(&format!("{:4} | {}\n", line_num, line_content));
+                    }
+                }
+            }
+            
+            // Show the actual content that will be inserted/replaced
+            let content = self.content();
+            if !content.is_empty() {
+                let operation_desc = match self {
+                    EditOperation::Replace { .. } => "replace placeholder with",
+                    EditOperation::InsertAfter { .. } | EditOperation::InsertBefore { .. } => "insert instead of placeholder",
+                    EditOperation::Wrap { .. } => "use as wrapper template",
+                    EditOperation::Delete { .. } => "remove (delete operation)",
+                };
+                
+                preview.push_str(&format!("\n📄 **Actual content to {}:**\n", operation_desc));
+                
+                if content.len() <= 500 {
+                    preview.push_str(&format!("```{}\n{}\n```\n", language, content));
+                } else {
+                    let lines_preview: Vec<&str> = content.lines().take(10).collect();
+                    let total_lines = content.lines().count();
+                    preview.push_str(&format!("```{}\n{}\n... ({} more lines, {} total characters)\n```\n", 
+                        language, lines_preview.join("\n"), 
+                        total_lines.saturating_sub(10), content.len()));
+                }
+            }
+            
+            // Add structural warning
+            if let Ok(Some(warning)) = self.check_structural_warning(target_node) {
+                preview.push_str(&format!("\n⚠️  **Structural Note:** {}\n", warning));
+            }
+            
+            Ok(preview)
+        } else {
+            Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
+        }
+    }
+    
+    /// Create a version of this operation with placeholder content for preview
+    fn with_placeholder_content(&self) -> Self {
+        match self {
+            EditOperation::Replace { target, .. } => EditOperation::Replace {
+                target: target.clone(),
+                new_content: "🎯 REPLACEMENT_CONTENT 🎯".to_string(),
+                preview_only: Some(true),
+            },
+            EditOperation::InsertBefore { target, .. } => EditOperation::InsertBefore {
+                target: target.clone(),
+                content: "🎯 NEW_CONTENT 🎯".to_string(),
+                preview_only: Some(true),
+            },
+            EditOperation::InsertAfter { target, .. } => EditOperation::InsertAfter {
+                target: target.clone(),
+                content: "🎯 NEW_CONTENT 🎯".to_string(),
+                preview_only: Some(true),
+            },
+            EditOperation::Wrap { target, .. } => EditOperation::Wrap {
+                target: target.clone(),
+                wrapper_template: "🎯 WRAPPER_START 🎯{{content}}🎯 WRAPPER_END 🎯".to_string(),
+                preview_only: Some(true),
+            },
+            EditOperation::Delete { target, .. } => EditOperation::Delete {
+                target: target.clone(),
+                preview_only: Some(true),
+            },
+        }
+    }
+
+    /// Check for structural warnings (less severe than terrible targets)
+    fn check_structural_warning(
+        &self,
+        target_node: &tree_sitter::Node<'_>,
+    ) -> Result<Option<String>> {
+        let node_kind = target_node.kind();
+        let parent_kind = target_node.parent().map(|p| p.kind());
+
+        Ok(match self {
+            EditOperation::InsertAfter { .. } => {
+                match node_kind {
+                    "impl_item" | "struct_item" | "enum_item" | "mod_item" => {
+                        Some("You're inserting after a container block. Content will be placed OUTSIDE the container, not inside it.".to_string())
+                    }
+                    "function_item" if parent_kind == Some("impl_item") => {
+                        Some("Inserting after this method will place content at module level, outside the impl block.".to_string())
+                    }
+                    "block" => {
+                        Some("Inserting after a block will place content outside the block scope.".to_string())
+                    }
+                    _ => None
+                }
+            }
+            EditOperation::Replace { .. } => {
+                match node_kind {
+                    "impl_item" | "struct_item" | "enum_item" => {
+                        Some("You're replacing an entire container definition. This will remove all its contents.".to_string())
+                    }
+                    _ => None
+                }
+            }
+            _ => None
+        })
+    }
+
     fn check_terrible_target(
         &self,
         target_node: &tree_sitter::Node<'_>,
