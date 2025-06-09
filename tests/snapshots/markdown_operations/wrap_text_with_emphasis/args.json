@@ -1,0 +1,10 @@
+{
+  "tool": "wrap_node",
+  "arguments": {
+    "selector": {
+      "type": "paragraph"
+    },
+    "wrapper_template": "**{{content}}**",
+    "preview_only": false
+  }
+}

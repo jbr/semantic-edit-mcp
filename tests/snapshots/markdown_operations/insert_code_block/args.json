@@ -1,0 +1,10 @@
+{
+  "tool": "insert_after_node",
+  "arguments": {
+    "selector": {
+      "type": "fenced_code_block"
+    },
+    "content": "```python\ndef greet(name):\n    print(f\"Hello, {name}!\")\n```",
+    "preview_only": false
+  }
+}
