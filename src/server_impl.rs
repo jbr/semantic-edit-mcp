@@ -116,12 +116,19 @@ impl SemanticEditServer {
             }
         };
 
+        let response = match result.write().await {
+            Ok(output) => output,
+            Err(e) => {
+                return McpResponse::error(id, -32603, format!("Writing failed: {e}"));
+            }
+        };
+
         McpResponse::success(
             id,
             json!({
                 "content": [{
                     "type": "text",
-                    "text": result
+                    "text": response
                 }]
             }),
         )

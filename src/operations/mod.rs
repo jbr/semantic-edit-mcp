@@ -2,7 +2,9 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, StreamingIterator};
 
-use crate::parsers::detect_language_from_path;
+use crate::{
+    parsers::detect_language_from_path, tools::ExecutionResult, validation::SyntaxValidator,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -67,11 +69,28 @@ pub enum EditOperation {
 }
 
 #[derive(Debug)]
-pub struct EditResult {
-    pub success: bool,
-    pub message: String,
-    pub new_content: Option<String>,
-    pub affected_range: Option<(usize, usize)>,
+pub enum EditResult {
+    Success {
+        message: String,
+        new_content: String,
+        affected_range: (usize, usize),
+    },
+    Error(String),
+}
+impl EditResult {
+    pub(crate) fn set_message(&mut self, new_message: String) {
+        match self {
+            EditResult::Success { message, .. } => *message = new_message,
+            EditResult::Error(message) => *message = new_message,
+        }
+    }
+
+    pub(crate) fn message(&self) -> &str {
+        match self {
+            EditResult::Success { message, .. } => message,
+            EditResult::Error(message) => message,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -171,7 +190,7 @@ impl EditOperation {
         language_hint: Option<String>,
         file_path: &str,
         preview_only: bool,
-    ) -> Result<String> {
+    ) -> Result<ExecutionResult> {
         let source_code = std::fs::read_to_string(file_path)?;
 
         let language = language_hint
@@ -194,7 +213,7 @@ impl EditOperation {
         if let Some(error) =
             self.check_terrible_target(&target_node, &tree, &source_code, &language)?
         {
-            return Ok(error);
+            return Ok(ExecutionResult::ResponseOnly(error));
         }
 
         // 4. Context validation
@@ -225,7 +244,10 @@ impl EditOperation {
 
             if !validation_result.is_valid {
                 let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!("{}{}", prefix, validation_result.format_errors()));
+                return Ok(ExecutionResult::ResponseOnly(format!(
+                    "{prefix}{}",
+                    validation_result.format_errors()
+                )));
             }
         }
 
@@ -233,37 +255,61 @@ impl EditOperation {
         let result = self.apply(&source_code, &language)?;
 
         // 6. Syntax validation and file writing
-        if result.success && !preview_only {
-            if let Some(new_code) = &result.new_content {
-                match crate::validation::SyntaxValidator::validate_and_write(
-                    file_path,
-                    new_code,
-                    &language,
-                    preview_only,
-                ) {
-                    Ok(msg) if msg.contains("❌") => return Ok(msg),
-                    Ok(_) => {}
-                    Err(e) => return Err(e),
-                }
+        if let EditResult::Success {
+            message,
+            new_content,
+            affected_range,
+        } = &result
+        {
+            let validation = SyntaxValidator::validate_content(new_content, &language)?;
+
+            if !validation.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(ExecutionResult::ResponseOnly(format!(
+                    "{prefix}❌ Edit would create invalid syntax and was blocked:\n{}",
+                    validation
+                        .errors
+                        .iter()
+                        .map(|e| format!("  Line {}: {}", e.line, e.message))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )));
             }
         }
 
         // 7. Format response
         if preview_only {
             // Generate contextual preview showing insertion point
-            self.generate_contextual_preview(&target_node, &source_code, &language)
-        } else {
-            // Normal response for actual operations
-            let validation_note = if validator.supports_language(&language) {
-                "with context validation"
-            } else {
-                "syntax validation only"
-            };
-            Ok(format!(
-                "{} operation result ({validation_note}):\n{}",
-                self.operation_name(),
-                result.message
-            ))
+            return self
+                .generate_contextual_preview(&target_node, &source_code, &language)
+                .map(ExecutionResult::ResponseOnly);
+        }
+
+        match result {
+            EditResult::Success {
+                message,
+                new_content,
+                ..
+            } => {
+                // Normal response for actual operations
+                let validation_note = if validator.supports_language(&language) {
+                    "with context validation"
+                } else {
+                    "syntax validation only"
+                };
+                let response = format!(
+                    "{} operation result ({validation_note}):\n{}",
+                    self.operation_name(),
+                    message
+                );
+                Ok(ExecutionResult::Change {
+                    response,
+                    output: new_content,
+                    output_path: file_path.to_string(),
+                })
+            }
+
+            EditResult::Error(message) => Ok(ExecutionResult::ResponseOnly(message)),
         }
     }
 
@@ -303,7 +349,6 @@ impl EditOperation {
     }
 
     /// Generate contextual preview showing insertion point with surrounding code
-        /// Generate contextual preview showing insertion point with surrounding code
     fn generate_contextual_preview(
         &self,
         target_node: &tree_sitter::Node<'_>,
@@ -312,86 +357,103 @@ impl EditOperation {
     ) -> Result<String> {
         // Create placeholder operation using our existing AST machinery
         let placeholder_op = self.with_placeholder_content();
-        
+
         // Apply using the SAME logic that handles the real operation
         let result = placeholder_op.apply(source_code, language)?;
-        
-        if let Some(new_content) = result.new_content {
+
+        if let EditResult::Success { new_content, .. } = &result {
             // Find lines containing our placeholder markers
             let lines: Vec<&str> = new_content.lines().collect();
             let mut placeholder_lines = Vec::new();
-            
+
             for (i, line) in lines.iter().enumerate() {
                 if line.contains("🎯") {
                     placeholder_lines.push(i);
                 }
             }
-            
+
             if placeholder_lines.is_empty() {
-                return Ok("🔍 **PREVIEW**: Operation completed, but placeholder not found in result".to_string());
+                return Ok(
+                    "🔍 **PREVIEW**: Operation completed, but placeholder not found in result"
+                        .to_string(),
+                );
             }
-            
+
             // Show context around all placeholder lines
             let first_placeholder = placeholder_lines[0];
-            let last_placeholder = placeholder_lines.last().copied().unwrap_or(first_placeholder);
-            
+            let last_placeholder = placeholder_lines
+                .last()
+                .copied()
+                .unwrap_or(first_placeholder);
+
             let context_before = 5;
             let context_after = 5;
             let start_line = first_placeholder.saturating_sub(context_before);
-            let end_line = std::cmp::min(last_placeholder + context_after, lines.len().saturating_sub(1));
-            
+            let end_line = std::cmp::min(
+                last_placeholder + context_after,
+                lines.len().saturating_sub(1),
+            );
+
             let mut preview = String::new();
             preview.push_str("🔍 **INSERTION PREVIEW** - Showing file after operation:\n");
             preview.push_str("ℹ️  NEW CONTENT MARKED WITH 🎯\n\n");
-            
+
             for line_idx in start_line..=end_line {
                 if line_idx < lines.len() {
                     let line_num = line_idx + 1;
                     let line_content = lines[line_idx];
-                    
+
                     if line_content.contains("🎯") {
                         // Highlight placeholder lines
-                        preview.push_str(&format!("{line_num:4} | {line_content} ← NEW CONTENT LOCATION\n"));
+                        preview.push_str(&format!(
+                            "{line_num:4} | {line_content} ← NEW CONTENT LOCATION\n"
+                        ));
                     } else {
                         preview.push_str(&format!("{line_num:4} | {line_content}\n"));
                     }
                 }
             }
-            
+
             // Show the actual content that will be inserted/replaced
             let content = self.content();
             if !content.is_empty() {
                 let operation_desc = match self {
                     EditOperation::Replace { .. } => "replace placeholder with",
-                    EditOperation::InsertAfter { .. } | EditOperation::InsertBefore { .. } => "insert instead of placeholder",
+                    EditOperation::InsertAfter { .. } | EditOperation::InsertBefore { .. } => {
+                        "insert instead of placeholder"
+                    }
                     EditOperation::Wrap { .. } => "use as wrapper template",
                     EditOperation::Delete { .. } => "remove (delete operation)",
                 };
-                
+
                 preview.push_str(&format!("\n📄 **Actual content to {operation_desc}:**\n"));
-                
+
                 if content.len() <= 500 {
                     preview.push_str(&format!("```{language}\n{content}\n```\n"));
                 } else {
                     let lines_preview: Vec<&str> = content.lines().take(10).collect();
                     let total_lines = content.lines().count();
-                    preview.push_str(&format!("```{}\n{}\n... ({} more lines, {} total characters)\n```\n", 
-                        language, lines_preview.join("\n"), 
-                        total_lines.saturating_sub(10), content.len()));
+                    preview.push_str(&format!(
+                        "```{}\n{}\n... ({} more lines, {} total characters)\n```\n",
+                        language,
+                        lines_preview.join("\n"),
+                        total_lines.saturating_sub(10),
+                        content.len()
+                    ));
                 }
             }
-            
+
             // Add structural warning
             if let Ok(Some(warning)) = self.check_structural_warning(target_node) {
                 preview.push_str(&format!("\n⚠️  **Structural Note:** {warning}\n"));
             }
-            
+
             Ok(preview)
         } else {
             Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
         }
     }
-    
+
     /// Create a version of this operation with placeholder content for preview
     fn with_placeholder_content(&self) -> Self {
         match self {

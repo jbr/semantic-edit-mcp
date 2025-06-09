@@ -33,7 +33,7 @@ impl JsonEditor {
             } => {
                 let mut result = Self::replace_json_node(&tree, source_code, target, new_content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -45,7 +45,7 @@ impl JsonEditor {
                 let mut result =
                     Self::insert_before_json_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -56,7 +56,7 @@ impl JsonEditor {
             } => {
                 let mut result = Self::insert_after_json_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -68,7 +68,7 @@ impl JsonEditor {
                 let mut result =
                     Self::wrap_json_node(&tree, source_code, target, wrapper_template)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -78,7 +78,7 @@ impl JsonEditor {
             } => {
                 let mut result = Self::delete_json_node(&tree, source_code, target)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -97,12 +97,9 @@ impl JsonEditor {
 
         // Validate the new content would create valid JSON
         if !Self::validate_json_replacement(source_code, &node, new_content)? {
-            return Ok(EditResult {
-                success: false,
-                message: "Replacement would create invalid JSON".to_string(),
-                new_content: None,
-                affected_range: None,
-            });
+            return Ok(EditResult::Error(
+                "Replacement would create invalid JSON".to_string(),
+            ));
         }
 
         let rope = Rope::from_str(source_code);
@@ -116,11 +113,10 @@ impl JsonEditor {
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, new_content);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully replaced {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + new_content.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + new_content.len()),
         })
     }
 
@@ -154,11 +150,10 @@ impl JsonEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(start_char, &content_with_comma);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully inserted content before {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + content_with_comma.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + content_with_comma.len()),
         })
     }
 
@@ -192,11 +187,10 @@ impl JsonEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(end_char, &content_with_comma);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully inserted content after {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((end_char, end_char + content_with_comma.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (end_char, end_char + content_with_comma.len()),
         })
     }
 
@@ -222,12 +216,9 @@ impl JsonEditor {
 
         // Validate the wrapped content would create valid JSON
         if !Self::validate_json_replacement(source_code, &node, &wrapped_content)? {
-            return Ok(EditResult {
-                success: false,
-                message: "Wrapping would create invalid JSON".to_string(),
-                new_content: None,
-                affected_range: None,
-            });
+            return Ok(EditResult::Error(
+                "Wrapping would create invalid JSON".to_string(),
+            ));
         }
 
         let rope = Rope::from_str(source_code);
@@ -240,11 +231,10 @@ impl JsonEditor {
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, &wrapped_content);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully wrapped {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + wrapped_content.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + wrapped_content.len()),
         })
     }
 
@@ -273,11 +263,10 @@ impl JsonEditor {
         let mut new_rope = rope.clone();
         new_rope.remove(final_start..final_end);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully deleted {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((final_start, final_start)),
+            new_content: new_rope.to_string(),
+            affected_range: (final_start, final_start),
         })
     }
 

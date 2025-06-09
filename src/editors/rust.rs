@@ -19,7 +19,7 @@ impl RustEditor {
             } => {
                 let mut result = Self::replace_node(&tree, source_code, target, new_content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                     // Don't modify the file in preview mode, but show what would happen
                 }
                 Ok(result)
@@ -31,7 +31,7 @@ impl RustEditor {
             } => {
                 let mut result = Self::insert_before_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -42,7 +42,7 @@ impl RustEditor {
             } => {
                 let mut result = Self::insert_after_node(&tree, source_code, target, content)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -53,7 +53,7 @@ impl RustEditor {
             } => {
                 let mut result = Self::wrap_node(&tree, source_code, target, wrapper_template)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -63,7 +63,7 @@ impl RustEditor {
             } => {
                 let mut result = Self::delete_node(&tree, source_code, target)?;
                 if preview_only.unwrap_or(false) {
-                    result.message = format!("PREVIEW: {}", result.message);
+                    result.set_message(format!("PREVIEW: {}", result.message()));
                 }
                 Ok(result)
             }
@@ -82,12 +82,9 @@ impl RustEditor {
 
         // Validate the new content would create valid syntax
         if !Self::validate_replacement(source_code, &node, new_content)? {
-            return Ok(EditResult {
-                success: false,
-                message: "Replacement would create invalid syntax".to_string(),
-                new_content: None,
-                affected_range: None,
-            });
+            return Ok(EditResult::Error(
+                "Replacement would create invalid syntax".to_string(),
+            ));
         }
 
         let rope = Rope::from_str(source_code);
@@ -103,11 +100,10 @@ impl RustEditor {
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, new_content);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully replaced {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + new_content.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + new_content.len()),
         })
     }
 
@@ -138,11 +134,10 @@ impl RustEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(start_char, &content_with_newline);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully inserted content before {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + content_with_newline.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + content_with_newline.len()),
         })
     }
 
@@ -174,11 +169,10 @@ impl RustEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(end_char, &content_with_newline);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully inserted content after {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((end_char, end_char + content_with_newline.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (end_char, end_char + content_with_newline.len()),
         })
     }
 
@@ -204,12 +198,9 @@ impl RustEditor {
 
         // Validate the wrapped content would create valid syntax
         if !Self::validate_replacement(source_code, &node, &wrapped_content)? {
-            return Ok(EditResult {
-                success: false,
-                message: "Wrapping would create invalid syntax".to_string(),
-                new_content: None,
-                affected_range: None,
-            });
+            return Ok(EditResult::Error(
+                "Wrapping would create invalid syntax".to_string(),
+            ));
         }
 
         let rope = Rope::from_str(source_code);
@@ -222,11 +213,10 @@ impl RustEditor {
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, &wrapped_content);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully wrapped {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char + wrapped_content.len())),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char + wrapped_content.len()),
         })
     }
 
@@ -244,11 +234,10 @@ impl RustEditor {
         let mut new_rope = rope.clone();
         new_rope.remove(start_char..end_char);
 
-        Ok(EditResult {
-            success: true,
+        Ok(EditResult::Success {
             message: format!("Successfully deleted {} node", node.kind()),
-            new_content: Some(new_rope.to_string()),
-            affected_range: Some((start_char, start_char)),
+            new_content: new_rope.to_string(),
+            affected_range: (start_char, start_char),
         })
     }
 
