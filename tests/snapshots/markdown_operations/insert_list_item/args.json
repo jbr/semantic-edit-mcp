@@ -1,0 +1,10 @@
+{
+  "tool": "insert_after_node",
+  "arguments": {
+    "selector": {
+      "type": "list_item"
+    },
+    "content": "- Add comprehensive tests",
+    "preview_only": false
+  }
+}

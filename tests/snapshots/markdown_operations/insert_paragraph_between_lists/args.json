@@ -1,0 +1,10 @@
+{
+  "tool": "insert_after_node",
+  "arguments": {
+    "selector": {
+      "query": "(list_item (paragraph (inline) @text (#match? @text \".*Authentication.*\")))"
+    },
+    "content": "\n## Frontend Components\n\nNow moving to the frontend:",
+    "preview_only": false
+  }
+}

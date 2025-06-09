@@ -1,0 +1,10 @@
+{
+  "tool": "insert_after_node",
+  "arguments": {
+    "selector": {
+      "query": "(list_item (paragraph (inline) @text (#match? @text \".*Database.*\")))"
+    },
+    "content": "  - Session management",
+    "preview_only": false
+  }
+}
