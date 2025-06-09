@@ -140,7 +140,7 @@ impl ToolRegistry {
             .get("new_content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("new_content is required"))?;
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), false)?; // Disallow position for edits
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
@@ -169,7 +169,7 @@ impl ToolRegistry {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), false)?; // Disallow position for edits
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
@@ -197,7 +197,7 @@ impl ToolRegistry {
             .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("content is required"))?;
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), false)?; // Disallow position for edits
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
@@ -223,7 +223,7 @@ impl ToolRegistry {
             .get("wrapper_template")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("wrapper_template is required"))?;
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), false)?; // Disallow position for edits
         let preview_only = args
             .get("preview_only")
             .and_then(|v| v.as_bool())
@@ -264,7 +264,7 @@ impl ToolRegistry {
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
 
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), true)?;
         let source_code = std::fs::read_to_string(file_path)?;
 
         // Try language hint first, then fall back to auto-detection
@@ -326,7 +326,7 @@ impl ToolRegistry {
             _ => return Err(anyhow!("Invalid operation_type: {}", operation_type_str)),
         };
 
-        let selector = Self::parse_selector(args.get("selector"))?;
+        let selector = Self::parse_selector(args.get("selector"), true)?;
         let source_code = std::fs::read_to_string(file_path)?;
 
         let language = detect_language_from_path(file_path)
@@ -373,7 +373,10 @@ impl ToolRegistry {
         }
     }
 
-    fn parse_selector(selector_value: Option<&Value>) -> Result<NodeSelector> {
+    fn parse_selector(
+        selector_value: Option<&Value>,
+        allow_position: bool,
+    ) -> Result<NodeSelector> {
         let selector_obj = selector_value
             .ok_or_else(|| anyhow!("selector is required"))?
             .as_object()
@@ -383,6 +386,18 @@ impl ToolRegistry {
             selector_obj.get("line").and_then(|v| v.as_u64()),
             selector_obj.get("column").and_then(|v| v.as_u64()),
         ) {
+            if !allow_position {
+                return Err(anyhow!(
+                    "Position-based targeting (line/column) is not allowed for edit operations.\n\
+                     Use semantic selectors instead:\n\
+                     • By name: {{\"name\": \"function_name\"}}\n\
+                     • By type: {{\"type\": \"function_item\"}}\n\
+                     • By query: {{\"query\": \"(function_item name: (identifier) @name)\"}}\n\
+                     \n\
+                     💡 Use explore_ast or get_node_info with line/column to find the right semantic selector."
+                ));
+            }
+
             let scope = selector_obj
                 .get("scope")
                 .and_then(|v| v.as_str())
