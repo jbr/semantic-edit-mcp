@@ -245,6 +245,7 @@ impl SnapshotRunner {
     }
 
     /// Print a summary of test results
+        /// Print a summary of test results
     pub fn print_summary(&self, results: &[SnapshotResult]) {
         let total = results.len();
         let passed = results.iter().filter(|r| r.passed).count();
@@ -270,6 +271,10 @@ impl SnapshotRunner {
                 } else if let Some(_expected) = &result.expected_output {
                     println!("    Expected output differs from actual output");
                     println!("    Run with --update to accept changes, or check the diff");
+                    
+                    // Print actual output for debugging
+                    println!("\n    ACTUAL OUTPUT:");
+                    println!("    {}", result.actual_output.replace('\n', "\n    "));
                 }
             }
         }

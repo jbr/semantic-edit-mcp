@@ -1,17 +1,1 @@
-🔍 **INSERTION PREVIEW** - Showing file after operation:
-ℹ️  NEW CONTENT MARKED WITH 🎯
-
-   1 | // Sample Rust code for testing
-   2 | 🎯 REPLACEMENT_CONTENT 🎯 ← NEW CONTENT LOCATION
-   3 | 
-   4 | pub fn other_function() -> String {
-   5 |     "unchanged".to_string()
-   6 | }
-
-📄 **Actual content to replace placeholder with:**
-```rust
-pub fn new_function() -> i32 {
-    println!("This is the new implementation");
-    100
-}
-```
+🔍 **PREVIEW**: Operation did not produce new content
