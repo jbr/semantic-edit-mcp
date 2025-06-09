@@ -1,13 +1,13 @@
 use crate::operations::{EditOperation, NodeSelector};
 use crate::parsers::TreeSitterParser;
-use crate::tools::ToolRegistry;
+use crate::tools::{ExecutionResult, ToolRegistry};
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 use tree_sitter::StreamingIterator;
 
 // Specialized insertion tools implementations
 impl ToolRegistry {
-    pub async fn insert_after_struct(&self, args: &Value) -> Result<String> {
+    pub async fn insert_after_struct(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -47,7 +47,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    pub async fn insert_after_enum(&self, args: &Value) -> Result<String> {
+    pub async fn insert_after_enum(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -87,7 +87,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    pub async fn insert_after_impl(&self, args: &Value) -> Result<String> {
+    pub async fn insert_after_impl(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -132,7 +132,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    pub async fn insert_after_function(&self, args: &Value) -> Result<String> {
+    pub async fn insert_after_function(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -172,7 +172,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    pub async fn insert_in_module(&self, args: &Value) -> Result<String> {
+    pub async fn insert_in_module(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -368,20 +368,25 @@ impl ToolRegistry {
             } else {
                 // No items found, file might be empty or only have comments
                 // Just append to the end of the file using a simple string append
-                let new_content = if source_code.trim().is_empty() {
+                let output = if source_code.trim().is_empty() {
                     content.to_string()
                 } else {
                     format!("{}\n\n{content}", source_code.trim_end())
                 };
 
-                if !preview_only {
-                    std::fs::write(file_path, &new_content)?;
+                let response = format!(
+                    "Insert in module operation result:\nSuccessfully appended content to end of file");
+                if preview_only {
+                    return Ok(ExecutionResult::ResponseOnly(format!(
+                        "PREVIEW: {response}"
+                    )));
+                } else {
+                    return Ok(ExecutionResult::Change {
+                        response,
+                        output,
+                        output_path: file_path.to_string(),
+                    });
                 }
-
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(format!(
-                    "{prefix}Insert in module operation result:\nSuccessfully appended content to end of file"
-                ));
             }
         };
 

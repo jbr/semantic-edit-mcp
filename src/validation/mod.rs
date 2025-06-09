@@ -35,42 +35,6 @@ impl SyntaxValidator {
         })
     }
 
-    /// Validate and conditionally write file with syntax safety check
-    /// Returns Ok(success_message) if valid, Ok(error_message) if invalid syntax
-    pub fn validate_and_write(
-        file_path: &str,
-        new_content: &str,
-        language: &str,
-        preview_only: bool,
-    ) -> Result<String> {
-        // Always validate syntax first
-        let validation = Self::validate_content(new_content, language)?;
-
-        if !validation.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(format!(
-                "{}❌ Edit would create invalid syntax and was blocked:\n{}",
-                prefix,
-                validation
-                    .errors
-                    .iter()
-                    .map(|e| format!("  Line {}: {}", e.line, e.message))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ));
-        }
-
-        // Only write if not preview mode
-        if !preview_only {
-            std::fs::write(file_path, new_content)?;
-        }
-
-        let prefix = if preview_only { "PREVIEW: " } else { "" };
-        Ok(format!(
-            "{prefix}✅ Syntax validation passed, edit successful",
-        ))
-    }
-
     fn collect_errors(node: tree_sitter::Node, source_code: &str, errors: &mut Vec<SyntaxError>) {
         if node.is_error() {
             let start_pos = node.start_position();

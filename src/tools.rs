@@ -10,6 +10,30 @@ pub struct ToolRegistry {
     tools: Vec<Tool>,
 }
 
+pub enum ExecutionResult {
+    ResponseOnly(String),
+    Change {
+        response: String,
+        output: String,
+        output_path: String,
+    },
+}
+impl ExecutionResult {
+    pub(crate) async fn write(self) -> Result<String> {
+        match self {
+            ExecutionResult::ResponseOnly(response) => Ok(response),
+            ExecutionResult::Change {
+                response,
+                output,
+                output_path,
+            } => {
+                tokio::fs::write(output_path, output).await?;
+                Ok(response)
+            }
+        }
+    }
+}
+
 impl ToolRegistry {
     pub fn new() -> Result<Self> {
         let tools = vec![
@@ -105,7 +129,7 @@ impl ToolRegistry {
         self.tools.clone()
     }
 
-    pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<String> {
+    pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
 
@@ -130,7 +154,7 @@ impl ToolRegistry {
 
 // Core tool implementations
 impl ToolRegistry {
-    async fn replace_node(&self, args: &Value) -> Result<String> {
+    async fn replace_node(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -159,7 +183,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    async fn insert_before_node(&self, args: &Value) -> Result<String> {
+    async fn insert_before_node(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -188,7 +212,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    async fn insert_after_node(&self, args: &Value) -> Result<String> {
+    async fn insert_after_node(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -214,7 +238,7 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    async fn wrap_node(&self, args: &Value) -> Result<String> {
+    async fn wrap_node(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -242,23 +266,23 @@ impl ToolRegistry {
         operation.apply_with_validation(language_hint, file_path, preview_only)
     }
 
-    async fn validate_syntax(&self, args: &Value) -> Result<String> {
+    async fn validate_syntax(&self, args: &Value) -> Result<ExecutionResult> {
         if let Some(file_path) = args.get("file_path").and_then(|v| v.as_str()) {
             let result = SyntaxValidator::validate_file(file_path)?;
-            Ok(result.to_string())
+            Ok(ExecutionResult::ResponseOnly(result.to_string()))
         } else if let Some(content) = args.get("content").and_then(|v| v.as_str()) {
             let language = args
                 .get("language")
                 .and_then(|v| v.as_str())
                 .unwrap_or("rust");
             let result = SyntaxValidator::validate_content(content, language)?;
-            Ok(result.to_string())
+            Ok(ExecutionResult::ResponseOnly(result.to_string()))
         } else {
             Err(anyhow!("Either file_path or content must be provided"))
         }
     }
 
-    async fn get_node_info(&self, args: &Value) -> Result<String> {
+    async fn get_node_info(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -288,7 +312,9 @@ impl ToolRegistry {
                     .ok_or_else(|| anyhow!("Failed to parse {} code", language))?;
 
                 let editor = lang_support.editor();
-                return editor.get_node_info(&tree, &source_code, &selector);
+                return editor
+                    .get_node_info(&tree, &source_code, &selector)
+                    .map(ExecutionResult::ResponseOnly);
             }
         }
 
@@ -297,12 +323,13 @@ impl ToolRegistry {
         let tree = parser.parse(&language, &source_code)?;
 
         match language.as_str() {
-            "rust" => RustEditor::get_node_info(&tree, &source_code, &selector),
+            "rust" => RustEditor::get_node_info(&tree, &source_code, &selector)
+                .map(ExecutionResult::ResponseOnly),
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
         }
     }
 
-    async fn validate_edit_context(&self, args: &Value) -> Result<String> {
+    async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -344,15 +371,15 @@ impl ToolRegistry {
         if let Some(error_msg) =
             check_terrible_target(&selector, &target_node, &tree, &source_code, &language)?
         {
-            return Ok(error_msg);
+            return Ok(ExecutionResult::ResponseOnly(error_msg));
         }
 
         // Perform context validation
         let validator = crate::validation::ContextValidator::new()?;
         if !validator.supports_language(&language) {
-            return Ok(format!(
+            return Ok(ExecutionResult::ResponseOnly(format!(
                 "ℹ️ Context validation is not available for {language} files. Only syntax validation is supported for this language.",
-            ));
+            )));
         }
         let validation_result = validator.validate_insertion(
             &tree,
@@ -364,12 +391,14 @@ impl ToolRegistry {
         )?;
 
         if validation_result.is_valid {
-            Ok(
+            Ok(ExecutionResult::ResponseOnly(
                 "✅ Edit context validation passed - this placement is semantically valid"
                     .to_string(),
-            )
+            ))
         } else {
-            Ok(validation_result.format_errors())
+            Ok(ExecutionResult::ResponseOnly(
+                validation_result.format_errors(),
+            ))
         }
     }
 
@@ -440,7 +469,7 @@ impl ToolRegistry {
         ))
     }
 
-    async fn explore_ast(&self, args: &Value) -> Result<String> {
+    async fn explore_ast(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -614,6 +643,6 @@ impl ToolRegistry {
         output.push_str("📖 **Context Analysis**:\n");
         output.push_str(&exploration_result.context_explanation);
 
-        Ok(output)
+        Ok(ExecutionResult::ResponseOnly(output))
     }
 }
