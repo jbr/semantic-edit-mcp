@@ -86,6 +86,12 @@ pub struct LanguageQueries {
     pub custom_queries: HashMap<String, Query>,
 }
 
+impl Default for LanguageQueries {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LanguageQueries {
     pub fn new() -> Self {
         Self {

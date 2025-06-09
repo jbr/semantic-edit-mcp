@@ -3,6 +3,12 @@ use serde_json::{json, Value};
 
 pub struct RequestHandler;
 
+impl Default for RequestHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RequestHandler {
     pub fn new() -> Self {
         Self

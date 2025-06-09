@@ -351,9 +351,9 @@ impl EditOperation {
                     
                     if line_content.contains("🎯") {
                         // Highlight placeholder lines
-                        preview.push_str(&format!("{:4} | {} ← NEW CONTENT LOCATION\n", line_num, line_content));
+                        preview.push_str(&format!("{line_num:4} | {line_content} ← NEW CONTENT LOCATION\n"));
                     } else {
-                        preview.push_str(&format!("{:4} | {}\n", line_num, line_content));
+                        preview.push_str(&format!("{line_num:4} | {line_content}\n"));
                     }
                 }
             }
@@ -368,10 +368,10 @@ impl EditOperation {
                     EditOperation::Delete { .. } => "remove (delete operation)",
                 };
                 
-                preview.push_str(&format!("\n📄 **Actual content to {}:**\n", operation_desc));
+                preview.push_str(&format!("\n📄 **Actual content to {operation_desc}:**\n"));
                 
                 if content.len() <= 500 {
-                    preview.push_str(&format!("```{}\n{}\n```\n", language, content));
+                    preview.push_str(&format!("```{language}\n{content}\n```\n"));
                 } else {
                     let lines_preview: Vec<&str> = content.lines().take(10).collect();
                     let total_lines = content.lines().count();
@@ -383,7 +383,7 @@ impl EditOperation {
             
             // Add structural warning
             if let Ok(Some(warning)) = self.check_structural_warning(target_node) {
-                preview.push_str(&format!("\n⚠️  **Structural Note:** {}\n", warning));
+                preview.push_str(&format!("\n⚠️  **Structural Note:** {warning}\n"));
             }
             
             Ok(preview)
