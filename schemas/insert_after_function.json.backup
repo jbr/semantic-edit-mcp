@@ -3,15 +3,15 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY"
         },
-        "impl_type": {
+        "function_name": {
             "type": "string",
-            "description": "Type name of the impl block after which to insert content"
+            "description": "Name of the function after which to insert content"
         },
         "content": {
             "type": "string",
-            "description": "Content to insert after the impl block"
+            "description": "Content to insert after the function definition"
         },
         "preview_only": {
             "type": "boolean",
@@ -19,5 +19,6 @@
             "default": false
         }
     },
-    "required": ["file_path", "impl_type", "content"]
+    "required": ["file_path", "function_name", "content"],
+    "additionalProperties": false
 }

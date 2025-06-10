@@ -3,25 +3,23 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the source file. Supports Rust (.rs), JSON (.json), and other languages."
+            "description": "Path to the source file. Supports Rust (.rs), JSON (.json), Markdown (.md), and other languages."
         },
         "selector": {
             "type": "object",
-            "description": "Node selector (by name, type, or query). Use semantic selectors for reliable targeting.",
+            "description": "Text-anchored node selector using exact text and AST navigation",
             "properties": {
-                "type": {
+                "anchor_text": {
                     "type": "string",
-                    "description": "Node type (e.g., 'function_item', 'object', 'pair') - RECOMMENDED for reliable selection"
+                    "description": "Exact text to find in the source code as an anchor point. Must be unique enough to identify the target location."
                 },
-                "name": {
+                "ancestor_node_type": {
                     "type": "string",
-                    "description": "Name of the node - RECOMMENDED for reliable selection"
-                },
-                "query": {
-                    "type": "string",
-                    "description": "Tree-sitter query - RECOMMENDED for precise selection"
+                    "description": "AST node type to walk up to from the anchor point (e.g., 'function_item', 'struct_item', 'pair', 'list_item')"
                 }
-            }
+            },
+            "required": ["anchor_text", "ancestor_node_type"],
+            "additionalProperties": false
         },
         "new_content": {
             "type": "string",
@@ -34,9 +32,10 @@
         },
         "language": {
             "type": "string",
-            "description": "Optional language hint (e.g., 'rust', 'json', 'toml'). If not provided, language will be detected from file extension.",
+            "description": "Optional language hint. If not provided, language will be detected from file extension.",
             "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"]
         }
     },
-    "required": ["file_path", "selector", "new_content"]
+    "required": ["file_path", "selector", "new_content"],
+    "additionalProperties": false
 }

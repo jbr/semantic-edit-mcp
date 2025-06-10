@@ -7,6 +7,5 @@ pub mod operations;
 pub mod parsers;
 pub mod server;
 pub mod server_impl;
-pub mod specialized_tools;
 pub mod tools;
 pub mod validation;

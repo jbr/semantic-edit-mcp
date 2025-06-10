@@ -1,23 +1,26 @@
 {
-  "type": "object",
-  "properties": {
-    "file_path": {
-      "type": "string",
-      "description": "Path to the source file to explore"
+    "type": "object",
+    "properties": {
+        "file_path": {
+            "type": "string",
+            "description": "Path to the source file to explore"
+        },
+        "line": {
+            "type": "integer",
+            "description": "Line number (1-indexed) to explore around",
+            "minimum": 1
+        },
+        "column": {
+            "type": "integer",
+            "description": "Column number (1-indexed) to explore around",
+            "minimum": 1
+        },
+        "language": {
+            "type": "string",
+            "description": "Programming language hint (optional, auto-detected if not provided)",
+            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"]
+        }
     },
-    "line": {
-      "type": "integer",
-      "description": "Line number (1-indexed) to explore around"
-    },
-    "column": {
-      "type": "integer", 
-      "description": "Column number (1-indexed) to explore around"
-    },
-    "language": {
-      "type": "string",
-      "description": "Programming language hint (optional, auto-detected if not provided)"
-    }
-  },
-  "required": ["file_path", "line", "column"],
-  "additionalProperties": false
+    "required": ["file_path", "line", "column"],
+    "additionalProperties": false
 }

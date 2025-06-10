@@ -35,7 +35,7 @@ impl ExecutionResult {
 }
 
 impl ToolRegistry {
-    pub fn new() -> Result<Self> {
+        pub fn new() -> Result<Self> {
         let tools = vec![
             Tool {
                 name: "replace_node".to_string(),
@@ -74,46 +74,6 @@ impl ToolRegistry {
                 input_schema: serde_json::from_str(include_str!("../schemas/get_node_info.json"))?,
             },
             Tool {
-                name: "insert_after_struct".to_string(),
-                description: "Insert content after a struct definition (safe structural boundary)"
-                    .to_string(),
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/insert_after_struct.json"
-                ))?,
-            },
-            Tool {
-                name: "insert_after_enum".to_string(),
-                description: "Insert content after an enum definition (safe structural boundary)"
-                    .to_string(),
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/insert_after_enum.json"
-                ))?,
-            },
-            Tool {
-                name: "insert_after_impl".to_string(),
-                description: "Insert content after an impl block (safe structural boundary)"
-                    .to_string(),
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/insert_after_impl.json"
-                ))?,
-            },
-            Tool {
-                name: "insert_after_function".to_string(),
-                description:
-                    "Insert content after a function definition (safe structural boundary)"
-                        .to_string(),
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/insert_after_function.json"
-                ))?,
-            },
-            Tool {
-                name: "insert_in_module".to_string(),
-                description: "Insert content at module level (top-level items)".to_string(),
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/insert_in_module.json"
-                ))?,
-            },
-            Tool {
                 name: "explore_ast".to_string(),
                 description: "Explore the AST around a specific position with rich context and edit suggestions".to_string(),
                 input_schema: serde_json::from_str(include_str!(
@@ -129,7 +89,7 @@ impl ToolRegistry {
         self.tools.clone()
     }
 
-    pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
+        pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
 
@@ -141,11 +101,6 @@ impl ToolRegistry {
             "validate_syntax" => self.validate_syntax(args).await,
             "validate_edit_context" => self.validate_edit_context(args).await,
             "get_node_info" => self.get_node_info(args).await,
-            "insert_after_struct" => self.insert_after_struct(args).await,
-            "insert_after_enum" => self.insert_after_enum(args).await,
-            "insert_after_impl" => self.insert_after_impl(args).await,
-            "insert_after_function" => self.insert_after_function(args).await,
-            "insert_in_module" => self.insert_in_module(args).await,
             "explore_ast" => self.explore_ast(args).await,
             _ => Err(anyhow!("Unknown tool: {}", tool_call.name)),
         }
@@ -282,13 +237,12 @@ impl ToolRegistry {
         }
     }
 
-    async fn get_node_info(&self, args: &Value) -> Result<ExecutionResult> {
+        async fn get_node_info(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("file_path is required"))?;
 
-        let selector = Self::parse_selector(args.get("selector"), true)?;
         let source_code = std::fs::read_to_string(file_path)?;
 
         // Try language hint first, then fall back to auto-detection
@@ -301,16 +255,61 @@ impl ToolRegistry {
                 anyhow!("Unable to detect language from file path and no language hint provided")
             })?;
 
+        let mut parser = TreeSitterParser::new()?;
+        let tree = parser.parse(&language, &source_code)?;
+
+        // Handle selector parsing - this tool allows both position and text-anchored selectors
+        let selector_obj = args
+            .get("selector")
+            .ok_or_else(|| anyhow!("selector is required"))?
+            .as_object()
+            .ok_or_else(|| anyhow!("selector must be an object"))?;
+
+        // Check if it's a position-based selector
+        if let (Some(line), Some(column)) = (
+            selector_obj.get("line").and_then(|v| v.as_u64()),
+            selector_obj.get("column").and_then(|v| v.as_u64()),
+        ) {
+            // Handle position-based node info using the old logic
+            let node = crate::parsers::find_node_by_position(&tree, line as usize, column as usize);
+            if let Some(node) = node {
+                let node_info = format!(
+                    "Node at {}:{}\n\
+                     Kind: {}\n\
+                     Text: {:?}\n\
+                     Start: {}:{}\n\
+                     End: {}:{}\n\
+                     Byte range: {}-{}\n\
+                     Has error: {}\n\
+                     Is named: {}",
+                    line,
+                    column,
+                    node.kind(),
+                    crate::parsers::get_node_text(&node, &source_code),
+                    node.start_position().row + 1,
+                    node.start_position().column + 1,
+                    node.end_position().row + 1,
+                    node.end_position().column + 1,
+                    node.start_byte(),
+                    node.end_byte(),
+                    node.has_error(),
+                    node.is_named()
+                );
+                return Ok(ExecutionResult::ResponseOnly(node_info));
+            } else {
+                return Ok(ExecutionResult::ResponseOnly(format!(
+                    "No node found at position {}:{}",
+                    line, column
+                )));
+            }
+        }
+
+        // Try text-anchored selector
+        let selector = Self::parse_selector(Some(&args["selector"]), false)?;
+        
         // For new multi-language support, use the language registry
         if let Ok(registry) = crate::languages::LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(&language) {
-                // Use the new language-specific editor
-                let mut parser = tree_sitter::Parser::new();
-                parser.set_language(&lang_support.tree_sitter_language())?;
-                let tree = parser
-                    .parse(&source_code, None)
-                    .ok_or_else(|| anyhow!("Failed to parse {} code", language))?;
-
                 let editor = lang_support.editor();
                 return editor
                     .get_node_info(&tree, &source_code, &selector)
@@ -319,17 +318,14 @@ impl ToolRegistry {
         }
 
         // Fallback to old Rust-only logic
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
-
         match language.as_str() {
-            "rust" => RustEditor::get_node_info(&tree, &source_code, &selector)
+            "rust" => crate::editors::rust::RustEditor::get_node_info(&tree, &source_code, &selector)
                 .map(ExecutionResult::ResponseOnly),
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
         }
     }
 
-    async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
+        async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -353,7 +349,7 @@ impl ToolRegistry {
             _ => return Err(anyhow!("Invalid operation_type: {}", operation_type_str)),
         };
 
-        let selector = Self::parse_selector(args.get("selector"), true)?;
+        let selector = Self::parse_selector(args.get("selector"), false)?;
         let source_code = std::fs::read_to_string(file_path)?;
 
         let language = detect_language_from_path(file_path)
@@ -368,9 +364,13 @@ impl ToolRegistry {
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // Check for terrible targets with auto-exploration
-        if let Some(error_msg) =
-            check_terrible_target(&selector, &target_node, &tree, &source_code, &language)?
-        {
+        if let Some(error_msg) = crate::operations::validation::check_terrible_target(
+            &selector,
+            &target_node,
+            &tree,
+            &source_code,
+            &language,
+        )? {
             return Ok(ExecutionResult::ResponseOnly(error_msg));
         }
 
@@ -402,7 +402,7 @@ impl ToolRegistry {
         }
     }
 
-    fn parse_selector(
+        fn parse_selector(
         selector_value: Option<&Value>,
         allow_position: bool,
     ) -> Result<NodeSelector> {
@@ -411,6 +411,7 @@ impl ToolRegistry {
             .as_object()
             .ok_or_else(|| anyhow!("selector must be an object"))?;
 
+        // Handle position-based selectors (only for exploration tools like get_node_info)
         if let (Some(line), Some(column)) = (
             selector_obj.get("line").and_then(|v| v.as_u64()),
             selector_obj.get("column").and_then(|v| v.as_u64()),
@@ -418,54 +419,34 @@ impl ToolRegistry {
             if !allow_position {
                 return Err(anyhow!(
                     "Position-based targeting (line/column) is not allowed for edit operations.\n\
-                     Use semantic selectors instead:\n\
-                     • By name: {{\"name\": \"function_name\"}}\n\
-                     • By type: {{\"type\": \"function_item\"}}\n\
-                     • By query: {{\"query\": \"(function_item name: (identifier) @name)\"}}\n\
+                     Use text-anchored selectors instead:\n\
+                     • {{\"anchor_text\": \"exact text to find\", \"ancestor_node_type\": \"function_item\"}}\n\
                      \n\
-                     💡 Use explore_ast or get_node_info with line/column to find the right semantic selector."
+                     💡 Use explore_ast with line/column to find the right anchor text and node type."
                 ));
             }
 
-            let scope = selector_obj
-                .get("scope")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            return Ok(NodeSelector::Position {
-                line: line as usize,
-                column: column as usize,
-                scope,
-            });
+            // For position-based selectors in exploration tools, we need to convert them
+            // to a temporary format. Since the new NodeSelector doesn't support position,
+            // we'll handle this case differently in the calling code.
+            return Err(anyhow!("Position-based selectors need special handling - this should be implemented in the calling function"));
         }
 
-        if let Some(query) = selector_obj.get("query").and_then(|v| v.as_str()) {
-            return Ok(NodeSelector::Query {
-                query: query.to_string(),
-            });
-        }
-
-        if let Some(node_type) = selector_obj.get("type").and_then(|v| v.as_str()) {
-            if let Some(name) = selector_obj.get("name").and_then(|v| v.as_str()) {
-                return Ok(NodeSelector::Name {
-                    node_type: Some(node_type.to_string()),
-                    name: name.to_string(),
-                });
-            } else {
-                return Ok(NodeSelector::Type {
-                    node_type: node_type.to_string(),
-                });
-            }
-        }
-
-        if let Some(name) = selector_obj.get("name").and_then(|v| v.as_str()) {
-            return Ok(NodeSelector::Name {
-                node_type: None,
-                name: name.to_string(),
+        // Handle text-anchored selectors  
+        if let (Some(anchor_text), Some(ancestor_node_type)) = (
+            selector_obj.get("anchor_text").and_then(|v| v.as_str()),
+            selector_obj.get("ancestor_node_type").and_then(|v| v.as_str()),
+        ) {
+            return Ok(NodeSelector {
+                anchor_text: anchor_text.to_string(),
+                ancestor_node_type: ancestor_node_type.to_string(),
             });
         }
 
         Err(anyhow!(
-            "Invalid selector: must specify position, query, type, or name"
+            "Invalid selector: must specify either:\n\
+             • Text-anchored: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node_type\"}}\n\
+             • Position (exploration only): {{\"line\": N, \"column\": N}}"
         ))
     }
 

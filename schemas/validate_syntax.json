@@ -3,7 +3,7 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the source file (optional if content provided)"
+            "description": "Path to file to validate"
         },
         "content": {
             "type": "string",
@@ -11,8 +11,10 @@
         },
         "language": {
             "type": "string",
-            "description": "Programming language (rust, typescript, etc.)",
+            "description": "Programming language (required if validating content instead of file)",
+            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"],
             "default": "rust"
         }
-    }
+    },
+    "additionalProperties": false
 }

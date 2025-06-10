@@ -3,15 +3,15 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY"
         },
-        "function_name": {
+        "struct_name": {
             "type": "string",
-            "description": "Name of the function after which to insert content"
+            "description": "Name of the struct after which to insert content"
         },
         "content": {
             "type": "string",
-            "description": "Content to insert after the function definition"
+            "description": "Content to insert after the struct definition"
         },
         "preview_only": {
             "type": "boolean",
@@ -19,5 +19,6 @@
             "default": false
         }
     },
-    "required": ["file_path", "function_name", "content"]
+    "required": ["file_path", "struct_name", "content"],
+    "additionalProperties": false
 }
