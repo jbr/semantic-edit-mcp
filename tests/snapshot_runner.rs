@@ -181,8 +181,8 @@ impl SnapshotRunner {
                             expected_output: None,
                         };
                     }
-                } else {
-                    // If there is no expected output, delete the file
+                } else if let Ok(true) = test.output_path.try_exists() {
+                    // If there is no expected output but the file exists, delete the file
                     if let Err(e) = tokio::fs::remove_file(&test.output_path).await {
                         return SnapshotResult {
                             test,
