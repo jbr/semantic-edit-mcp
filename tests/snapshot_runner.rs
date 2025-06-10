@@ -9,6 +9,7 @@ use semantic_edit_mcp::tools::{ExecutionResult, ToolRegistry};
 pub struct SnapshotRunner {
     update_mode: bool,
     registry: ToolRegistry,
+    test_filter: Option<String>,
 }
 
 #[derive(Debug)]
@@ -39,11 +40,12 @@ struct SnapshotExecutionResult {
 }
 
 impl SnapshotRunner {
-    pub fn new(update_mode: bool) -> Result<Self> {
+    pub fn new(update_mode: bool, test_filter: Option<String>) -> Result<Self> {
         let registry = ToolRegistry::new()?;
         Ok(Self {
             update_mode,
             registry,
+            test_filter,
         })
     }
 
@@ -56,6 +58,36 @@ impl SnapshotRunner {
 
         tests.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tests)
+    }
+
+    /// Filter tests based on the TEST_FILTER environment variable
+    /// Supports patterns like:
+    /// - "basic_operations" (matches all tests starting with this)
+    /// - "basic_operations::insert_after_node" (exact match)
+    /// - "json_operations,markdown_operations" (multiple patterns separated by commas)
+    fn filter_tests(&self, tests: Vec<SnapshotTest>) -> Vec<SnapshotTest> {
+        if let Some(filter) = &self.test_filter {
+            let patterns: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
+
+            tests
+                .into_iter()
+                .filter(|test| {
+                    patterns.iter().any(|pattern| {
+                        if pattern.is_empty() {
+                            false
+                        } else if pattern.contains("::") {
+                            // Exact match for full test names
+                            test.name == *pattern
+                        } else {
+                            // Prefix match for categories
+                            test.name.starts_with(pattern)
+                        }
+                    })
+                })
+                .collect()
+        } else {
+            tests
+        }
     }
 
     fn discover_tests_recursive(dir: &Path, tests: &mut Vec<SnapshotTest>) -> Result<()> {
@@ -296,9 +328,16 @@ impl SnapshotRunner {
         }
     }
 
-    /// Run all discovered tests
+    /// Run all discovered tests (filtered if TEST_FILTER is set)
     pub async fn run_all_tests(&self) -> Result<Vec<SnapshotResult>> {
-        let tests = self.discover_tests()?;
+        let all_tests = self.discover_tests()?;
+        let tests = self.filter_tests(all_tests);
+
+        if let Some(filter) = &self.test_filter {
+            println!("🔍 Running filtered tests: {filter}");
+            println!("   Found {} matching test(s)", tests.len());
+        }
+
         let mut results = Vec::new();
 
         for test in tests {
@@ -327,6 +366,10 @@ impl SnapshotRunner {
             println!("  Mode:   UPDATE (expected outputs written)");
         } else {
             println!("  Mode:   VERIFY");
+        }
+
+        if let Some(filter) = &self.test_filter {
+            println!("  Filter: {filter}");
         }
 
         if passed > 0 {

@@ -9,7 +9,10 @@ async fn run_snapshot_tests() {
     let update_mode =
         env::var("UPDATE_SNAPSHOTS").is_ok() || env::args().any(|arg| arg == "--update");
 
-    let runner = SnapshotRunner::new(update_mode).expect("Failed to create snapshot runner");
+    let test_filter = env::var("TEST_FILTER").ok();
+
+    let runner =
+        SnapshotRunner::new(update_mode, test_filter).expect("Failed to create snapshot runner");
 
     let results = runner
         .run_all_tests()
