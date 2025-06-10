@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use diffy::PatchFormatter;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -356,6 +357,7 @@ impl SnapshotRunner {
             .filter(|r| r.response_matches && r.output_matches)
             .count();
         let failed = total - passed;
+        let f = PatchFormatter::new().with_color();
 
         println!("\n📊 Snapshot Test Summary:");
         println!("  Total:  {total}");
@@ -395,7 +397,12 @@ impl SnapshotRunner {
                     if !result.response_matches {
                         println!("    Expected response differs from actual output");
                         println!("    Run with --update to accept changes, or check the diff");
+
                         if let Some(expected_response) = &result.expected_response {
+                            let patch =
+                                diffy::create_patch(expected_response, &result.actual_response);
+                            println!("\n DIFF: {}", f.fmt_patch(&patch));
+
                             println!("\n    EXPECTED RESPONSE:");
                             println!("    {}", expected_response.replace('\n', "\n    "));
                         }
@@ -407,6 +414,13 @@ impl SnapshotRunner {
                     if !result.output_matches {
                         println!("    Expected output differs from actual output");
                         println!("    Run with --update to accept changes, or check the diff");
+                        if let (Some(expected_output), Some(actual_output)) =
+                            (&result.expected_output, &result.actual_output)
+                        {
+                            let patch = diffy::create_patch(expected_output, actual_output);
+                            println!("\n DIFF: {}", f.fmt_patch(&patch));
+                        }
+
                         if let Some(expected_output) = &result.expected_output {
                             println!("\n    EXPECTED OUTPUT:");
                             println!("    {}", expected_output.replace('\n', "\n    "));
