@@ -1,49 +1,41 @@
 {
-  "type": "object",
-  "properties": {
-    "file_path": {
-      "type": "string",
-      "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
-    },
-    "selector": {
-      "type": "object",
-      "description": "Node selector for the target location where content would be placed",
-      "properties": {
-        "line": {
-          "type": "number",
-          "description": "⚠️  Line number (1-indexed) - May select small tokens, use with caution"
+    "type": "object",
+    "properties": {
+        "file_path": {
+            "type": "string",
+            "description": "Path to the source file"
         },
-        "column": {
-          "type": "number", 
-          "description": "⚠️  Column number (1-indexed) - May select small tokens, use with caution"
+        "selector": {
+            "type": "object",
+            "description": "Text-anchored node selector using exact text and AST navigation",
+            "properties": {
+                "anchor_text": {
+                    "type": "string",
+                    "description": "Exact text to find in the source code as an anchor point"
+                },
+                "ancestor_node_type": {
+                    "type": "string",
+                    "description": "AST node type to walk up to from the anchor point"
+                }
+            },
+            "required": ["anchor_text", "ancestor_node_type"],
+            "additionalProperties": false
         },
-        "name": {
-          "type": "string",
-          "description": "Name of the node - RECOMMENDED for reliable selection"
+        "content": {
+            "type": "string",
+            "description": "Content to validate for insertion"
         },
-        "type": {
-          "type": "string",
-          "description": "Node type (e.g., 'function_item') - RECOMMENDED for reliable selection"
+        "operation_type": {
+            "type": "string",
+            "description": "Type of edit operation",
+            "enum": ["insert_before", "insert_after", "replace", "wrap"]
         },
-        "query": {
-          "type": "string",
-          "description": "Tree-sitter query - RECOMMENDED for precise selection"
-        },
-        "scope": {
-          "type": "string",
-          "description": "Optional scope hint for position selection: 'token' (default), 'expression', 'statement', 'item'"
+        "language": {
+            "type": "string",
+            "description": "Optional language hint. If not provided, language will be detected from file extension.",
+            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"]
         }
-      }
     },
-    "content": {
-      "type": "string",
-      "description": "Content that would be inserted/replaced at the target location"
-    },
-    "operation_type": {
-      "type": "string",
-      "enum": ["insert_before", "insert_after", "replace", "wrap"],
-      "description": "Type of edit operation to validate"
-    }
-  },
-  "required": ["file_path", "selector", "content", "operation_type"]
+    "required": ["file_path", "selector", "content", "operation_type"],
+    "additionalProperties": false
 }

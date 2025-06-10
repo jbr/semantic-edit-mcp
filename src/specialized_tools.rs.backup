@@ -1,0 +1,277 @@
+use crate::operations::{EditOperation, NodeSelector};
+use crate::parsers::TreeSitterParser;
+use crate::tools::{ExecutionResult, ToolRegistry};
+use anyhow::{anyhow, Result};
+use serde_json::Value;
+use tree_sitter::StreamingIterator;
+
+// Specialized insertion tools implementations
+impl ToolRegistry {
+        pub async fn insert_after_struct(&self, args: &Value) -> Result<ExecutionResult> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let struct_name = args
+            .get("struct_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("struct_name is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let language_hint = Some("rust".to_string()); // Specialized tools are Rust-only
+
+        // Use text-anchored selector: find "struct StructName" and walk up to struct_item
+        let selector = NodeSelector {
+            anchor_text: format!("struct {}", struct_name),
+            ancestor_node_type: "struct_item".to_string(),
+        };
+
+        let operation = EditOperation::InsertAfter {
+            target: selector,
+            content: content.to_string(),
+            preview_only: Some(preview_only),
+        };
+
+        operation.apply_with_validation(language_hint, file_path, preview_only)
+    }
+
+        pub async fn insert_after_enum(&self, args: &Value) -> Result<ExecutionResult> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let enum_name = args
+            .get("enum_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("enum_name is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let language_hint = Some("rust".to_string()); // Specialized tools are Rust-only
+
+        // Use text-anchored selector: find "enum EnumName" and walk up to enum_item
+        let selector = NodeSelector {
+            anchor_text: format!("enum {}", enum_name),
+            ancestor_node_type: "enum_item".to_string(),
+        };
+
+        let operation = EditOperation::InsertAfter {
+            target: selector,
+            content: content.to_string(),
+            preview_only: Some(preview_only),
+        };
+
+        operation.apply_with_validation(language_hint, file_path, preview_only)
+    }
+
+        pub async fn insert_after_impl(&self, args: &Value) -> Result<ExecutionResult> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let impl_type = args
+            .get("impl_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("impl_type is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let language_hint = Some("rust".to_string()); // Specialized tools are Rust-only
+
+        // Use text-anchored selector: find "impl TypeName" and walk up to impl_item
+        let selector = NodeSelector {
+            anchor_text: format!("impl {}", impl_type),
+            ancestor_node_type: "impl_item".to_string(),
+        };
+
+        let operation = EditOperation::InsertAfter {
+            target: selector,
+            content: content.to_string(),
+            preview_only: Some(preview_only),
+        };
+        operation.apply_with_validation(language_hint, file_path, preview_only)
+    }
+
+        pub async fn insert_after_function(&self, args: &Value) -> Result<ExecutionResult> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let function_name = args
+            .get("function_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("function_name is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let language_hint = Some("rust".to_string()); // Specialized tools are Rust-only
+
+        // Use text-anchored selector: find "fn function_name" and walk up to function_item
+        let selector = NodeSelector {
+            anchor_text: format!("fn {}", function_name),
+            ancestor_node_type: "function_item".to_string(),
+        };
+
+        let operation = EditOperation::InsertAfter {
+            target: selector,
+            content: content.to_string(),
+            preview_only: Some(preview_only),
+        };
+
+        operation.apply_with_validation(language_hint, file_path, preview_only)
+    }
+
+        pub async fn insert_in_module(&self, args: &Value) -> Result<ExecutionResult> {
+        let file_path = args
+            .get("file_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("file_path is required"))?;
+
+        let content = args
+            .get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("content is required"))?;
+
+        let preview_only = args
+            .get("preview_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let position = args
+            .get("position")
+            .and_then(|v| v.as_str())
+            .unwrap_or("end"); // "start" or "end"
+
+        let language_hint = Some("rust".to_string());
+
+        let source_code = std::fs::read_to_string(file_path)?;
+        
+        let operation = if position == "start" {
+            // Strategy for "start": Insert after the last use statement, or at the beginning
+            
+            // Look for use statements in the source code
+            if let Some(last_use_line) = find_last_use_statement(&source_code) {
+                // Use text-anchored selector to find the last use statement
+                let selector = NodeSelector {
+                    anchor_text: last_use_line.trim().to_string(),
+                    ancestor_node_type: "use_declaration".to_string(),
+                };
+
+                EditOperation::InsertAfter {
+                    target: selector,
+                    content: format!("\n{content}"),
+                    preview_only: Some(preview_only),
+                }
+            } else {
+                // No use statements found, find the first item and insert before it
+                if let Some(first_item_text) = find_first_item_signature(&source_code) {
+                    let (anchor_text, node_type) = first_item_text;
+                    let selector = NodeSelector {
+                        anchor_text,
+                        ancestor_node_type: node_type,
+                    };
+
+                    EditOperation::InsertBefore {
+                        target: selector,
+                        content: format!("{content}\n\n"),
+                        preview_only: Some(preview_only),
+                    }
+                } else {
+                    // Empty file, just append at the end
+                    let output = if source_code.trim().is_empty() {
+                        content.to_string()
+                    } else {
+                        format!("{}\n{content}", source_code.trim_end())
+                    };
+
+                    let response = "Insert in module operation result:\nSuccessfully appended content to start of file";
+                    if preview_only {
+                        return Ok(ExecutionResult::ResponseOnly(format!(
+                            "PREVIEW: {response}"
+                        )));
+                    } else {
+                        return Ok(ExecutionResult::Change {
+                            response: response.to_string(),
+                            output,
+                            output_path: file_path.to_string(),
+                        });
+                    }
+                }
+            }
+        } else {
+            // Strategy for "end": Insert after the last top-level item
+            if let Some(last_item_text) = find_last_item_signature(&source_code) {
+                let (anchor_text, node_type) = last_item_text;
+                let selector = NodeSelector {
+                    anchor_text,
+                    ancestor_node_type: node_type,
+                };
+
+                EditOperation::InsertAfter {
+                    target: selector,
+                    content: format!("\n{content}"),
+                    preview_only: Some(preview_only),
+                }
+            } else {
+                // No items found, file might be empty or only have comments
+                let output = if source_code.trim().is_empty() {
+                    content.to_string()
+                } else {
+                    format!("{}\n\n{content}", source_code.trim_end())
+                };
+
+                let response = "Insert in module operation result:\nSuccessfully appended content to end of file";
+                if preview_only {
+                    return Ok(ExecutionResult::ResponseOnly(format!(
+                        "PREVIEW: {response}"
+                    )));
+                } else {
+                    return Ok(ExecutionResult::Change {
+                        response: response.to_string(),
+                        output,
+                        output_path: file_path.to_string(),
+                    });
+                }
+            }
+        };
+
+        operation.apply_with_validation(language_hint, file_path, preview_only)
+    }
+}

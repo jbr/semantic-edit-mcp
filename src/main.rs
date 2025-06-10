@@ -8,7 +8,6 @@ mod operations;
 mod parsers;
 mod server;
 mod server_impl;
-mod specialized_tools;
 mod tools;
 mod validation;
 

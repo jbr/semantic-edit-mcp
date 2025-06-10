@@ -3,7 +3,7 @@
     "properties": {
         "file_path": {
             "type": "string",
-            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY. This tool currently only supports Rust files."
+            "description": "Path to the Rust source file (.rs) - RUST FILES ONLY"
         },
         "content": {
             "type": "string",
@@ -11,8 +11,8 @@
         },
         "position": {
             "type": "string",
+            "description": "Where to insert in the module",
             "enum": ["start", "end"],
-            "description": "Where to insert in the module: 'start' (after use statements) or 'end' (at the bottom of file)",
             "default": "end"
         },
         "preview_only": {
@@ -21,5 +21,6 @@
             "default": false
         }
     },
-    "required": ["file_path", "content"]
+    "required": ["file_path", "content"],
+    "additionalProperties": false
 }
