@@ -1,2 +1,14 @@
 Insert after operation result (syntax validation only):
 Successfully inserted content after list_item node
+
+diff:
+
+ - Set up repository
+ - Write documentation
+-- Implement core features
+
++- Add comprehensive tests- Implement core features
++
+ ## Next Steps
+
+ Continue with implementation.

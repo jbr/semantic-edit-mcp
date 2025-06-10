@@ -1,2 +1,12 @@
 Replace operation result (with context validation):
 Successfully replaced function_item node
+
+diff:
+
+ #[tokio::test]
+ async fn async_test() {
+-    // Existing async test
++    // Modified async test with debug
++    println!("Debug output");
+     assert!(true);
+ }

@@ -2,7 +2,8 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "type": "list_item"
+      "anchor_text": "- Write documentation",
+      "ancestor_node_type": "list_item"
     },
     "content": "- Add comprehensive tests",
     "preview_only": false

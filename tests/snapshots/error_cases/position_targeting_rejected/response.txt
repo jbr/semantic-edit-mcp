@@ -1,7 +1,5 @@
 Position-based targeting (line/column) is not allowed for edit operations.
-Use semantic selectors instead:
-• By name: {"name": "function_name"}
-• By type: {"type": "function_item"}
-• By query: {"query": "(function_item name: (identifier) @name)"}
+Use text-anchored selectors instead:
+• {"anchor_text": "exact text to find", "ancestor_node_type": "function_item"}
 
-💡 Use explore_ast or get_node_info with line/column to find the right semantic selector.
+💡 Use explore_ast with line/column to find the right anchor text and node type.

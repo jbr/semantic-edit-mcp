@@ -1,2 +1,12 @@
 Replace operation result (syntax validation only):
 Successfully replaced atx_heading node
+
+diff:
+ # Main Title
+
+-## Important Section
+-
++### Important Section (Now Subsection)
+ This section contains critical information.
+
+ ### Subsection
