@@ -1,6 +1,6 @@
 # Main Title
 
-## ### Important Section (Now Subsection)
+### Important Section (Now Subsection)
 
 This section contains critical information.
 

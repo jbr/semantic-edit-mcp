@@ -20,4 +20,4 @@
 * Please read the following markdown files next and familiarize yourself with the project structure
   (all paths relative to /Users/jbr/code/semantic-edit-mcp):
   - PROJECT_SUMMARY.md
-  - docs/enhanced_snapshot_testing_plan.md
+

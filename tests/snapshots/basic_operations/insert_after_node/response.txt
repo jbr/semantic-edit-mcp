@@ -1,20 +1,11 @@
-🔍 **INSERTION PREVIEW** - Showing file after operation:
-ℹ️  NEW CONTENT MARKED WITH 🎯
+🔍 **INSERTION PREVIEW** - Changes to be made:
 
-   4 | }
-   5 | 
-   6 | pub fn second_function() {
-   7 |     println!("Second function - content will be inserted after this");
-   8 | }
-   9 | 🎯 NEW_CONTENT 🎯 ← NEW CONTENT LOCATION
-  10 | 
-  11 | pub fn third_function() {
-  12 |     println!("Third function");
-  13 | }
-
-📄 **Actual content to insert instead of placeholder:**
-```rust
-
-// This comment is inserted after the second function
-
-```
+@@ -6,6 +6,8 @@
+ pub fn second_function() {
+     println!("Second function - content will be inserted after this");
+ }
++
++// This comment is inserted after the second function
+ 
+ pub fn third_function() {
+     println!("Third function");
