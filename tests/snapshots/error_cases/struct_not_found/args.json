@@ -1,7 +1,10 @@
 {
-  "tool": "insert_after_struct",
+  "tool": "insert_after_node",
   "arguments": {
-    "struct_name": "NonexistentStruct",
+    "selector": {
+      "anchor_text": "NonexistentStruct",
+      "ancestor_node_type": "struct_item"
+    },
     "content": "\n// This should fail",
     "preview_only": true
   }

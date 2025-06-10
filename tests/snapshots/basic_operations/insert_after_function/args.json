@@ -1,7 +1,10 @@
 {
-  "tool": "insert_after_function",
+  "tool": "insert_after_node",
   "arguments": {
-    "function_name": "existing_function",
+    "selector": {
+      "anchor_text": "existing_function",
+      "ancestor_node_type": "function_item"
+    },
     "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
     "preview_only": true
   }
