@@ -90,7 +90,7 @@ impl MarkdownEditor {
         }
     }
 
-        fn replace_markdown_node(
+    fn replace_markdown_node(
         tree: &Tree,
         source_code: &str,
         selector: &NodeSelector,
@@ -132,26 +132,32 @@ impl MarkdownEditor {
             affected_range: (start_char, start_char + new_content.len()),
         })
     }
-        
+
     /// Try to apply smart deletion logic for common patterns where users
     /// replace content with empty string but likely mean to delete the container
     fn try_smart_deletion(node: &Node, source_code: &str) -> Result<Option<EditResult>> {
         // Check if this is heading content that should trigger smart deletion
         if let Some(heading_node) = Self::find_parent_heading(node) {
-            return Ok(Some(Self::delete_heading_with_spacing(&heading_node, source_code)?));
+            return Ok(Some(Self::delete_heading_with_spacing(
+                &heading_node,
+                source_code,
+            )?));
         }
-        
+
         // Check if this is list item content that should trigger smart deletion
         if let Some(list_item_node) = Self::find_parent_list_item(node) {
-            return Ok(Some(Self::delete_list_item_with_spacing(&list_item_node, source_code)?));
+            return Ok(Some(Self::delete_list_item_with_spacing(
+                &list_item_node,
+                source_code,
+            )?));
         }
-        
+
         // No smart deletion pattern detected
         Ok(None)
     }
-    
+
     /// Find parent atx_heading node if the current node is content inside a heading
-        /// Find parent atx_heading node if the current node is content inside a heading
+    /// Find parent atx_heading node if the current node is content inside a heading
     fn find_parent_heading<'a>(node: &'a Node<'a>) -> Option<Node<'a>> {
         // Check if node is inline content inside an atx_heading
         if node.kind() == "inline" {
@@ -163,12 +169,11 @@ impl MarkdownEditor {
         }
         None
     }
-    
+
     /// Find parent list_item node if the current node is content inside a list item
-    
-    
+
     /// Find parent list_item node if the current node is content inside a list item
-        /// Find parent list_item node if the current node is content inside a list item
+    /// Find parent list_item node if the current node is content inside a list item
     fn find_parent_list_item<'a>(node: &'a Node<'a>) -> Option<Node<'a>> {
         // Check if node is paragraph content inside a list_item
         if node.kind() == "paragraph" {
@@ -192,7 +197,7 @@ impl MarkdownEditor {
         }
         None
     }
-    
+
     /// Delete an entire heading with proper spacing cleanup
     fn delete_heading_with_spacing(heading_node: &Node, source_code: &str) -> Result<EditResult> {
         let rope = Rope::from_str(source_code);
@@ -209,14 +214,18 @@ impl MarkdownEditor {
         new_rope.remove(final_start..final_end);
 
         Ok(EditResult::Success {
-            message: "Smart deletion: removed entire heading instead of creating empty heading".to_string(),
+            message: "Smart deletion: removed entire heading instead of creating empty heading"
+                .to_string(),
             new_content: new_rope.to_string(),
             affected_range: (final_start, final_start),
         })
     }
-    
+
     /// Delete an entire list item with proper spacing cleanup
-    fn delete_list_item_with_spacing(list_item_node: &Node, source_code: &str) -> Result<EditResult> {
+    fn delete_list_item_with_spacing(
+        list_item_node: &Node,
+        source_code: &str,
+    ) -> Result<EditResult> {
         let rope = Rope::from_str(source_code);
         let start_byte = list_item_node.start_byte();
         let end_byte = list_item_node.end_byte();
@@ -239,7 +248,9 @@ impl MarkdownEditor {
         new_rope.remove(start_char..final_end);
 
         Ok(EditResult::Success {
-            message: "Smart deletion: removed entire list item instead of creating empty bullet point".to_string(),
+            message:
+                "Smart deletion: removed entire list item instead of creating empty bullet point"
+                    .to_string(),
             new_content: new_rope.to_string(),
             affected_range: (start_char, start_char),
         })
