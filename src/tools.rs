@@ -515,8 +515,8 @@ impl ToolRegistry {
 
         // Show the focus node
         output.push_str(&format!(
-            "🎯 **Focus Node**: {} (ID: {})\n",
-            exploration_result.focus_node.kind, exploration_result.focus_node.id
+            "🎯 **Focus Node**: {}\n",
+            exploration_result.focus_node.kind
         ));
         if let Some(role) = &exploration_result.focus_node.semantic_role {
             output.push_str(&format!("   Role: {role}\n"));
@@ -559,13 +559,7 @@ impl ToolRegistry {
             output.push_str("📍 **Context Hierarchy** (inner → outer):\n");
             for (i, ancestor) in exploration_result.ancestors.iter().enumerate() {
                 let indent = "  ".repeat(i + 1);
-                output.push_str(&format!(
-                    "{}{}. {} (ID: {})",
-                    indent,
-                    i + 1,
-                    ancestor.kind,
-                    ancestor.id
-                ));
+                output.push_str(&format!("{}{}. {}", indent, i + 1, ancestor.kind,));
                 if let Some(role) = &ancestor.semantic_role {
                     output.push_str(&format!(" - {role}"));
                 }
@@ -584,7 +578,7 @@ impl ToolRegistry {
         if !exploration_result.children.is_empty() {
             output.push_str("👶 **Child Nodes**:\n");
             for (i, child) in exploration_result.children.iter().take(10).enumerate() {
-                output.push_str(&format!("  {}. {} (ID: {})", i + 1, child.kind, child.id));
+                output.push_str(&format!("  {}. {}", i + 1, child.kind));
                 if let Some(role) = &child.semantic_role {
                     output.push_str(&format!(" - {role}"));
                 }
@@ -603,12 +597,7 @@ impl ToolRegistry {
         if !exploration_result.siblings.is_empty() {
             output.push_str("👫 **Sibling Nodes**:\n");
             for (i, sibling) in exploration_result.siblings.iter().take(8).enumerate() {
-                output.push_str(&format!(
-                    "  {}. {} (ID: {})",
-                    i + 1,
-                    sibling.kind,
-                    sibling.id
-                ));
+                output.push_str(&format!("  {}. {}", i + 1, sibling.kind));
                 if let Some(role) = &sibling.semantic_role {
                     output.push_str(&format!(" - {role}"));
                 }
