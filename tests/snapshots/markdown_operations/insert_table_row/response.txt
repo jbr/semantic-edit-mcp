@@ -1,2 +1,2 @@
-❌ Edit would create invalid syntax and was blocked:
-  Line 5: Syntax error
+Insert after operation result (syntax validation only):
+Successfully inserted content after pipe_table_row node

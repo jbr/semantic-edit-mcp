@@ -1,22 +1,14 @@
-🔍 **INSERTION PREVIEW** - Showing file after operation:
-ℹ️  NEW CONTENT MARKED WITH 🎯
+🔍 **INSERTION PREVIEW** - Changes to be made:
 
-   3 | 
-   4 | pub fn existing_function() -> i32 {
-   5 |     println!("Existing function");
-   6 |     42
-   7 | }
-   8 | 🎯 NEW_CONTENT 🎯 ← NEW CONTENT LOCATION
-   9 | 
-  10 | pub struct TestStruct {
-  11 |     value: i32,
-  12 | }
-  13 | 
-
-📄 **Actual content to insert instead of placeholder:**
-```rust
-
-pub fn new_function() -> String {
-    "inserted after existing_function".to_string()
-}
-```
+@@ -4,6 +4,11 @@
+     println!("Existing function");
+     42
+ }
++
++pub fn new_function() -> String {
++    "inserted after existing_function".to_string()
++}
+ 
+ pub struct TestStruct {
+     value: i32,
+ }

@@ -2,7 +2,7 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "query": "(atx_heading (atx_h2_marker) (inline) @text (#match? @text \".*Important.*\"))"
+      "query": "(atx_heading (atx_h2_marker) (inline) @text (#match? @text \".*Important.*\")) @heading"
     },
     "new_content": "### Important Section (Now Subsection)",
     "preview_only": false

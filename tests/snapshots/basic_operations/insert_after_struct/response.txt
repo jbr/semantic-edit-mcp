@@ -1,30 +1,19 @@
-🔍 **INSERTION PREVIEW** - Showing file after operation:
-ℹ️  NEW CONTENT MARKED WITH 🎯
+🔍 **INSERTION PREVIEW** - Changes to be made:
 
-   1 | // Test file for insert after struct
-   2 | pub struct Point {
-   3 |     x: f64,
-   4 |     y: f64,
-   5 | }
-   6 | 🎯 NEW_CONTENT 🎯 ← NEW CONTENT LOCATION
-   7 | 
-   8 | pub struct Circle {
-   9 |     center: Point,
-  10 |     radius: f64,
-  11 | }
-
-📄 **Actual content to insert instead of placeholder:**
-```rust
-
-impl Point {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y }
-    }
-
-    pub fn distance_to(&self, other: &Point) -> f64 {
-        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
-    }
-}
-```
-
-⚠️  **Structural Note:** You're inserting after a container block. Content will be placed OUTSIDE the container, not inside it.
+@@ -3,6 +3,17 @@
+     x: f64,
+     y: f64,
+ }
++
++impl Point {
++    pub fn new(x: f64, y: f64) -> Self {
++        Self { x, y }
++    }
++
++    pub fn distance_to(&self, other: &Point) -> f64 {
++        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
++    }
++}
+ 
+ pub struct Circle {
+     center: Point,

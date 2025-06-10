@@ -1,2 +1,2 @@
 Replace operation result (syntax validation only):
-Successfully replaced inline node
+Successfully replaced atx_heading node

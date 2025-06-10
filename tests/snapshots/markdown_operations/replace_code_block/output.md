@@ -14,4 +14,5 @@ const user: User = {
 };
 console.log(user);
 ```
+
 This example needs updating.

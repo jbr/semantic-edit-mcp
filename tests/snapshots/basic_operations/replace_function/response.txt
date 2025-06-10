@@ -1,1 +1,16 @@
-🔍 **PREVIEW**: Operation did not produce new content
+🔍 **REPLACEMENT PREVIEW** - Changes to be made:
+
+@@ -1,9 +1,9 @@
+ // Sample Rust code for testing
+-pub fn old_function() -> i32 {
+-    println!("This is the old implementation");
+-    42
+-}
++pub fn new_function() -> i32 {
++    println!("This is the new implementation");
++    100
++}
+ 
+ pub fn other_function() -> String {
+     "unchanged".to_string()
+ }
