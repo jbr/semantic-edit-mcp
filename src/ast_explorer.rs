@@ -214,16 +214,12 @@ impl ASTExplorer {
 
     fn generate_query_selector(node: &Node, source: &str) -> Option<String> {
         match node.kind() {
-            "function_item" => {
-                Self::extract_node_name(node, source).map(|name| format!(
-                        "(function_item name: (identifier) @name (#eq? @name \"{name}\"))"
-                    ))
-            }
-            "struct_item" => {
-                Self::extract_node_name(node, source).map(|name| format!(
-                        "(struct_item name: (type_identifier) @name (#eq? @name \"{name}\"))"
-                    ))
-            }
+            "function_item" => Self::extract_node_name(node, source).map(|name| {
+                format!("(function_item name: (identifier) @name (#eq? @name \"{name}\"))")
+            }),
+            "struct_item" => Self::extract_node_name(node, source).map(|name| {
+                format!("(struct_item name: (type_identifier) @name (#eq? @name \"{name}\"))")
+            }),
             "atx_heading" => {
                 // For markdown headings, try to match by content
                 let content = get_node_text(node, source).trim();

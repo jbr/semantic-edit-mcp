@@ -9,7 +9,7 @@ pub struct TreeSitterParser {
 }
 
 impl TreeSitterParser {
-        pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let mut parsers = HashMap::new();
 
         // Initialize Rust parser
