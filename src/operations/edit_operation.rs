@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
-
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
+use anyhow::{anyhow, Result};
+use diffy;
 
 #[derive(Debug, Clone)]
 pub enum EditOperation {
@@ -217,6 +217,8 @@ impl EditOperation {
                 new_content,
                 ..
             } => {
+                let diff = generate_diff(&source_code, &new_content);
+
                 // Normal response for actual operations
                 let validation_note = if validator.supports_language(&language) {
                     "with context validation"
@@ -224,9 +226,8 @@ impl EditOperation {
                     "syntax validation only"
                 };
                 let response = format!(
-                    "{} operation result ({validation_note}):\n{}",
+                    "{} operation result ({validation_note}):\n{message}\n\ndiff:\n{diff}",
                     self.operation_name(),
-                    message
                 );
                 Ok(ExecutionResult::Change {
                     response,
@@ -263,15 +264,10 @@ impl EditOperation {
         source_code: &str,
         language: &str,
     ) -> Result<String> {
-        use diffy;
-
         // Apply the actual operation to get the new content
         let result = self.apply(source_code, language)?;
 
         if let EditResult::Success { new_content, .. } = &result {
-            // Use diffy to generate a clean diff
-            let patch = diffy::create_patch(source_code, new_content);
-
             let mut preview = String::new();
 
             // Add operation-specific header
@@ -290,35 +286,41 @@ impl EditOperation {
                 }
             }
 
-            // Get the diff string and clean it up for AI consumption
-            let diff_output = patch.to_string();
-            let lines: Vec<&str> = diff_output.lines().collect();
-            let mut cleaned_diff = String::new();
-
-            for line in lines {
-                // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
-                if line.starts_with("---")
-                    || line.starts_with("+++")
-                    || line.starts_with("@@")
-                    || line.starts_with("\\")
-                // Skip "\ No newline at end of file" messages
-                {
-                    continue;
-                }
-                cleaned_diff.push_str(line);
-                cleaned_diff.push('\n');
-            }
-
-            // Remove trailing newline to avoid extra spacing
-            if cleaned_diff.ends_with('\n') {
-                cleaned_diff.pop();
-            }
-
-            preview.push_str(&cleaned_diff);
+            preview.push_str(&generate_diff(source_code, new_content));
 
             Ok(preview)
         } else {
             Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
         }
     }
+}
+
+fn generate_diff(source_code: &str, new_content: &str) -> String {
+    // Use diffy to generate a clean diff
+    let patch = diffy::create_patch(source_code, new_content);
+
+    // Get the diff string and clean it up for AI consumption
+    let diff_output = patch.to_string();
+    let lines: Vec<&str> = diff_output.lines().collect();
+    let mut cleaned_diff = String::new();
+
+    for line in lines {
+        // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
+        if line.starts_with("---")
+            || line.starts_with("+++")
+            || line.starts_with("@@")
+            || line.starts_with("\\")
+        // Skip "\ No newline at end of file" messages
+        {
+            continue;
+        }
+        cleaned_diff.push_str(line);
+        cleaned_diff.push('\n');
+    }
+
+    // Remove trailing newline to avoid extra spacing
+    if cleaned_diff.ends_with('\n') {
+        cleaned_diff.pop();
+    }
+    cleaned_diff
 }

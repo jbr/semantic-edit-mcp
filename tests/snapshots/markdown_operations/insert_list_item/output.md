@@ -1,9 +1,9 @@
 # Project Tasks
 
 - Set up repository
-- Add comprehensive tests
 - Write documentation
-- Implement core features
+
+- Add comprehensive tests- Implement core features
 
 ## Next Steps
 

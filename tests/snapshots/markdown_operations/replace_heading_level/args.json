@@ -2,7 +2,8 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "query": "(atx_heading (atx_h2_marker) (inline) @text (#match? @text \".*Important.*\")) @heading"
+      "anchor_text": "## Important Section",
+      "ancestor_node_type": "atx_heading"
     },
     "new_content": "### Important Section (Now Subsection)",
     "preview_only": false
