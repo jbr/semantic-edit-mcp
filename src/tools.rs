@@ -1,5 +1,4 @@
-use crate::editors::rust::RustEditor;
-use crate::operations::{check_terrible_target, EditOperation, NodeSelector};
+use crate::operations::{EditOperation, NodeSelector};
 use crate::parsers::{detect_language_from_path, TreeSitterParser};
 use crate::server::{Tool, ToolCallParams};
 use crate::validation::SyntaxValidator;
@@ -35,7 +34,7 @@ impl ExecutionResult {
 }
 
 impl ToolRegistry {
-        pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let tools = vec![
             Tool {
                 name: "replace_node".to_string(),
@@ -89,7 +88,7 @@ impl ToolRegistry {
         self.tools.clone()
     }
 
-        pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
+    pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
 
@@ -237,7 +236,7 @@ impl ToolRegistry {
         }
     }
 
-        async fn get_node_info(&self, args: &Value) -> Result<ExecutionResult> {
+    async fn get_node_info(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -298,15 +297,14 @@ impl ToolRegistry {
                 return Ok(ExecutionResult::ResponseOnly(node_info));
             } else {
                 return Ok(ExecutionResult::ResponseOnly(format!(
-                    "No node found at position {}:{}",
-                    line, column
+                    "No node found at position {line}:{column}"
                 )));
             }
         }
 
         // Try text-anchored selector
         let selector = Self::parse_selector(Some(&args["selector"]), false)?;
-        
+
         // For new multi-language support, use the language registry
         if let Ok(registry) = crate::languages::LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(&language) {
@@ -319,13 +317,15 @@ impl ToolRegistry {
 
         // Fallback to old Rust-only logic
         match language.as_str() {
-            "rust" => crate::editors::rust::RustEditor::get_node_info(&tree, &source_code, &selector)
-                .map(ExecutionResult::ResponseOnly),
+            "rust" => {
+                crate::editors::rust::RustEditor::get_node_info(&tree, &source_code, &selector)
+                    .map(ExecutionResult::ResponseOnly)
+            }
             _ => Err(anyhow!("Unsupported language for node info: {}", language)),
         }
     }
 
-        async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
+    async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -402,7 +402,7 @@ impl ToolRegistry {
         }
     }
 
-        fn parse_selector(
+    fn parse_selector(
         selector_value: Option<&Value>,
         allow_position: bool,
     ) -> Result<NodeSelector> {
@@ -432,10 +432,12 @@ impl ToolRegistry {
             return Err(anyhow!("Position-based selectors need special handling - this should be implemented in the calling function"));
         }
 
-        // Handle text-anchored selectors  
+        // Handle text-anchored selectors
         if let (Some(anchor_text), Some(ancestor_node_type)) = (
             selector_obj.get("anchor_text").and_then(|v| v.as_str()),
-            selector_obj.get("ancestor_node_type").and_then(|v| v.as_str()),
+            selector_obj
+                .get("ancestor_node_type")
+                .and_then(|v| v.as_str()),
         ) {
             return Ok(NodeSelector {
                 anchor_text: anchor_text.to_string(),

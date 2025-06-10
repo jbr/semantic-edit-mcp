@@ -37,9 +37,11 @@ impl NodeSelector {
             // Convert byte position to tree-sitter node
             if let Some(anchor_node) = find_node_at_byte_position(tree, byte_pos) {
                 // Walk up to find the desired ancestor type
-                if let Some(target_node) = find_ancestor_of_type(&anchor_node, &self.ancestor_node_type) {
+                if let Some(target_node) =
+                    find_ancestor_of_type(&anchor_node, &self.ancestor_node_type)
+                {
                     valid_targets.push(target_node);
-                    
+
                     // Get context for error reporting
                     let (line, column) = byte_position_to_line_column(source_code, byte_pos);
                     let ancestor_chain = get_ancestor_chain(&anchor_node);
@@ -117,22 +119,22 @@ struct AnchorInfo {
 fn find_text_positions(anchor_text: &str, source_code: &str) -> Vec<usize> {
     let mut positions = Vec::new();
     let mut start = 0;
-    
+
     while let Some(pos) = source_code[start..].find(anchor_text) {
         positions.push(start + pos);
         start += pos + 1; // Move past this match to find overlapping matches
     }
-    
+
     positions
 }
 
 /// Find the tree-sitter node at a specific byte position
 fn find_node_at_byte_position<'a>(tree: &'a Tree, byte_pos: usize) -> Option<Node<'a>> {
     let root = tree.root_node();
-    
+
     // Find the smallest node that contains this byte position
     let mut current = root;
-    
+
     loop {
         let mut found_child = false;
         for i in 0..current.child_count() {
@@ -144,26 +146,26 @@ fn find_node_at_byte_position<'a>(tree: &'a Tree, byte_pos: usize) -> Option<Nod
                 }
             }
         }
-        
+
         if !found_child {
             break;
         }
     }
-    
+
     Some(current)
 }
 
 /// Walk up the AST to find an ancestor of the specified type
 fn find_ancestor_of_type<'a>(node: &Node<'a>, target_type: &str) -> Option<Node<'a>> {
     let mut current = *node;
-    
+
     while let Some(parent) = current.parent() {
         if parent.kind() == target_type {
             return Some(parent);
         }
         current = parent;
     }
-    
+
     None
 }
 
@@ -171,12 +173,12 @@ fn find_ancestor_of_type<'a>(node: &Node<'a>, target_type: &str) -> Option<Node<
 fn get_ancestor_chain(node: &Node) -> Vec<String> {
     let mut chain = Vec::new();
     let mut current = *node;
-    
+
     while let Some(parent) = current.parent() {
         chain.push(parent.kind().to_string());
         current = parent;
     }
-    
+
     chain
 }
 
@@ -184,12 +186,12 @@ fn get_ancestor_chain(node: &Node) -> Vec<String> {
 fn byte_position_to_line_column(source_code: &str, byte_pos: usize) -> (usize, usize) {
     let mut line = 1;
     let mut column = 1;
-    
+
     for (i, ch) in source_code.char_indices() {
         if i >= byte_pos {
             break;
         }
-        
+
         if ch == '\n' {
             line += 1;
             column = 1;
@@ -197,7 +199,7 @@ fn byte_position_to_line_column(source_code: &str, byte_pos: usize) -> (usize, u
             column += 1;
         }
     }
-    
+
     (line, column)
 }
 
@@ -214,16 +216,15 @@ fn format_no_ancestor_error(
     if valid_targets == 0 && total_anchors > 0 {
         // Found anchor text but no valid ancestors
         let mut message = format!(
-            "Error: anchor_text {:?} appears {} time(s) but no instances have ancestor {:?}\n",
-            anchor_text, total_anchors, ancestor_node_type
+            "Error: anchor_text {anchor_text:?} appears {total_anchors} time(s) but no instances have ancestor {ancestor_node_type:?}\n"
         );
-        
+
         // Show available ancestor types
         let all_ancestors: std::collections::HashSet<String> = anchor_info
             .iter()
             .flat_map(|info| info.ancestor_chain.iter().cloned())
             .collect();
-        
+
         if !all_ancestors.is_empty() {
             message.push_str("Available ancestor types: ");
             let mut ancestors: Vec<_> = all_ancestors.iter().cloned().collect();
@@ -231,26 +232,31 @@ fn format_no_ancestor_error(
             message.push_str(&ancestors.join(", "));
             message.push('\n');
         }
-        
+
         // Show context for each anchor position
         for (_i, info) in anchor_info.iter().enumerate() {
             message.push_str(&format!("\n{}. Line {}: ", _i + 1, info.line));
             if let Some(context) = get_context_around_position(source_code, info.byte_pos, 40) {
                 message.push_str(&context);
             }
-            
+
             if !info.ancestor_chain.is_empty() {
-                message.push_str(&format!("\n   Available ancestors: {}", info.ancestor_chain.join(", ")));
+                message.push_str(&format!(
+                    "\n   Available ancestors: {}",
+                    info.ancestor_chain.join(", ")
+                ));
             }
         }
-        
+
         if let Some(suggestion) = suggest_ancestor_type(&all_ancestors, ancestor_node_type) {
-            message.push_str(&format!("\nSuggestion: Try ancestor_node_type {:?} instead", suggestion));
+            message.push_str(&format!(
+                "\nSuggestion: Try ancestor_node_type {suggestion:?} instead"
+            ));
         }
-        
+
         message
     } else {
-        format!("anchor_text {:?} not found in file", anchor_text)
+        format!("anchor_text {anchor_text:?} not found in file")
     }
 }
 
@@ -262,29 +268,32 @@ fn format_ambiguous_error(
     source_code: &str,
 ) -> String {
     let valid_count = anchor_info.iter().filter(|info| info.found_target).count();
-    
+
     let mut message = format!(
-        "Error: anchor_text {:?} with ancestor_node_type {:?} matches {} nodes\nLocations:\n",
-        anchor_text, ancestor_node_type, valid_count
+        "Error: anchor_text {anchor_text:?} with ancestor_node_type {ancestor_node_type:?} matches {valid_count} nodes\nLocations:\n"
     );
-    
-    for (_i, info) in anchor_info.iter().filter(|info| info.found_target).enumerate() {
+
+    for info in anchor_info.iter().filter(|info| info.found_target) {
         message.push_str(&format!("  - Line {}: ", info.line));
         if let Some(context) = get_context_around_position(source_code, info.byte_pos, 30) {
             message.push_str(&context);
         }
         message.push('\n');
     }
-    
+
     message.push_str("Suggestion: Use more specific anchor text to distinguish between matches");
     message
 }
 
 /// Get text context around a byte position
-fn get_context_around_position(source_code: &str, byte_pos: usize, context_chars: usize) -> Option<String> {
+fn get_context_around_position(
+    source_code: &str,
+    byte_pos: usize,
+    context_chars: usize,
+) -> Option<String> {
     let start = byte_pos.saturating_sub(context_chars);
     let end = (byte_pos + context_chars).min(source_code.len());
-    
+
     if start < source_code.len() && end <= source_code.len() {
         let context = &source_code[start..end];
         Some(context.replace('\n', "\\n").replace('\t', "\\t"))
@@ -294,23 +303,26 @@ fn get_context_around_position(source_code: &str, byte_pos: usize, context_chars
 }
 
 /// Suggest a similar ancestor type based on fuzzy matching
-fn suggest_ancestor_type(available: &std::collections::HashSet<String>, target: &str) -> Option<String> {
+fn suggest_ancestor_type(
+    available: &std::collections::HashSet<String>,
+    target: &str,
+) -> Option<String> {
     let target_lower = target.to_lowercase();
-    
+
     // Look for exact substring matches first
     for ancestor in available {
         if ancestor.to_lowercase().contains(&target_lower) {
             return Some(ancestor.clone());
         }
     }
-    
+
     // Look for similar length matches
     for ancestor in available {
         if levenshtein_distance(&target_lower, &ancestor.to_lowercase()) <= 2 {
             return Some(ancestor.clone());
         }
     }
-    
+
     None
 }
 

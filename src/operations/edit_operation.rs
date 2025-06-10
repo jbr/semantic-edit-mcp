@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
 
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
@@ -113,7 +112,6 @@ impl EditOperation {
     ) -> Result<ExecutionResult> {
         use crate::parsers::{detect_language_from_path, TreeSitterParser};
         use crate::validation::SyntaxValidator;
-        use diffy;
 
         let source_code = std::fs::read_to_string(file_path)?;
 

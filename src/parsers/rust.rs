@@ -337,7 +337,7 @@ impl RustParser {
                 // For unknown types, try the user input first, then with _item suffix
                 let nodes_by_exact = Self::find_nodes_by_type(tree, user_type);
                 let nodes_by_fallback = if !user_type.ends_with("_item") {
-                    Self::find_nodes_by_type(tree, &format!("{}_item", user_type))
+                    Self::find_nodes_by_type(tree, &format!("{user_type}_item"))
                 } else {
                     Vec::new()
                 };
