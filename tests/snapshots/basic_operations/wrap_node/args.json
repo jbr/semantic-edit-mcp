@@ -2,8 +2,8 @@
   "tool": "wrap_node",
   "arguments": {
     "selector": {
-      "name": "target_function",
-      "type": "function_item"
+      "anchor_text": "target_function",
+      "ancestor_node_type": "function_item"
     },
     "wrapper_template": "#[cfg(test)]\n{{content}}",
     "preview_only": true

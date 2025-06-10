@@ -2,8 +2,8 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "name": "second_function",
-      "type": "function_item"
+      "anchor_text": "second_function",
+      "ancestor_node_type": "function_item"
     },
     "content": "\n// This comment is inserted after the second function\n",
     "preview_only": true

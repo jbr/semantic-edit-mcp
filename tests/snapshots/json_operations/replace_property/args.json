@@ -2,10 +2,10 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "name": "version",
-      "type": "pair"
+      "anchor_text": "1.0.0",
+      "ancestor_node_type": "string"
     },
-    "new_content": "\"version\": \"2.0.0\"",
+    "new_content": "\"2.0.0\"",
     "preview_only": true
   }
 }

@@ -2,8 +2,8 @@
   "tool": "get_node_info",
   "arguments": {
     "selector": {
-      "name": "sample_function",
-      "type": "function_item"
+      "anchor_text": "sample_function",
+      "ancestor_node_type": "function_item"
     }
   }
 }

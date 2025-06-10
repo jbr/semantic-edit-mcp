@@ -2,8 +2,8 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "name": "nonexistent_function",
-      "type": "function_item"
+      "anchor_text": "nonexistent_function",
+      "ancestor_node_type": "function_item"
     },
     "new_content": "// This should fail",
     "preview_only": true

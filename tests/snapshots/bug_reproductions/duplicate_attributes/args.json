@@ -2,8 +2,8 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "name": "async_test",
-      "type": "function_item"
+      "anchor_text": "async_test",
+      "ancestor_node_type": "function_item"
     },
     "new_content": "#[tokio::test]\nasync fn async_test() {\n    // Modified async test with debug\n    println!(\"Debug output\");\n    assert!(true);\n}",
     "preview_only": false

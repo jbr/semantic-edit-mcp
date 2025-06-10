@@ -2,8 +2,8 @@
   "tool": "replace_node", 
   "arguments": {
     "selector": {
-      "type": "function",
-      "name": "calculate_distance"
+      "anchor_text": "calculate_distance",
+      "ancestor_node_type": "function_item"
     },
     "new_content": "pub fn calculate_manhattan_distance(p1: &Point, p2: &Point) -> f64 {\n    (p1.x - p2.x).abs() + (p1.y - p2.y).abs()\n}",
     "preview_only": true
