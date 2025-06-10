@@ -1,18 +1,18 @@
 //! Operations module for semantic editing
-//! 
+//!
 //! This module provides the core text-anchored node selection and editing operations.
 //! The design uses content as anchor points and AST structure for precise targeting.
 
+pub mod edit_operation;
 pub mod selector;
-pub mod edit_operation; 
 pub mod validation;
 
 // Re-export main types for convenience
-pub use selector::NodeSelector;
 pub use edit_operation::{EditOperation, EditResult};
+pub use selector::NodeSelector;
 
-use anyhow::{anyhow, Result};
-use tree_sitter::{Node, StreamingIterator};
+use anyhow::Result;
+use tree_sitter::Node;
 
 /// Find an ancestor node of a specified type
 pub fn find_ancestor_of_type<'a>(node: &Node<'a>, target_type: &str) -> Option<Node<'a>> {

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::operations::selector::NodeSelector;
+use anyhow::Result;
 
 /// Check for structural warnings and terrible targets
 pub fn check_terrible_target(

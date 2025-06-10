@@ -157,7 +157,6 @@ impl MarkdownEditor {
     }
 
     /// Find parent atx_heading node if the current node is content inside a heading
-    /// Find parent atx_heading node if the current node is content inside a heading
     fn find_parent_heading<'a>(node: &'a Node<'a>) -> Option<Node<'a>> {
         // Check if node is inline content inside an atx_heading
         if node.kind() == "inline" {
@@ -170,9 +169,6 @@ impl MarkdownEditor {
         None
     }
 
-    /// Find parent list_item node if the current node is content inside a list item
-
-    /// Find parent list_item node if the current node is content inside a list item
     /// Find parent list_item node if the current node is content inside a list item
     fn find_parent_list_item<'a>(node: &'a Node<'a>) -> Option<Node<'a>> {
         // Check if node is paragraph content inside a list_item
