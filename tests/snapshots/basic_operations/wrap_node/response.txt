@@ -1,10 +1,7 @@
 🔍 **WRAP PREVIEW** - Changes to be made:
 
-@@ -1,5 +1,6 @@
  // Test file for wrap node
--pub fn target_function() {
 +#[cfg(test)]
-+pub fn target_function() {
+ pub fn target_function() {
      println!("This function will be wrapped");
  }
- 

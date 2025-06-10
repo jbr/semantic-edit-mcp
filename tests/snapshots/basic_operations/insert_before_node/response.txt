@@ -1,18 +1,10 @@
-🔍 **INSERTION PREVIEW** - Showing file after operation:
-ℹ️  NEW CONTENT MARKED WITH 🎯
+🔍 **INSERTION PREVIEW** - Changes to be made:
 
-   1 | // Test file for insert before node
-   2 | use std::collections::HashMap;
-   3 | 
-   4 | 🎯 NEW_CONTENT 🎯 ← NEW CONTENT LOCATION
-   5 | pub fn target_function() {
-   6 |     println!("This function will have content inserted before it");
-   7 | }
-   8 | 
-   9 | pub fn another_function() {
+ // Test file for insert before node
+ use std::collections::HashMap;
 
-📄 **Actual content to insert instead of placeholder:**
-```rust
-// This comment is inserted before the target function
-
-```
++// This comment is inserted before the target function
++
+ pub fn target_function() {
+     println!("This function will have content inserted before it");
+ }

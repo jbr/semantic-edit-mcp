@@ -30,6 +30,7 @@ walkdir = "2.5"
 ropey = "1.6"  # Efficient text editing with proper UTF-8 handling
 tree-sitter-json = "0.24.8"
 tree-sitter-md = "0.3.2"
+diffy = "0.4.2"
 
 # Additional tree-sitter grammars to add
 # tree-sitter-typescript = "0.23"
