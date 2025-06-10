@@ -1,14 +1,12 @@
 🔍 **INSERTION PREVIEW** - Changes to be made:
 
-@@ -4,6 +4,11 @@
-     println!("Existing function");
      42
  }
-+
+
 +pub fn new_function() -> String {
 +    "inserted after existing_function".to_string()
 +}
- 
++
  pub struct TestStruct {
      value: i32,
  }
