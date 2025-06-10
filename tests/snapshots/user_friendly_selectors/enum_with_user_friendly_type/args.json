@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "type": "enum",
+      "name": "Color"
+    },
+    "new_content": "pub enum Color {\n    Red,\n    Green,\n    Blue,\n    Yellow,\n    Purple,\n}",
+    "preview_only": true
+  }
+}
