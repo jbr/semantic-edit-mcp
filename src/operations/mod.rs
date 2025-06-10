@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use tree_sitter::{Node, StreamingIterator};
 
 use crate::{
-    parsers::detect_language_from_path, tools::ExecutionResult, validation::SyntaxValidator,
+    parsers::{detect_language_from_path, rust::RustParser},
+    tools::ExecutionResult,
+    validation::SyntaxValidator,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -547,7 +549,13 @@ impl NodeSelector {
                     }
                     NodeSelector::Name { node_type, name } => {
                         if let Some(nt) = node_type {
-                            return parser.find_by_name(tree, source_code, nt, name);
+                            // Use the new fallback-aware function
+                            return RustParser::find_by_name_with_fallback(
+                                tree,
+                                source_code,
+                                nt,
+                                name,
+                            );
                         } else {
                             // Try common node types for this language
                             let node_types = match language {
@@ -623,53 +631,26 @@ impl NodeSelector {
                 match language {
                     "rust" => {
                         if let Some(nt) = node_type {
-                            match nt.as_str() {
-                                "function_item" => {
-                                    crate::parsers::rust::RustParser::find_function_by_name(
-                                        tree,
-                                        source_code,
-                                        name,
-                                    )
-                                }
-                                "struct_item" => {
-                                    crate::parsers::rust::RustParser::find_struct_by_name(
-                                        tree,
-                                        source_code,
-                                        name,
-                                    )
-                                }
-                                "enum_item" => crate::parsers::rust::RustParser::find_enum_by_name(
-                                    tree,
-                                    source_code,
-                                    name,
-                                ),
-                                _ => Err(anyhow!("Unsupported node type for name search: {}", nt)),
-                            }
+                            // Use the new fallback-aware function
+                            return RustParser::find_by_name_with_fallback(
+                                tree,
+                                source_code,
+                                nt,
+                                name,
+                            );
                         } else {
                             // Try to find by name in any context - this is more complex
                             // For now, try function first, then struct, then enum
                             if let Ok(Some(node)) =
-                                crate::parsers::rust::RustParser::find_function_by_name(
-                                    tree,
-                                    source_code,
-                                    name,
-                                )
+                                RustParser::find_function_by_name(tree, source_code, name)
                             {
                                 Ok(Some(node))
                             } else if let Ok(Some(node)) =
-                                crate::parsers::rust::RustParser::find_struct_by_name(
-                                    tree,
-                                    source_code,
-                                    name,
-                                )
+                                RustParser::find_struct_by_name(tree, source_code, name)
                             {
                                 Ok(Some(node))
                             } else {
-                                crate::parsers::rust::RustParser::find_enum_by_name(
-                                    tree,
-                                    source_code,
-                                    name,
-                                )
+                                RustParser::find_enum_by_name(tree, source_code, name)
                             }
                         }
                     }
@@ -681,8 +662,7 @@ impl NodeSelector {
             }
             NodeSelector::Type { node_type } => match language {
                 "rust" => {
-                    let nodes =
-                        crate::parsers::rust::RustParser::find_nodes_by_type(tree, node_type);
+                    let nodes = RustParser::find_nodes_by_type_with_fallback(tree, node_type);
                     Ok(nodes.into_iter().next())
                 }
                 _ => Err(anyhow!(
@@ -727,16 +707,11 @@ impl NodeSelector {
         match self {
             NodeSelector::Name { name, node_type } => {
                 // Get all available items for suggestions
-                let all_functions =
-                    crate::parsers::rust::RustParser::get_all_function_names(tree, source_code);
-                let all_structs =
-                    crate::parsers::rust::RustParser::get_all_struct_names(tree, source_code);
-                let all_enums =
-                    crate::parsers::rust::RustParser::get_all_enum_names(tree, source_code);
-                let all_impls =
-                    crate::parsers::rust::RustParser::get_all_impl_types(tree, source_code);
-                let all_mods =
-                    crate::parsers::rust::RustParser::get_all_mod_names(tree, source_code);
+                let all_functions = RustParser::get_all_function_names(tree, source_code);
+                let all_structs = RustParser::get_all_struct_names(tree, source_code);
+                let all_enums = RustParser::get_all_enum_names(tree, source_code);
+                let all_impls = RustParser::get_all_impl_types(tree, source_code);
+                let all_mods = RustParser::get_all_mod_names(tree, source_code);
 
                 let mut available = Vec::new();
                 let mut suggestions = Vec::new();

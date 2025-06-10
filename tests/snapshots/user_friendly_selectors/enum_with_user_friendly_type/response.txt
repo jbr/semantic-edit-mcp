@@ -1,0 +1,10 @@
+🔍 **REPLACEMENT PREVIEW** - Changes to be made:
+
+     Red,
+     Green,
+     Blue,
++    Yellow,
++    Purple,
+ }
+
+ pub enum Direction {

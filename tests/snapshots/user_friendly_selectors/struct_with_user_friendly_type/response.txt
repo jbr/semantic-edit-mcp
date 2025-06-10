@@ -1,0 +1,10 @@
+🔍 **REPLACEMENT PREVIEW** - Changes to be made:
+
+-pub struct Point {
++pub struct Point3D {
+     x: f64,
+     y: f64,
++    z: f64,
+ }
+
+ pub fn calculate_distance(p1: &Point, p2: &Point) -> f64 {

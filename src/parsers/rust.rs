@@ -283,4 +283,119 @@ impl RustParser {
             Vec::new()
         }
     }
+
+    /// Helper function that tries to find nodes by type, with automatic fallback for common Rust patterns.
+    /// Follows the "user is never wrong" principle by accepting intuitive type names.
+    ///
+    /// Examples:
+    /// - "struct" → tries "struct", then "struct_item"
+    /// - "function" → tries "function", then "function_item"
+    /// - "enum" → tries "enum", then "enum_item"
+    pub fn find_nodes_by_type_with_fallback<'a>(tree: &'a Tree, user_type: &str) -> Vec<Node<'a>> {
+        // First, try the user's exact input
+        let mut results = Self::find_nodes_by_type(tree, user_type);
+
+        // If nothing found and this looks like a Rust top-level construct, try with _item suffix
+        if results.is_empty() {
+            let item_type = match user_type {
+                "struct" => Some("struct_item"),
+                "function" | "fn" => Some("function_item"),
+                "enum" => Some("enum_item"),
+                "impl" => Some("impl_item"),
+                "mod" | "module" => Some("mod_item"),
+                "use" => Some("use_declaration"),
+                "type" => Some("type_item"),
+                "trait" => Some("trait_item"),
+                "const" => Some("const_item"),
+                "static" => Some("static_item"),
+                _ => None,
+            };
+
+            if let Some(fallback_type) = item_type {
+                results = Self::find_nodes_by_type(tree, fallback_type);
+            }
+        }
+
+        results
+    }
+
+    /// Enhanced find by name that accepts both user-friendly and exact type names
+    pub fn find_by_name_with_fallback<'a>(
+        tree: &'a Tree,
+        source_code: &str,
+        user_type: &str,
+        name: &str,
+    ) -> Result<Option<Node<'a>>> {
+        // Try exact type first
+        let result = match user_type {
+            "function_item" | "function" | "fn" => {
+                Self::find_function_by_name(tree, source_code, name)
+            }
+            "struct_item" | "struct" => Self::find_struct_by_name(tree, source_code, name),
+            "enum_item" | "enum" => Self::find_enum_by_name(tree, source_code, name),
+            _ => {
+                // For unknown types, try the user input first, then with _item suffix
+                let nodes_by_exact = Self::find_nodes_by_type(tree, user_type);
+                let nodes_by_fallback = if !user_type.ends_with("_item") {
+                    Self::find_nodes_by_type(tree, &format!("{}_item", user_type))
+                } else {
+                    Vec::new()
+                };
+
+                // Combine results and find by name manually
+                let all_nodes = [nodes_by_exact, nodes_by_fallback].concat();
+                for node in all_nodes {
+                    if let Some(name_node) = Self::get_name_node(node) {
+                        let node_name = &source_code[name_node.start_byte()..name_node.end_byte()];
+                        if node_name == name {
+                            return Ok(Some(node));
+                        }
+                    }
+                }
+                return Ok(None);
+            }
+        };
+
+        result
+    }
+
+    /// Helper to extract the name node from various Rust constructs
+    fn get_name_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
+        match node.kind() {
+            "function_item" => {
+                // Function name is usually the second child (after 'fn' keyword)
+                for child in node.children(&mut node.walk()) {
+                    if child.kind() == "identifier" {
+                        return Some(child);
+                    }
+                }
+            }
+            "struct_item" | "enum_item" | "trait_item" | "type_item" => {
+                // Type name is usually a type_identifier
+                for child in node.children(&mut node.walk()) {
+                    if child.kind() == "type_identifier" {
+                        return Some(child);
+                    }
+                }
+            }
+            "impl_item" => {
+                // Implementation target type
+                for child in node.children(&mut node.walk()) {
+                    if child.kind() == "type_identifier" {
+                        return Some(child);
+                    }
+                }
+            }
+            "mod_item" => {
+                // Module name
+                for child in node.children(&mut node.walk()) {
+                    if child.kind() == "identifier" {
+                        return Some(child);
+                    }
+                }
+            }
+            _ => {}
+        }
+        None
+    }
 }

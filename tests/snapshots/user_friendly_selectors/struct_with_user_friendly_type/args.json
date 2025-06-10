@@ -1,0 +1,11 @@
+{
+  "tool": "replace_node",
+  "arguments": {
+    "selector": {
+      "type": "struct",
+      "name": "Point"
+    },
+    "new_content": "pub struct Point3D {\n    x: f64,\n    y: f64,\n    z: f64,\n}",
+    "preview_only": true
+  }
+}
