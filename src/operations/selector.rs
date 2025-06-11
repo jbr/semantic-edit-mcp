@@ -7,8 +7,8 @@ use tree_sitter::{Node, Tree};
 pub struct NodeSelector {
     /// Exact text to find in the source code as an anchor point
     pub anchor_text: String,
-    /// AST node type to walk up to from the anchor point
-    pub ancestor_node_type: String,
+    /// AST node type to walk up to from the anchor point (optional - when omitted, returns exploration data)
+    pub ancestor_node_type: Option<String>,
 }
 
 impl NodeSelector {
@@ -17,7 +17,7 @@ impl NodeSelector {
         &self,
         tree: &'a Tree,
         source_code: &str,
-        _language: &str,
+        language: &str,
     ) -> Result<Option<Node<'a>>> {
         // 1. Text Search: Find all exact matches of anchor_text
         let anchor_positions = find_text_positions(&self.anchor_text, source_code);
@@ -29,6 +29,14 @@ impl NodeSelector {
             ));
         }
 
+        // Check if this is exploration mode (no ancestor_node_type specified)
+        if self.ancestor_node_type.is_none() {
+            return self.explore_around_anchors(tree, source_code, language, &anchor_positions);
+        }
+
+        // Specific targeting mode - find exact ancestor type
+        let ancestor_node_type = self.ancestor_node_type.as_ref().unwrap();
+        
         // 2. Convert positions to nodes and walk up to find ancestors
         let mut valid_targets = Vec::new();
         let mut anchor_info = Vec::new();
@@ -38,7 +46,7 @@ impl NodeSelector {
             if let Some(anchor_node) = find_node_at_byte_position(tree, byte_pos) {
                 // Walk up to find the desired ancestor type
                 if let Some(target_node) =
-                    find_ancestor_of_type(&anchor_node, &self.ancestor_node_type)
+                    find_ancestor_of_type(&anchor_node, ancestor_node_type)
                 {
                     valid_targets.push(target_node);
 
@@ -73,7 +81,7 @@ impl NodeSelector {
                 // No valid targets found - provide detailed error
                 Err(anyhow!(format_no_ancestor_error(
                     &self.anchor_text,
-                    &self.ancestor_node_type,
+                    ancestor_node_type,
                     &anchor_info,
                     source_code
                 )))
@@ -86,7 +94,7 @@ impl NodeSelector {
                 // Multiple valid targets - ambiguous selector
                 Err(anyhow!(format_ambiguous_error(
                     &self.anchor_text,
-                    &self.ancestor_node_type,
+                    ancestor_node_type,
                     &anchor_info,
                     source_code
                 )))
@@ -102,6 +110,80 @@ impl NodeSelector {
         language: &str,
     ) -> Result<Option<Node<'a>>> {
         self.find_node(tree, source_code, language)
+    }
+    
+
+    /// Exploration mode: return information about available targeting options
+    fn explore_around_anchors<'a>(
+        &self,
+        tree: &'a Tree,
+        source_code: &str,
+        language: &str,
+        anchor_positions: &[usize],
+    ) -> Result<Option<Node<'a>>> {
+        let mut exploration_report = String::new();
+        exploration_report.push_str(&format!(
+            "🔍 **Exploration Mode**: Found anchor_text {:?} at {} location(s)\n\n",
+            self.anchor_text,
+            anchor_positions.len()
+        ));
+
+        exploration_report.push_str("💡 **Discovery**: Omit ancestor_node_type to explore what's available around your anchor text.\n\n");
+
+        // Collect information about each anchor location
+        for (i, &byte_pos) in anchor_positions.iter().enumerate() {
+            let (line, column) = byte_position_to_line_column(source_code, byte_pos);
+            exploration_report.push_str(&format!("**{}. Location {}:{}**\n", i + 1, line, column));
+
+            if let Some(anchor_node) = find_node_at_byte_position(tree, byte_pos) {
+                // Get context around this position
+                if let Some(context) = get_context_around_position(source_code, byte_pos, 50) {
+                    exploration_report.push_str(&format!("   Context: \"{}\"\n", context));
+                }
+
+                // Show available ancestor types
+                let ancestor_chain = get_ancestor_chain(&anchor_node);
+                if !ancestor_chain.is_empty() {
+                    exploration_report.push_str("   Available ancestor_node_type options:\n");
+                    for (j, ancestor_type) in ancestor_chain.iter().enumerate() {
+                        let description = get_ancestor_description(ancestor_type, language);
+                        exploration_report.push_str(&format!(
+                            "   • \"{}\" - {}\n",
+                            ancestor_type, description
+                        ));
+                        
+                        // Show selector example for the first few options
+                        if j < 3 {
+                            exploration_report.push_str(&format!(
+                                "     {{\"anchor_text\": \"{}\", \"ancestor_node_type\": \"{}\"}}\n",
+                                self.anchor_text, ancestor_type
+                            ));
+                        }
+                    }
+                }
+
+                // Show AST structure awareness
+                exploration_report.push_str(&format!("   Focus node: {} ({})\n", 
+                    anchor_node.kind(),
+                    get_ancestor_description(anchor_node.kind(), language)
+                ));
+            }
+            exploration_report.push('\n');
+        }
+
+        // Add comment/attribute guidance
+        exploration_report.push_str("⚠️  **AST Structure Tip**: Comments and attributes are siblings to functions in the AST, not parents.\n");
+        exploration_report.push_str("   If your anchor_text includes comments/attributes with a function, try:\n");
+        exploration_report.push_str("   • Use anchor text from INSIDE the function body\n");
+        exploration_report.push_str("   • Or target the comment/attribute separately if that's what you want to edit\n\n");
+
+        exploration_report.push_str("**Next Steps**:\n");
+        exploration_report.push_str("1. Pick an ancestor_node_type from the options above\n");
+        exploration_report.push_str("2. Use preview_only: true to verify your selection\n");
+        exploration_report.push_str("3. Run your edit operation\n");
+
+        // Return exploration results as an error (this prevents actual editing)
+        Err(anyhow!(exploration_report))
     }
 }
 
@@ -327,6 +409,51 @@ fn suggest_ancestor_type(
 }
 
 /// Simple Levenshtein distance calculation
+/// Get a human-readable description of an AST node type
+fn get_ancestor_description(node_type: &str, language: &str) -> &'static str {
+    match (language, node_type) {
+        // Rust node types
+        ("rust", "function_item") => "entire function definition",
+        ("rust", "impl_item") => "impl block with all methods",
+        ("rust", "struct_item") => "struct definition",
+        ("rust", "enum_item") => "enum definition", 
+        ("rust", "mod_item") => "module definition",
+        ("rust", "use_declaration") => "use/import statement",
+        ("rust", "block") => "code block with { }",
+        ("rust", "statement_list") => "list of statements",
+        ("rust", "expression_statement") => "single expression/statement",
+        ("rust", "declaration_list") => "list of declarations",
+        
+        // JSON node types
+        ("json", "object") => "JSON object with { }",
+        ("json", "array") => "JSON array with [ ]",
+        ("json", "pair") => "key-value pair",
+        ("json", "string") => "string value",
+        ("json", "number") => "number value",
+        
+        // Markdown node types
+        ("markdown", "document") => "entire document",
+        ("markdown", "section") => "document section with heading",
+        ("markdown", "atx_heading") => "heading (# ## ###)",
+        ("markdown", "list") => "entire list",
+        ("markdown", "list_item") => "single list item",
+        ("markdown", "paragraph") => "paragraph block",
+        ("markdown", "fenced_code_block") => "code block with ```",
+        ("markdown", "inline") => "inline text content",
+        
+        // Generic fallbacks
+        (_, kind) if kind.contains("_item") => "language construct",
+        (_, kind) if kind.contains("_statement") => "statement",
+        (_, kind) if kind.contains("_declaration") => "declaration", 
+        (_, kind) if kind.contains("_expression") => "expression",
+        (_, kind) if kind.contains("_block") => "code block",
+        
+        // Default
+        _ => "AST node",
+    }
+}
+
+
 fn levenshtein_distance(a: &str, b: &str) -> usize {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();

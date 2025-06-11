@@ -301,7 +301,7 @@ impl ToolRegistry {
         }
     }
 
-    fn parse_selector(
+        fn parse_selector(
         selector_value: Option<&Value>,
         allow_position: bool,
     ) -> Result<NodeSelector> {
@@ -311,7 +311,7 @@ impl ToolRegistry {
             .ok_or_else(|| anyhow!("selector must be an object"))?;
 
         // Handle position-based selectors (only for exploration tools like get_node_info)
-        if let (Some(line), Some(column)) = (
+        if let (Some(_line), Some(_column)) = (
             selector_obj.get("line").and_then(|v| v.as_u64()),
             selector_obj.get("column").and_then(|v| v.as_u64()),
         ) {
@@ -321,33 +321,33 @@ impl ToolRegistry {
                      Use text-anchored selectors instead:\n\
                      • {{\"anchor_text\": \"exact text to find\", \"ancestor_node_type\": \"function_item\"}}\n\
                      \n\
-                     💡 Use explore_ast with line/column to find the right anchor text and node type."
+                     💡 Omit ancestor_node_type to explore what's available around your anchor text."
                 ));
             }
 
-            // For position-based selectors in exploration tools, we need to convert them
-            // to a temporary format. Since the new NodeSelector doesn't support position,
-            // we'll handle this case differently in the calling code.
-            return Err(anyhow!("Position-based selectors need special handling - this should be implemented in the calling function"));
+            // Position-based selectors are no longer supported - guide users to text-anchored approach
+            return Err(anyhow!("Position-based selectors are no longer supported. Use text-anchored selectors instead."));
         }
 
         // Handle text-anchored selectors
-        if let (Some(anchor_text), Some(ancestor_node_type)) = (
-            selector_obj.get("anchor_text").and_then(|v| v.as_str()),
-            selector_obj
+        if let Some(anchor_text) = selector_obj.get("anchor_text").and_then(|v| v.as_str()) {
+            let ancestor_node_type = selector_obj
                 .get("ancestor_node_type")
-                .and_then(|v| v.as_str()),
-        ) {
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+                
             return Ok(NodeSelector {
                 anchor_text: anchor_text.to_string(),
-                ancestor_node_type: ancestor_node_type.to_string(),
+                ancestor_node_type,
             });
         }
 
         Err(anyhow!(
-            "Invalid selector: must specify either:\n\
-             • Text-anchored: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node_type\"}}\n\
-             • Position (exploration only): {{\"line\": N, \"column\": N}}"
+            "Invalid selector: must specify:\n\
+             • Text-anchored: {{\"anchor_text\": \"exact text\"}}\n\
+             • With targeting: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node_type\"}}\n\
+             \n\
+             💡 Omit ancestor_node_type to explore available options around your anchor text."
         ))
     }
 
