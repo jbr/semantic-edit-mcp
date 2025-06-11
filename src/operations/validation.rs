@@ -9,19 +9,9 @@ pub fn check_terrible_target(
     source_code: &str,
     language: &str,
 ) -> Result<Option<String>> {
-    use crate::ast_explorer::{ASTExplorer, EditSuitability};
-
-    let node_info = ASTExplorer::analyze_node(target_node, source_code, language);
-
-    if let EditSuitability::Terrible { reason, why_avoid } = node_info.edit_suitability {
-        // For text-anchored selectors, we can't provide position-based exploration
-        // since we don't have line/column info. Just return a simple error.
-        return Ok(Some(format!(
-            "❌ Edit blocked: {reason}\n🚫 {why_avoid}\n\n💡 Try using a different anchor_text or ancestor_node_type to find better targets.",
-        )));
-    }
-
-    Ok(None) // No terrible target detected
+    // TODO: Re-implement terrible target detection without ast_explorer dependency
+    // For now, return no terrible targets detected
+    Ok(None)
 }
 
 /// Check for structural warnings (less severe than terrible targets)

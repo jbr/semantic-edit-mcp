@@ -1,5 +1,4 @@
 // Library exports for testing
-pub mod ast_explorer;
 pub mod editors;
 pub mod handlers;
 pub mod languages;
