@@ -1,3 +1,13 @@
+# Project Overview
+This is a semantic code editing tool that uses tree-sitter AST parsing to enable 
+precise, content-based code modifications. The core innovation is text-anchored 
+node selection that is stable across edits, unlike fragile line/column positioning.
+
+Key concepts:
+- Text-anchored selectors: Find nodes by content, not position
+- Universal cross-language support via tree-sitter (currently rust, markdown, and json)
+- Rich error messages with suggestions for AI agents
+
 # Instructions for AI assistants working on this project
 
 * We are using git. Please commit code any time it successfully builds and it feels like we have
@@ -27,7 +37,6 @@
   - It is valuable and helpful to question assumptions about specific implementation directions as
     we discover more through development. We can't always know the ultimate direction until we start
     making changes in some direction.
-
 
 Please familiarize yourself with the project next. If you're going to perform a full recursive
 directory listing, run cargo_clean first because the target directory can grow quite large.
