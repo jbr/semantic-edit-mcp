@@ -7,7 +7,7 @@
         },
         "selector": {
             "type": "object",
-            "description": "Text-anchored node selector using exact text and AST navigation. 💡 Discovery tip: Use short, unique anchor_text + 'bogus' ancestor_node_type to see available options!",
+            "description": "Text-anchored node selector using exact text and AST navigation. 💡 Discovery tip: Omit ancestor_node_type to explore what's available around your anchor text!",
             "properties": {
                 "anchor_text": {
                     "type": "string",
@@ -15,10 +15,10 @@
                 },
                 "ancestor_node_type": {
                     "type": "string", 
-                    "description": "AST node type to walk up to from the anchor point. Common types: 'function_item' (entire function), 'impl_item' (impl block), 'struct_item' (struct definition), 'pair' (JSON key-value), 'list_item' (markdown list item). 🔍 Discovery: Use 'bogus' to see available options!"
+                    "description": "AST node type to walk up to from the anchor point. Optional - omit to explore available options! Common types: 'function_item' (entire function), 'impl_item' (impl block), 'struct_item' (struct definition), 'pair' (JSON key-value), 'list_item' (markdown list item). 🔍 Discovery: Use 'bogus' to see available options!"
                 }
             },
-            "required": ["anchor_text", "ancestor_node_type"],
+            "required": ["anchor_text"],
             "additionalProperties": false
         },
         "content": {
