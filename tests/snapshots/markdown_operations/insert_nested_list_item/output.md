@@ -2,7 +2,9 @@
 
 - Core functionality
   - Authentication
-  - Database access  - Session management
+  - Database access
+
+  - Session management
 - User interface
   - Dashboard
 - Testing

@@ -1,2 +1,11 @@
 Wrap operation result (syntax validation only):
 Successfully wrapped paragraph node
+
+===DIFF===
+ # Important Notice
+
+-This is a critical message that users need to pay attention to immediately.
+-
++**This is a critical message that users need to pay attention to immediately.
++**
+ Please read the documentation carefully.

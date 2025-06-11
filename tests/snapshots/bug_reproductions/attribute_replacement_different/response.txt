@@ -1,2 +1,17 @@
 Replace operation result (with context validation):
 Successfully replaced function_item node
+
+===DIFF===
+     println!("Regular function");
+ }
+
+-#[tokio::test]
+-async fn async_test() {
+-    // Original async test with tokio::test attribute
++#[test]
++fn async_test() {
++    // Changed from #[tokio::test] async fn to #[test] fn
++    // Should replace the attribute, not duplicate
++    println!("Now a regular test");
+     assert!(true);
+ }

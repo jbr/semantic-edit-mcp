@@ -1,2 +1,13 @@
 Replace operation result (with context validation):
 Successfully replaced function_item node
+
+===DIFF===
+ #[inline]
+ #[must_use]
+ pub fn helper_function() -> String {
+-    "original implementation".to_string()
++    // Updated implementation with same attributes
++    "updated implementation".to_string()
+ }
+
+ pub fn regular_function() {

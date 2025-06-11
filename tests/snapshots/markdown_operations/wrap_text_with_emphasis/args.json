@@ -2,7 +2,8 @@
   "tool": "wrap_node",
   "arguments": {
     "selector": {
-      "type": "paragraph"
+      "anchor_text": "critical message",
+      "ancestor_node_type": "paragraph"
     },
     "wrapper_template": "**{{content}}**",
     "preview_only": false

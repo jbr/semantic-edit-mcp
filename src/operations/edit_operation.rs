@@ -226,7 +226,7 @@ impl EditOperation {
                     "syntax validation only"
                 };
                 let response = format!(
-                    "{} operation result ({validation_note}):\n{message}\n\ndiff:\n{diff}",
+                    "{} operation result ({validation_note}):\n{message}\n\n===DIFF===\n{diff}",
                     self.operation_name(),
                 );
                 Ok(ExecutionResult::Change {
@@ -297,19 +297,18 @@ impl EditOperation {
 
 fn generate_diff(source_code: &str, new_content: &str) -> String {
     // Use diffy to generate a clean diff
-    let patch = diffy::create_patch(source_code, new_content);
+
+    let patch = diffy::DiffOptions::new().create_patch(source_code, new_content);
+    let formatter = diffy::PatchFormatter::new().missing_newline_message(false);
 
     // Get the diff string and clean it up for AI consumption
-    let diff_output = patch.to_string();
+    let diff_output = formatter.fmt_patch(&patch).to_string();
     let lines: Vec<&str> = diff_output.lines().collect();
     let mut cleaned_diff = String::new();
 
     for line in lines {
         // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
-        if line.starts_with("---")
-            || line.starts_with("+++")
-            || line.starts_with("@@")
-            || line.starts_with("\\")
+        if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@")
         // Skip "\ No newline at end of file" messages
         {
             continue;

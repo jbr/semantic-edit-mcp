@@ -2,7 +2,8 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "type": "paragraph"
+      "anchor_text": "official documentation",
+      "ancestor_node_type": "paragraph"
     },
     "content": "\nAdditional resources:\n- [API Reference](https://api.example.com)\n- [GitHub Repository](https://github.com/example/project)",
     "preview_only": false

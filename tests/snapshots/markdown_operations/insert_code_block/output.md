@@ -8,9 +8,9 @@ fn main() {
 }
 ```
 
+
 ```python
 def greet(name):
     print(f"Hello, {name}!")
 ```
-
 That's the basic example.

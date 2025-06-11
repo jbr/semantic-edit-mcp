@@ -1,2 +1,12 @@
 Insert after operation result (syntax validation only):
-Successfully inserted content after inline node
+Successfully inserted content after list_item node
+
+===DIFF===
+ - Core functionality
+   - Authentication
+   - Database access
++
++  - Session management
+ - User interface
+   - Dashboard
+ - Testing

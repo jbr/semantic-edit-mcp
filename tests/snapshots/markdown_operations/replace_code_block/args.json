@@ -2,7 +2,8 @@
   "tool": "replace_node",
   "arguments": {
     "selector": {
-      "type": "fenced_code_block"
+      "anchor_text": "console",
+      "ancestor_node_type": "fenced_code_block"
     },
     "new_content": "```typescript\ninterface User {\n  name: string;\n  email: string;\n}\n\nconst user: User = {\n  name: \"Alice\",\n  email: \"alice@example.com\"\n};\nconsole.log(user);\n```",
     "preview_only": false

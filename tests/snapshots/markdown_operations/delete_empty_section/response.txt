@@ -1,2 +1,11 @@
 Replace operation result (syntax validation only):
-Smart deletion: removed entire heading instead of creating empty heading
+Successfully replaced atx_heading node
+
+===DIFF===
+
+ This is the introduction section.
+
+-## Placeholder Section
+
+
+ ## Conclusion

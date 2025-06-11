@@ -1,2 +1,15 @@
 Insert after operation result (syntax validation only):
-Successfully inserted content after inline node
+Successfully inserted content after list_item node
+
+===DIFF===
+ - API routes
+ - Authentication
+
++
++## Frontend Components
++
++Now moving to the frontend:
++
+ - Frontend components
+ - User interface
+ - State management

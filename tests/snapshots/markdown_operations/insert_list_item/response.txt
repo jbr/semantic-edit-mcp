@@ -1,7 +1,7 @@
 Insert after operation result (syntax validation only):
 Successfully inserted content after list_item node
 
-diff:
+===DIFF===
 
  - Set up repository
  - Write documentation

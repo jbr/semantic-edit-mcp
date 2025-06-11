@@ -5,6 +5,8 @@
 - Database layer
 - API routes
 - Authentication
+
+
 ## Frontend Components
 
 Now moving to the frontend:

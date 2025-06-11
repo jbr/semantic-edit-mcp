@@ -1,2 +1,13 @@
 Insert after operation result (syntax validation only):
 Successfully inserted content after fenced_code_block node
+
+===DIFF===
+ }
+ ```
+
++
++```python
++def greet(name):
++    print(f"Hello, {name}!")
++```
+ That's the basic example.

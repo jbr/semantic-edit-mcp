@@ -2,7 +2,8 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "type": "list_item"
+      "anchor_text": "Download",
+      "ancestor_node_type": "list_item"
     },
     "content": "4. Configure settings",
     "preview_only": false
