@@ -1,9 +1,0 @@
-{
-  "tool": "get_node_info",
-  "arguments": {
-    "selector": {
-      "anchor_text": "sample_function",
-      "ancestor_node_type": "function_item"
-    }
-  }
-}
