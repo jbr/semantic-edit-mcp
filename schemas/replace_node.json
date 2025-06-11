@@ -7,15 +7,16 @@
         },
         "selector": {
             "type": "object",
-            "description": "Text-anchored node selector using exact text and AST navigation",
+            "description": "Text-anchored node selector using exact text and AST navigation. 💡 Discovery tip: Use short, unique anchor_text + 'bogus' ancestor_node_type to see available options!",
             "properties": {
                 "anchor_text": {
                     "type": "string",
-                    "description": "Exact text to find in the source code as an anchor point. Must be unique enough to identify the target location."
+                    "description": "Exact text to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '\"key\":', '# Heading'. Avoid large text blocks."
                 },
                 "ancestor_node_type": {
                     "type": "string",
-                    "description": "AST node type to walk up to from the anchor point (e.g., 'function_item', 'struct_item', 'pair', 'list_item')"
+                    "description": "AST node type to walk up to from the anchor point. Common types: 'function_item' (entire function), 'impl_item' (impl block), 'struct_item' (struct definition), 'pair' (JSON key-value), 'list_item' (markdown list item). 🔍 Discovery: Use 'bogus' to see available options!",
+                    "examples": ["function_item", "struct_item", "impl_item", "pair", "list_item", "expression_statement", "block"]
                 }
             },
             "required": ["anchor_text", "ancestor_node_type"],
@@ -27,7 +28,7 @@
         },
         "preview_only": {
             "type": "boolean",
-            "description": "If true, show preview of changes without writing to file",
+            "description": "If true, show preview of changes without writing to file. 💡 Always preview first to verify you're targeting the right node!",
             "default": false
         },
         "language": {
@@ -37,5 +38,37 @@
         }
     },
     "required": ["file_path", "selector", "new_content"],
-    "additionalProperties": false
+    "additionalProperties": false,
+    "examples": [
+        {
+            "description": "Replace a Rust function",
+            "file_path": "src/main.rs",
+            "selector": {
+                "anchor_text": "fn hello",
+                "ancestor_node_type": "function_item"
+            },
+            "new_content": "fn hello() { println!(\"Hello, world!\"); }",
+            "preview_only": true
+        },
+        {
+            "description": "Replace JSON value", 
+            "file_path": "config.json",
+            "selector": {
+                "anchor_text": "\"port\":",
+                "ancestor_node_type": "pair"
+            },
+            "new_content": "\"port\": 8080"
+        },
+        {
+            "description": "Discovery technique - see what ancestors are available",
+            "file_path": "src/lib.rs",
+            "selector": {
+                "anchor_text": "pub struct",
+                "ancestor_node_type": "bogus"
+            },
+            "new_content": "...",
+            "preview_only": true,
+            "_note": "This will fail but show available ancestor_node_type options!"
+        }
+    ]
 }

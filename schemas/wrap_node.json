@@ -7,15 +7,15 @@
         },
         "selector": {
             "type": "object",
-            "description": "Text-anchored node selector using exact text and AST navigation",
+            "description": "Text-anchored node selector using exact text and AST navigation. 💡 Discovery tip: Use short, unique anchor_text + 'bogus' ancestor_node_type to see available options!",
             "properties": {
                 "anchor_text": {
                     "type": "string",
-                    "description": "Exact text to find in the source code as an anchor point. Must be unique enough to identify the target location."
+                    "description": "Exact text to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '\"key\":', '# Heading'. Avoid large text blocks."
                 },
                 "ancestor_node_type": {
                     "type": "string",
-                    "description": "AST node type to walk up to from the anchor point (e.g., 'function_item', 'struct_item', 'pair', 'list_item')"
+                    "description": "AST node type to walk up to from the anchor point. Common types: 'function_item' (entire function), 'impl_item' (impl block), 'struct_item' (struct definition), 'pair' (JSON key-value), 'list_item' (markdown list item). 🔍 Discovery: Use 'bogus' to see available options!"
                 }
             },
             "required": ["anchor_text", "ancestor_node_type"],
