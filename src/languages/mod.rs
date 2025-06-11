@@ -1,12 +1,18 @@
 pub mod json;
 pub mod markdown;
 pub mod query_parser;
+pub mod rust;
+pub mod semantic_grouping;
 pub mod traits;
 pub mod utils;
+
+#[cfg(test)]
+mod semantic_grouping_tests;
 
 // Re-export key types for easier access
 pub use query_parser::QueryBasedParser;
 pub use traits::LanguageSupport;
+pub use semantic_grouping::{SemanticGrouping, WithSemanticGrouping, GroupingRule, SemanticGroup};
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -29,9 +35,11 @@ impl LanguageRegistry {
             Box::new(markdown::MarkdownLanguage::new()?),
         );
 
+        // Register Rust language
+        languages.insert("rust".to_string(), Box::new(rust::RustLanguage::new()?));
+
         // TODO: Register other languages here as we implement them
         // languages.insert("toml".to_string(), Box::new(TomlLanguage::new()?));
-        // languages.insert("rust".to_string(), Box::new(RustLanguage::new()?));
 
         Ok(Self { languages })
     }
