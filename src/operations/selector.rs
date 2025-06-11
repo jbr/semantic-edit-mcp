@@ -114,6 +114,7 @@ impl NodeSelector {
     
 
     /// Exploration mode: return information about available targeting options
+        /// Exploration mode: return information about available targeting options
     fn explore_around_anchors<'a>(
         &self,
         tree: &'a Tree,
@@ -146,11 +147,7 @@ impl NodeSelector {
                 if !ancestor_chain.is_empty() {
                     exploration_report.push_str("   Available ancestor_node_type options:\n");
                     for (j, ancestor_type) in ancestor_chain.iter().enumerate() {
-                        let description = get_ancestor_description(ancestor_type, language);
-                        exploration_report.push_str(&format!(
-                            "   • \"{}\" - {}\n",
-                            ancestor_type, description
-                        ));
+                        exploration_report.push_str(&format!("   • \"{}\"\n", ancestor_type));
                         
                         // Show selector example for the first few options
                         if j < 3 {
@@ -162,20 +159,23 @@ impl NodeSelector {
                     }
                 }
 
-                // Show AST structure awareness
-                exploration_report.push_str(&format!("   Focus node: {} ({})\n", 
-                    anchor_node.kind(),
-                    get_ancestor_description(anchor_node.kind(), language)
-                ));
+                // Show current focus node and its position in hierarchy
+                exploration_report.push_str(&format!("   Focus node: {}\n", anchor_node.kind()));
+                
+                // Show structural context: what contains what
+                if let Some(parent) = anchor_node.parent() {
+                    exploration_report.push_str(&format!("   Parent: {} → {}\n", 
+                        parent.kind(), anchor_node.kind()));
+                }
             }
             exploration_report.push('\n');
         }
 
-        // Add comment/attribute guidance
-        exploration_report.push_str("⚠️  **AST Structure Tip**: Comments and attributes are siblings to functions in the AST, not parents.\n");
-        exploration_report.push_str("   If your anchor_text includes comments/attributes with a function, try:\n");
-        exploration_report.push_str("   • Use anchor text from INSIDE the function body\n");
-        exploration_report.push_str("   • Or target the comment/attribute separately if that's what you want to edit\n\n");
+        // Add AST structure education
+        exploration_report.push_str("⚠️  **AST Structure Note**: Comments and attributes are siblings to functions in the AST, not parents.\n");
+        exploration_report.push_str("   If your anchor_text includes comments/attributes with a function:\n");
+        exploration_report.push_str("   • Use anchor text from INSIDE the function body, or\n");
+        exploration_report.push_str("   • Target the comment/attribute separately if that's what you want to edit\n\n");
 
         exploration_report.push_str("**Next Steps**:\n");
         exploration_report.push_str("1. Pick an ancestor_node_type from the options above\n");
@@ -408,50 +408,8 @@ fn suggest_ancestor_type(
     None
 }
 
-/// Simple Levenshtein distance calculation
-/// Get a human-readable description of an AST node type
-fn get_ancestor_description(node_type: &str, language: &str) -> &'static str {
-    match (language, node_type) {
-        // Rust node types
-        ("rust", "function_item") => "entire function definition",
-        ("rust", "impl_item") => "impl block with all methods",
-        ("rust", "struct_item") => "struct definition",
-        ("rust", "enum_item") => "enum definition", 
-        ("rust", "mod_item") => "module definition",
-        ("rust", "use_declaration") => "use/import statement",
-        ("rust", "block") => "code block with { }",
-        ("rust", "statement_list") => "list of statements",
-        ("rust", "expression_statement") => "single expression/statement",
-        ("rust", "declaration_list") => "list of declarations",
-        
-        // JSON node types
-        ("json", "object") => "JSON object with { }",
-        ("json", "array") => "JSON array with [ ]",
-        ("json", "pair") => "key-value pair",
-        ("json", "string") => "string value",
-        ("json", "number") => "number value",
-        
-        // Markdown node types
-        ("markdown", "document") => "entire document",
-        ("markdown", "section") => "document section with heading",
-        ("markdown", "atx_heading") => "heading (# ## ###)",
-        ("markdown", "list") => "entire list",
-        ("markdown", "list_item") => "single list item",
-        ("markdown", "paragraph") => "paragraph block",
-        ("markdown", "fenced_code_block") => "code block with ```",
-        ("markdown", "inline") => "inline text content",
-        
-        // Generic fallbacks
-        (_, kind) if kind.contains("_item") => "language construct",
-        (_, kind) if kind.contains("_statement") => "statement",
-        (_, kind) if kind.contains("_declaration") => "declaration", 
-        (_, kind) if kind.contains("_expression") => "expression",
-        (_, kind) if kind.contains("_block") => "code block",
-        
-        // Default
-        _ => "AST node",
-    }
-}
+/// Simple Levenshtein distance calculation/// Get a human-readable description of an AST node type
+
 
 
 fn levenshtein_distance(a: &str, b: &str) -> usize {
