@@ -1,6 +1,6 @@
 use crate::languages::rust::RustLanguage;
 use crate::languages::semantic_grouping::{SemanticGrouping, WithSemanticGrouping};
-use crate::parsers::TreeSitterParser;
+use crate::parser::TreeSitterParser;
 
 #[test]
 fn test_rust_semantic_grouping() {

@@ -1,5 +1,5 @@
 use crate::operations::{EditOperation, NodeSelector};
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
+use crate::parser::{detect_language_from_path, TreeSitterParser};
 use crate::server::{Tool, ToolCallParams};
 use crate::validation::SyntaxValidator;
 use anyhow::{anyhow, Result};
@@ -41,6 +41,11 @@ impl ToolRegistry {
                 description: "Replace an entire AST node with new content".to_string(),
                 input_schema: serde_json::from_str(include_str!("../schemas/replace_node.json"))?,
             },
+            // Tool {
+            //     name: "remove_node".to_string(),
+            //     description: "Remove an entire AST node".to_string(),
+            //     input_schema: serde_json::from_str(include_str!("../schemas/remove_node.json"))?,
+            // },
             Tool {
                 name: "insert_before_node".to_string(),
                 description: "Insert content before a specified AST node".to_string(),
@@ -222,8 +227,6 @@ impl ToolRegistry {
         }
     }
 
-    
-
     async fn validate_edit_context(&self, args: &Value) -> Result<ExecutionResult> {
         let file_path = args
             .get("file_path")
@@ -301,7 +304,7 @@ impl ToolRegistry {
         }
     }
 
-        fn parse_selector(
+    fn parse_selector(
         selector_value: Option<&Value>,
         allow_position: bool,
     ) -> Result<NodeSelector> {
@@ -335,7 +338,7 @@ impl ToolRegistry {
                 .get("ancestor_node_type")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-                
+
             return Ok(NodeSelector {
                 anchor_text: anchor_text.to_string(),
                 ancestor_node_type,
@@ -350,6 +353,4 @@ impl ToolRegistry {
              💡 Omit ancestor_node_type to explore available options around your anchor text."
         ))
     }
-
-    
 }

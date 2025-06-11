@@ -1,9 +1,7 @@
-// Library exports for testing
-pub mod editors;
 pub mod handlers;
 pub mod languages;
 pub mod operations;
-pub mod parsers;
+pub mod parser;
 pub mod server;
 pub mod server_impl;
 pub mod tools;

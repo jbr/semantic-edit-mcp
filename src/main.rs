@@ -1,11 +1,7 @@
-#![allow(dead_code)]
-
-
-mod editors;
 mod handlers;
 mod languages;
 mod operations;
-mod parsers;
+mod parser;
 mod server;
 mod server_impl;
 mod tools;

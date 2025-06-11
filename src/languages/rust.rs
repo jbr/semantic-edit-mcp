@@ -1,20 +1,18 @@
 use crate::languages::semantic_grouping::{GroupingRule, SemanticGrouping, WithSemanticGrouping};
-use crate::languages::traits::{LanguageEditor, LanguageParser, LanguageSupport};
+use crate::languages::traits::{
+    LanguageEditor, LanguageParser, LanguageQueries, LanguageSupport, NodeTypeInfo,
+};
 use crate::operations::{EditOperation, EditResult, NodeSelector};
-use crate::parsers::{get_node_text, TreeSitterParser};
+use crate::parser::{get_node_text, TreeSitterParser};
 use anyhow::{anyhow, Result};
 use ropey::Rope;
-use tree_sitter::{Language, Node, Tree, StreamingIterator};
+use tree_sitter::{Language, Node, StreamingIterator, Tree};
 
-pub struct RustLanguage {
-    parser: TreeSitterParser,
-}
+pub struct RustLanguage;
 
 impl RustLanguage {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            parser: TreeSitterParser::new()?,
-        })
+        Ok(Self)
     }
 }
 
@@ -27,18 +25,22 @@ impl LanguageSupport for RustLanguage {
         &["rs"]
     }
 
-            fn tree_sitter_language(&self) -> Language {
+    fn tree_sitter_language(&self) -> Language {
         tree_sitter_rust::LANGUAGE.into()
     }
 
-    fn get_node_types(&self) -> Result<Vec<crate::languages::traits::NodeTypeInfo>> {
+    fn get_node_types(&self) -> Result<Vec<NodeTypeInfo>> {
         // For now, return a basic set of Rust node types
         // In a full implementation, this would load from node-types.json
         Ok(vec![
             crate::languages::traits::NodeTypeInfo::new(
                 "function_item".to_string(),
                 true,
-                vec!["name".to_string(), "parameters".to_string(), "body".to_string()],
+                vec![
+                    "name".to_string(),
+                    "parameters".to_string(),
+                    "body".to_string(),
+                ],
             ),
             crate::languages::traits::NodeTypeInfo::new(
                 "struct_item".to_string(),
@@ -58,8 +60,8 @@ impl LanguageSupport for RustLanguage {
         ])
     }
 
-    fn load_queries(&self) -> Result<crate::languages::traits::LanguageQueries> {
-        Ok(crate::languages::traits::LanguageQueries::new())
+    fn load_queries(&self) -> Result<LanguageQueries> {
+        Ok(LanguageQueries::new())
     }
 
     fn parser(&self) -> Box<dyn LanguageParser> {
@@ -76,47 +78,23 @@ impl SemanticGrouping for RustLanguage {
         vec![
             // Functions can have attributes and comments preceding them
             GroupingRule::new("function_item")
-                .with_preceding_types(vec![
-                    "attribute_item",
-                    "line_comment", 
-                    "block_comment",
-                ])
+                .with_preceding_types(vec!["attribute_item", "line_comment", "block_comment"])
                 .with_max_gap_nodes(2), // Allow some whitespace between elements
-            
             // Structs can have attributes and comments
             GroupingRule::new("struct_item")
-                .with_preceding_types(vec![
-                    "attribute_item",
-                    "line_comment",
-                    "block_comment",
-                ])
+                .with_preceding_types(vec!["attribute_item", "line_comment", "block_comment"])
                 .with_max_gap_nodes(2),
-            
             // Enums can have attributes and comments
             GroupingRule::new("enum_item")
-                .with_preceding_types(vec![
-                    "attribute_item", 
-                    "line_comment",
-                    "block_comment",
-                ])
+                .with_preceding_types(vec!["attribute_item", "line_comment", "block_comment"])
                 .with_max_gap_nodes(2),
-            
             // Impl blocks can have attributes and comments
             GroupingRule::new("impl_item")
-                .with_preceding_types(vec![
-                    "attribute_item",
-                    "line_comment", 
-                    "block_comment",
-                ])
+                .with_preceding_types(vec!["attribute_item", "line_comment", "block_comment"])
                 .with_max_gap_nodes(2),
-            
             // Modules can have attributes and comments
             GroupingRule::new("mod_item")
-                .with_preceding_types(vec![
-                    "attribute_item",
-                    "line_comment",
-                    "block_comment",
-                ])
+                .with_preceding_types(vec!["attribute_item", "line_comment", "block_comment"])
                 .with_max_gap_nodes(2),
         ]
     }
@@ -146,7 +124,8 @@ pub struct RustParser {
 impl RustParser {
     pub fn new() -> Self {
         Self {
-            tree_sitter_parser: TreeSitterParser::new().expect("Failed to create TreeSitter parser"),
+            tree_sitter_parser: TreeSitterParser::new()
+                .expect("Failed to create TreeSitter parser"),
         }
     }
 }
@@ -162,7 +141,7 @@ impl LanguageParser for RustParser {
         // Implement Rust-specific name finding logic
         let root = tree.root_node();
         let mut cursor = root.walk();
-        
+
         fn traverse_for_name<'a>(
             cursor: &mut tree_sitter::TreeCursor<'a>,
             source: &str,
@@ -170,7 +149,7 @@ impl LanguageParser for RustParser {
             target_name: &str,
         ) -> Option<Node<'a>> {
             let node = cursor.node();
-            
+
             if node.kind() == target_type {
                 // Check if this node has a name field that matches
                 if let Some(name_node) = node.child_by_field_name("name") {
@@ -180,10 +159,11 @@ impl LanguageParser for RustParser {
                     }
                 }
             }
-            
+
             if cursor.goto_first_child() {
                 loop {
-                    if let Some(found) = traverse_for_name(cursor, source, target_type, target_name) {
+                    if let Some(found) = traverse_for_name(cursor, source, target_type, target_name)
+                    {
                         return Some(found);
                     }
                     if !cursor.goto_next_sibling() {
@@ -192,28 +172,28 @@ impl LanguageParser for RustParser {
                 }
                 cursor.goto_parent();
             }
-            
+
             None
         }
-        
+
         Ok(traverse_for_name(&mut cursor, source, node_type, name))
     }
 
     fn find_by_type<'a>(&self, tree: &'a Tree, node_type: &str) -> Vec<Node<'a>> {
         let mut nodes = Vec::new();
         let mut cursor = tree.root_node().walk();
-        
+
         fn traverse_for_type<'a>(
             cursor: &mut tree_sitter::TreeCursor<'a>,
             target_type: &str,
             results: &mut Vec<Node<'a>>,
         ) {
             let node = cursor.node();
-            
+
             if node.kind() == target_type {
                 results.push(node);
             }
-            
+
             if cursor.goto_first_child() {
                 loop {
                     traverse_for_type(cursor, target_type, results);
@@ -224,12 +204,12 @@ impl LanguageParser for RustParser {
                 cursor.goto_parent();
             }
         }
-        
+
         traverse_for_type(&mut cursor, node_type, &mut nodes);
         nodes
     }
 
-                fn execute_query<'a>(
+    fn execute_query<'a>(
         &self,
         query_text: &str,
         tree: &'a Tree,
@@ -239,22 +219,22 @@ impl LanguageParser for RustParser {
         let language = tree_sitter_rust::LANGUAGE.into();
         let query = tree_sitter::Query::new(&language, query_text)?;
         let mut cursor = tree_sitter::QueryCursor::new();
-        
+
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
         let mut nodes = Vec::new();
-        
+
         // Use StreamingIterator API to iterate over matches
         while let Some(match_) = matches.next() {
             for capture in match_.captures {
                 nodes.push(capture.node);
             }
         }
-        
+
         Ok(nodes)
     }
 
     fn validate_syntax(&self, source: &str) -> Result<bool> {
-        crate::parsers::rust::RustParser::validate_rust_syntax(source)
+        validate_rust_syntax(source)
     }
 
     fn get_all_names(&self, tree: &Tree, source: &str, node_type: &str) -> Vec<String> {
@@ -282,11 +262,7 @@ impl RustEditor {
 }
 
 impl LanguageEditor for RustEditor {
-    fn apply_operation(
-        &self,
-        operation: &EditOperation,
-        source: &str,
-    ) -> Result<EditResult> {
+    fn apply_operation(&self, operation: &EditOperation, source: &str) -> Result<EditResult> {
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse("rust", source)?;
 
@@ -296,7 +272,8 @@ impl LanguageEditor for RustEditor {
                 new_content,
                 preview_only,
             } => {
-                let mut result = self.replace_node_with_grouping(&tree, source, target, new_content)?;
+                let mut result =
+                    self.replace_node_with_grouping(&tree, source, target, new_content)?;
                 if preview_only.unwrap_or(false) {
                     result.set_message(format!("PREVIEW: {}", result.message()));
                 }
@@ -307,7 +284,8 @@ impl LanguageEditor for RustEditor {
                 content,
                 preview_only,
             } => {
-                let mut result = self.insert_before_node_with_grouping(&tree, source, target, content)?;
+                let mut result =
+                    self.insert_before_node_with_grouping(&tree, source, target, content)?;
                 if preview_only.unwrap_or(false) {
                     result.set_message(format!("PREVIEW: {}", result.message()));
                 }
@@ -318,7 +296,8 @@ impl LanguageEditor for RustEditor {
                 content,
                 preview_only,
             } => {
-                let mut result = self.insert_after_node_with_grouping(&tree, source, target, content)?;
+                let mut result =
+                    self.insert_after_node_with_grouping(&tree, source, target, content)?;
                 if preview_only.unwrap_or(false) {
                     result.set_message(format!("PREVIEW: {}", result.message()));
                 }
@@ -329,7 +308,8 @@ impl LanguageEditor for RustEditor {
                 wrapper_template,
                 preview_only,
             } => {
-                let mut result = self.wrap_node_with_grouping(&tree, source, target, wrapper_template)?;
+                let mut result =
+                    self.wrap_node_with_grouping(&tree, source, target, wrapper_template)?;
                 if preview_only.unwrap_or(false) {
                     result.set_message(format!("PREVIEW: {}", result.message()));
                 }
@@ -348,23 +328,18 @@ impl LanguageEditor for RustEditor {
         }
     }
 
-    fn get_node_info(
-        &self,
-        tree: &Tree,
-        source: &str,
-        selector: &NodeSelector,
-    ) -> Result<String> {
+    fn get_node_info(&self, tree: &Tree, source: &str, selector: &NodeSelector) -> Result<String> {
         let node = selector
             .find_node_with_suggestions(tree, source, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // Use semantic grouping to provide richer information
         let group = self.rust_language.find_semantic_group(tree, node)?;
-        
+
         let node_text = get_node_text(&node, source);
         let start_pos = node.start_position();
         let end_pos = node.end_position();
-        
+
         let mut info = format!(
             "Node Information:\n\
             - Kind: {}\n\
@@ -379,31 +354,41 @@ impl LanguageEditor for RustEditor {
             node.start_byte(),
             node.end_byte()
         );
-        
+
         // Add semantic grouping information
         if group.has_preceding_elements() || group.has_following_elements() {
             info.push_str("\nSemantic Group:\n");
             if group.has_preceding_elements() {
-                info.push_str(&format!("- {} preceding elements: ", group.preceding_nodes.len()));
-                let types: Vec<String> = group.preceding_nodes.iter()
+                info.push_str(&format!(
+                    "- {} preceding elements: ",
+                    group.preceding_nodes.len()
+                ));
+                let types: Vec<String> = group
+                    .preceding_nodes
+                    .iter()
                     .map(|n| n.kind().to_string())
                     .collect();
                 info.push_str(&types.join(", "));
                 info.push('\n');
             }
             if group.has_following_elements() {
-                info.push_str(&format!("- {} following elements: ", group.following_nodes.len()));
-                let types: Vec<String> = group.following_nodes.iter()
+                info.push_str(&format!(
+                    "- {} following elements: ",
+                    group.following_nodes.len()
+                ));
+                let types: Vec<String> = group
+                    .following_nodes
+                    .iter()
                     .map(|n| n.kind().to_string())
                     .collect();
                 info.push_str(&types.join(", "));
                 info.push('\n');
             }
-            
+
             let (group_start, group_end) = group.byte_range();
-            info.push_str(&format!("- Group byte range: {}-{}\n", group_start, group_end));
+            info.push_str(&format!("- Group byte range: {group_start}-{group_end}\n",));
         }
-        
+
         info.push_str(&format!(
             "- Content: {}\n",
             if node_text.len() > 100 {
@@ -412,7 +397,7 @@ impl LanguageEditor for RustEditor {
                 node_text.to_string()
             }
         ));
-        
+
         Ok(info)
     }
 
@@ -435,7 +420,7 @@ impl LanguageEditor for RustEditor {
         let temp_code = temp_rope.to_string();
 
         // Parse and check for syntax errors
-        crate::parsers::rust::RustParser::validate_rust_syntax(&temp_code)
+        validate_rust_syntax(&temp_code)
     }
 }
 
@@ -453,8 +438,9 @@ impl RustEditor {
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // Use semantic grouping to calculate the replacement range
-        let (actual_start_byte, actual_end_byte) = self.rust_language
-            .calculate_replacement_range(tree, node, new_content, source_code)?;
+        let (actual_start_byte, actual_end_byte) =
+            self.rust_language
+                .calculate_replacement_range(tree, node, new_content, source_code)?;
 
         // Validate the new content would create valid syntax
         if !self.validate_replacement_with_range(
@@ -482,8 +468,11 @@ impl RustEditor {
         // Get semantic group information for better messaging
         let group = self.rust_language.find_semantic_group(tree, node)?;
         let message = if group.has_preceding_elements() {
-            format!("Successfully replaced {} node with {} preceding elements", 
-                    node.kind(), group.preceding_nodes.len())
+            format!(
+                "Successfully replaced {} node with {} preceding elements",
+                node.kind(),
+                group.preceding_nodes.len()
+            )
         } else {
             format!("Successfully replaced {} node", node.kind())
         };
@@ -507,7 +496,8 @@ impl RustEditor {
             .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        let (insert_pos, _) = self.rust_language
+        let (insert_pos, _) = self
+            .rust_language
             .calculate_insertion_range(tree, node, true)?;
 
         let rope = Rope::from_str(source_code);
@@ -529,8 +519,11 @@ impl RustEditor {
         // Get semantic group for better messaging
         let group = self.rust_language.find_semantic_group(tree, node)?;
         let message = if group.has_preceding_elements() {
-            format!("Successfully inserted content before {} group (including {} preceding elements)", 
-                    node.kind(), group.preceding_nodes.len())
+            format!(
+                "Successfully inserted content before {} group (including {} preceding elements)",
+                node.kind(),
+                group.preceding_nodes.len()
+            )
         } else {
             format!("Successfully inserted content before {} node", node.kind())
         };
@@ -554,7 +547,8 @@ impl RustEditor {
             .find_node_with_suggestions(tree, source_code, "rust")?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        let (insert_pos, _) = self.rust_language
+        let (insert_pos, _) = self
+            .rust_language
             .calculate_insertion_range(tree, node, false)?;
 
         let rope = Rope::from_str(source_code);
@@ -577,8 +571,11 @@ impl RustEditor {
         // Get semantic group for better messaging
         let group = self.rust_language.find_semantic_group(tree, node)?;
         let message = if group.has_following_elements() {
-            format!("Successfully inserted content after {} group (including {} following elements)", 
-                    node.kind(), group.following_nodes.len())
+            format!(
+                "Successfully inserted content after {} group (including {} following elements)",
+                node.kind(),
+                group.following_nodes.len()
+            )
         } else {
             format!("Successfully inserted content after {} node", node.kind())
         };
@@ -636,8 +633,11 @@ impl RustEditor {
         new_rope.insert(start_char, &wrapped_content);
 
         let message = if group.has_preceding_elements() || group.has_following_elements() {
-            format!("Successfully wrapped {} group ({} total elements)", 
-                    node.kind(), group.all_nodes().len())
+            format!(
+                "Successfully wrapped {} group ({} total elements)",
+                node.kind(),
+                group.all_nodes().len()
+            )
         } else {
             format!("Successfully wrapped {} node", node.kind())
         };
@@ -672,8 +672,11 @@ impl RustEditor {
         new_rope.remove(start_char..end_char);
 
         let message = if group.has_preceding_elements() || group.has_following_elements() {
-            format!("Successfully deleted {} group ({} total elements)", 
-                    node.kind(), group.all_nodes().len())
+            format!(
+                "Successfully deleted {} group ({} total elements)",
+                node.kind(),
+                group.all_nodes().len()
+            )
         } else {
             format!("Successfully deleted {} node", node.kind())
         };
@@ -702,6 +705,17 @@ impl RustEditor {
         temp_rope.insert(start_char, replacement);
 
         let temp_code = temp_rope.to_string();
-        crate::parsers::rust::RustParser::validate_rust_syntax(&temp_code)
+        validate_rust_syntax(&temp_code)
+    }
+}
+
+fn validate_rust_syntax(source_code: &str) -> Result<bool> {
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
+
+    if let Some(tree) = parser.parse(source_code, None) {
+        Ok(!tree.root_node().has_error())
+    } else {
+        Ok(false)
     }
 }
