@@ -1,8 +1,0 @@
-Node Information:
-- Kind: function_item
-- Start: 2:1
-- End: 4:2
-- Byte range: 31-111
-- Content: pub fn sample_function(param: i32) -> String {
-    format!("Value: {}", param)
-}
