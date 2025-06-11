@@ -1,5 +1,5 @@
 use crate::handlers::RequestHandler;
-use crate::parsers::TreeSitterParser;
+use crate::parser::TreeSitterParser;
 use crate::server::{McpMessage, McpRequest, McpResponse, Tool, ToolCallParams};
 use crate::tools::ToolRegistry;
 use anyhow::Result;

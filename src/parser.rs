@@ -1,11 +1,11 @@
-pub mod rust;
-
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use tree_sitter::{Node, Parser, Tree};
 
+use crate::languages::LanguageRegistry;
+
 pub struct TreeSitterParser {
-    parsers: HashMap<String, Parser>,
+    parsers: HashMap<&'static str, Parser>,
 }
 
 impl TreeSitterParser {
@@ -15,22 +15,22 @@ impl TreeSitterParser {
         // Initialize Rust parser
         let mut rust_parser = Parser::new();
         rust_parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
-        parsers.insert("rust".to_string(), rust_parser);
+        parsers.insert("rust", rust_parser);
 
         // Initialize JSON parser
         let mut json_parser = Parser::new();
         json_parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
-        parsers.insert("json".to_string(), json_parser);
+        parsers.insert("json", json_parser);
 
         // Initialize Markdown parser
         let mut markdown_parser = Parser::new();
         markdown_parser.set_language(&tree_sitter_md::LANGUAGE.into())?;
-        parsers.insert("markdown".to_string(), markdown_parser);
+        parsers.insert("markdown", markdown_parser);
 
         // TODO: Add more languages as needed
         // let mut ts_parser = Parser::new();
         // ts_parser.set_language(&tree_sitter_typescript::language())?;
-        // parsers.insert("typescript".to_string(), ts_parser);
+        // parsers.insert("typescript", ts_parser);
 
         Ok(Self { parsers })
     }
@@ -46,30 +46,15 @@ impl TreeSitterParser {
             .ok_or_else(|| anyhow!("Failed to parse {} code", language))
     }
 
-    pub fn supported_languages(&self) -> Vec<&String> {
-        self.parsers.keys().collect()
+    pub fn supported_languages(&self) -> Vec<&'static str> {
+        self.parsers.keys().map(|x| *x).collect()
     }
 }
 
-pub fn detect_language_from_path(file_path: &str) -> Option<String> {
-    // Use the new language registry for detection
-    if let Ok(registry) = crate::languages::LanguageRegistry::new() {
-        registry.detect_language_from_path(file_path)
-    } else {
-        // Fallback to the old logic if registry fails
-        if let Some(extension) = std::path::Path::new(file_path).extension() {
-            match extension.to_str()? {
-                "rs" => Some("rust".to_string()),
-                "json" => Some("json".to_string()),
-                "ts" | "tsx" => Some("typescript".to_string()),
-                "js" | "jsx" => Some("javascript".to_string()),
-                "py" => Some("python".to_string()),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
+pub fn detect_language_from_path(file_path: &str) -> Option<&'static str> {
+    LanguageRegistry::new()
+        .ok()?
+        .detect_language_from_path(file_path)
 }
 
 pub fn get_node_text<'a>(node: &Node, source_code: &'a str) -> &'a str {

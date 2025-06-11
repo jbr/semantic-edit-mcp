@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
+use crate::{languages::LanguageRegistry, validation};
 use anyhow::{anyhow, Result};
-use diffy;
 
 #[derive(Debug, Clone)]
 pub enum EditOperation {
@@ -110,48 +112,36 @@ impl EditOperation {
         file_path: &str,
         preview_only: bool,
     ) -> Result<ExecutionResult> {
-        use crate::parsers::{detect_language_from_path, TreeSitterParser};
+        use crate::parser::{detect_language_from_path, TreeSitterParser};
         use crate::validation::SyntaxValidator;
 
         let source_code = std::fs::read_to_string(file_path)?;
 
         let language = language_hint
-            .or_else(|| detect_language_from_path(file_path))
+            .map(Cow::Owned)
+            .or_else(|| detect_language_from_path(file_path).map(Cow::Borrowed))
             .ok_or_else(|| {
                 anyhow!("Unable to detect language from file path and no language hint provided")
             })?;
 
-        // 1. Parse tree (needed for validation)
+        // Parse tree (needed for validation)
         let mut parser = TreeSitterParser::new()?;
         let tree = parser.parse(&language, &source_code)?;
 
-        // 2. Find target node using new text-anchored selection
+        // Find target node using new text-anchored selection
         let target_node = self
             .target_selector()
             .find_node_with_suggestions(&tree, &source_code, &language)?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        // 3. Terrible target validation with auto-exploration
-        if let Some(error) = super::validation::check_terrible_target(
-            self.target_selector(),
-            &target_node,
-            &tree,
-            &source_code,
-            &language,
-        )? {
-            return Ok(ExecutionResult::ResponseOnly(error));
-        }
-
-        // 4. Context validation
-        let validator = crate::validation::ContextValidator::new()?;
+        // Context validation
+        let validator = validation::ContextValidator::new()?;
         if validator.supports_language(&language) {
             let operation_type = match self {
-                EditOperation::Replace { .. } => crate::validation::OperationType::Replace,
-                EditOperation::InsertBefore { .. } => {
-                    crate::validation::OperationType::InsertBefore
-                }
-                EditOperation::InsertAfter { .. } => crate::validation::OperationType::InsertAfter,
-                EditOperation::Wrap { .. } => crate::validation::OperationType::Wrap,
+                EditOperation::Replace { .. } => validation::OperationType::Replace,
+                EditOperation::InsertBefore { .. } => validation::OperationType::InsertBefore,
+                EditOperation::InsertAfter { .. } => validation::OperationType::InsertAfter,
+                EditOperation::Wrap { .. } => validation::OperationType::Wrap,
                 EditOperation::Delete { .. } => {
                     return Err(anyhow!(
                         "Delete operation not yet supported with validation"
@@ -177,16 +167,11 @@ impl EditOperation {
             }
         }
 
-        // 5. Apply operation
+        // Apply operation
         let result = self.apply(&source_code, &language)?;
 
-        // 6. Syntax validation and file writing
-        if let EditResult::Success {
-            message,
-            new_content,
-            affected_range,
-        } = &result
-        {
+        // Syntax validation and file writing
+        if let EditResult::Success { new_content, .. } = &result {
             let validation = SyntaxValidator::validate_content(new_content, &language)?;
 
             if !validation.is_valid {
@@ -203,7 +188,7 @@ impl EditOperation {
             }
         }
 
-        // 7. Format response
+        // Format response
         if preview_only {
             // Generate contextual preview showing insertion point
             return self
@@ -242,19 +227,14 @@ impl EditOperation {
 
     /// Apply the edit operation to source code
     fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
-        // Try to use the new language registry first
-        if let Ok(registry) = crate::languages::LanguageRegistry::new() {
+        if let Ok(registry) = LanguageRegistry::new() {
             if let Some(lang_support) = registry.get_language(language) {
                 let editor = lang_support.editor();
                 return editor.apply_operation(self, source_code);
             }
         }
 
-        // Fallback to old Rust-only logic
-        match language {
-            "rust" => crate::editors::rust::RustEditor::apply_operation(self, source_code),
-            _ => Err(anyhow!("Unsupported language for editing: {language}")),
-        }
+        Err(anyhow!("Unsupported language for editing: {language}"))
     }
 
     /// Generate contextual preview showing changes using diff format

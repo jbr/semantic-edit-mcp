@@ -1,4 +1,4 @@
-use crate::parsers::{detect_language_from_path, TreeSitterParser};
+use crate::parser::{detect_language_from_path, TreeSitterParser};
 use anyhow::{anyhow, Result};
 
 mod context_validator;

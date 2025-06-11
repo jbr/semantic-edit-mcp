@@ -1,4 +1,4 @@
-use crate::parsers::TreeSitterParser;
+use crate::parser::TreeSitterParser;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator, Tree};
