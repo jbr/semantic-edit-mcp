@@ -1,3 +1,1 @@
-Node 'NonexistentStruct' of type 'struct_item' not found
-
-Available options: struct: ExistingStruct
+anchor_text "NonexistentStruct" not found in file

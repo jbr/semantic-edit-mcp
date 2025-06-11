@@ -5,10 +5,7 @@ use std::env;
 
 #[tokio::test]
 async fn run_snapshot_tests() {
-    // Check for --update flag in environment, test args, or flag file
-    let update_mode =
-        env::var("UPDATE_SNAPSHOTS").is_ok() || env::args().any(|arg| arg == "--update");
-
+    let update_mode = env::var("UPDATE_SNAPSHOTS").is_ok() || env::var("UPDATE_SNAPSHOT").is_ok();
     let test_filter = env::var("TEST_FILTER").ok();
 
     let runner =

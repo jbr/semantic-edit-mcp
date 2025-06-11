@@ -2,9 +2,10 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "query": "(list_item (paragraph (inline) @text (#match? @text \".*Database.*\")))"
+      "anchor_text": "Database",
+      "ancestor_node_type": "list_item"
     },
-    "content": "  - Session management",
+    "content": "  - Session management\n",
     "preview_only": false
   }
 }

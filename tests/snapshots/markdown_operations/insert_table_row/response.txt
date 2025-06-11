@@ -1,2 +1,11 @@
 Insert after operation result (syntax validation only):
 Successfully inserted content after pipe_table_row node
+
+===DIFF===
+ | Option | Default | Description |
+ |--------|---------|-------------|
+ | debug  | false   | Enable debug mode |
++| timeout | 30000 | Request timeout in ms |
+ | port   | 3000    | Server port |
+
+ These are the current options.

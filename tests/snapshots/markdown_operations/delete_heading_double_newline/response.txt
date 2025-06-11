@@ -1,2 +1,8 @@
 Replace operation result (syntax validation only):
 Successfully replaced atx_heading node
+
+===DIFF===
+-## Heading to Delete
+
+
+ Next paragraph should have proper spacing after deletion.

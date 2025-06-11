@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use diffy::PatchFormatter;
+use diffy::{DiffOptions, PatchFormatter};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -333,6 +333,7 @@ impl SnapshotRunner {
     pub async fn run_all_tests(&self) -> Result<Vec<SnapshotResult>> {
         let all_tests = self.discover_tests()?;
         let tests = self.filter_tests(all_tests);
+        assert_ne!(tests.len(), 0);
 
         if let Some(filter) = &self.test_filter {
             println!("🔍 Running filtered tests: {filter}");
@@ -357,9 +358,15 @@ impl SnapshotRunner {
             .filter(|r| r.response_matches && r.output_matches)
             .count();
         let failed = total - passed;
-        let f = PatchFormatter::new().with_color();
 
-        println!("\n📊 Snapshot Test Summary:");
+        let mut diff_options = DiffOptions::new();
+        diff_options.set_original_filename("expected");
+        diff_options.set_modified_filename("actual");
+        let f = PatchFormatter::new()
+            .with_color()
+            .missing_newline_message(false);
+
+        println!("\n===📊 Snapshot Test Summary===");
         println!("  Total:  {total}");
         println!("  Passed: {passed}");
         println!("  Failed: {failed}");
@@ -391,49 +398,38 @@ impl SnapshotRunner {
                 .filter(|r| !r.response_matches || !r.output_matches)
             {
                 println!("  • {}", result.test.name);
+            }
+
+            println!("\n\n=== Failed tests details ===\n");
+
+            for result in results
+                .iter()
+                .filter(|r| !r.response_matches || !r.output_matches)
+            {
+                println!("❌ {}", result.test.name);
+                println!(
+                    "To target just this test, run `TEST_FILTER={} cargo test`",
+                    result.test.name
+                );
+                println!("To update snapshot for just this test, run `UPDATE_SNAPSHOTS=1 TEST_FILTER={} cargo test`", result.test.name);
                 if let Some(error) = &result.error {
-                    println!("    Error: {error}");
+                    println!("Error:\n{error}");
                 } else {
                     if !result.response_matches {
-                        println!("    Expected response differs from actual output");
-                        println!("    Run with --update to accept changes, or check the diff");
-
-                        if let Some(expected_response) = &result.expected_response {
-                            let patch =
-                                diffy::create_patch(expected_response, &result.actual_response);
-                            println!("\n DIFF: {}", f.fmt_patch(&patch));
-
-                            println!("\n    EXPECTED RESPONSE:");
-                            println!("    {}", expected_response.replace('\n', "\n    "));
-                        }
-
-                        println!("\n    ACTUAL RESPONSE:");
-                        println!("    {}", result.actual_response.replace('\n', "\n    "));
+                        println!("Expected response differs from actual output");
+                        let expected_response =
+                            result.expected_response.as_deref().unwrap_or_default();
+                        let patch =
+                            diff_options.create_patch(expected_response, &result.actual_response);
+                        println!("\n***RESPONSE DIFF***\n\n{}", f.fmt_patch(&patch));
                     }
 
                     if !result.output_matches {
-                        println!("    Expected output differs from actual output");
-                        println!("    Run with --update to accept changes, or check the diff");
-                        if let (Some(expected_output), Some(actual_output)) =
-                            (&result.expected_output, &result.actual_output)
-                        {
-                            let patch = diffy::create_patch(expected_output, actual_output);
-                            println!("\n DIFF: {}", f.fmt_patch(&patch));
-                        }
-
-                        if let Some(expected_output) = &result.expected_output {
-                            println!("\n    EXPECTED OUTPUT:");
-                            println!("    {}", expected_output.replace('\n', "\n    "));
-                        } else {
-                            println!("\n    EXPECTED OUTPUT: None");
-                        }
-
-                        if let Some(actual_output) = &result.actual_output {
-                            println!("\n    ACTUAL OUTPUT:");
-                            println!("    {}", actual_output.replace('\n', "\n    "));
-                        } else {
-                            println!("\n    ACTUAL OUTPUT: None");
-                        }
+                        println!("Expected output differs from actual output");
+                        let expected_output = result.expected_output.as_deref().unwrap_or_default();
+                        let actual_output = result.actual_output.as_deref().unwrap_or_default();
+                        let patch = diff_options.create_patch(expected_output, actual_output);
+                        println!("\n***OUTPUT DIFF***\n\n{}", f.fmt_patch(&patch));
                     }
                 }
 

@@ -1,7 +1,7 @@
 Replace operation result (syntax validation only):
 Successfully replaced atx_heading node
 
-diff:
+===DIFF===
  # Main Title
 
 -## Important Section

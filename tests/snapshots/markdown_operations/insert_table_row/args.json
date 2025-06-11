@@ -2,9 +2,10 @@
   "tool": "insert_after_node",
   "arguments": {
     "selector": {
-      "type": "pipe_table_row"
+      "anchor_text": "Enable debug",
+      "ancestor_node_type": "pipe_table_row"
     },
-    "content": "| timeout | 30000 | Request timeout in ms |",
+    "content": "\n| timeout | 30000 | Request timeout in ms |",
     "preview_only": false
   }
 }
