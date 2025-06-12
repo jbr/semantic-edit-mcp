@@ -317,7 +317,9 @@ fn format_no_ancestor_error(
     if valid_targets == 0 && total_anchors > 0 {
         // Found anchor text but no valid ancestors
         let mut message = format!(
-            "Error: anchor_text {anchor_text:?} appears {total_anchors} time(s) but no instances have ancestor {ancestor_node_type:?}\n"
+            "Error: anchor_text {anchor_text:?} appears {total_anchors} time(s) but no instances have ancestor {ancestor_node_type:?}
+Suggestion: use the read_documentation tool if you have not yet done so for this language
+"
         );
 
         // Show available ancestor types
@@ -382,7 +384,11 @@ fn format_ambiguous_error(
         message.push('\n');
     }
 
-    message.push_str("Suggestion: Use more specific anchor text to distinguish between matches");
+    message.push_str(
+        "Suggestions: 
+-> Use more specific anchor text to distinguish between matches
+-> use the read_documentation tool if you have not yet done so",
+    );
     message
 }
 

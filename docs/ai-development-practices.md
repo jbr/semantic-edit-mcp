@@ -10,13 +10,12 @@ Key concepts:
 
 # Instructions for AI assistants working on this project
 
-* We are using git. Please commit code any time it successfully builds and it feels like we have
-  reached a meaningful checkpoint, even if it is not a complete deployable work unit. After each
-  commit, review the code to see if there are opportunities to refactor.
 * Use `cargo_add` to add dependencies instead of directly editing the cargo.toml. That way we use
   the most current versions
 * Pause during development frequently to confer with your collaborator. Before any change, describe
   the specific code changes you intend to make
+* Try to remove unused variables and other sorts of dead code. We can always rewrite it later, but
+  unused code adds to maintenance burden.
 * Please use the `rustdoc` tools available to you, and report any usability concerns or suggested
   improvements.
 * Targeting anonymous items is very brittle. Only replaced named items such as functions. Ask for
