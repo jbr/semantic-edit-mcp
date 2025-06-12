@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -42,17 +44,12 @@ impl NodeSelector {
     }
 
     /// Find a node using text-anchored selection
-    pub fn find_node<'a>(
-        &self,
-        tree: &'a Tree,
-        source_code: &str,
-        language: &str,
-    ) -> Result<Option<Node<'a>>> {
-        // 1. Text Search: Find all exact matches of anchor_text
+    pub fn find_node<'a>(&self, tree: &'a Tree, source_code: &str) -> Result<Node<'a>, String> {
+        // Text Search: Find all exact matches of anchor_text
         let anchor_positions = find_text_positions(&self.anchor_text, source_code);
 
         if anchor_positions.is_empty() {
-            return Err(anyhow!(
+            return Err(format!(
                 "anchor_text {:?} not found in file",
                 self.anchor_text
             ));
@@ -60,13 +57,13 @@ impl NodeSelector {
 
         // Check if this is exploration mode (no ancestor_node_type specified)
         if self.ancestor_node_type.is_none() {
-            return self.explore_around_anchors(tree, source_code, language, &anchor_positions);
+            return Err(self.explore_around_anchors(tree, source_code, &anchor_positions));
         }
 
         // Specific targeting mode - find exact ancestor type
         let ancestor_node_type = self.ancestor_node_type.as_ref().unwrap();
 
-        // 2. Convert positions to nodes and walk up to find ancestors
+        // Convert positions to nodes and walk up to find ancestors
         let mut valid_targets = Vec::new();
         let mut anchor_info = Vec::new();
 
@@ -102,29 +99,29 @@ impl NodeSelector {
             }
         }
 
-        // 3. Uniqueness Validation
+        // Uniqueness Validation
         match valid_targets.len() {
             0 => {
                 // No valid targets found - provide detailed error
-                Err(anyhow!(format_no_ancestor_error(
+                Err(format_no_ancestor_error(
                     &self.anchor_text,
                     ancestor_node_type,
                     &anchor_info,
-                    source_code
-                )))
+                    source_code,
+                ))
             }
             1 => {
                 // Perfect! Exactly one valid target
-                Ok(Some(valid_targets[0]))
+                Ok(valid_targets[0])
             }
             _ => {
                 // Multiple valid targets - ambiguous selector
-                Err(anyhow!(format_ambiguous_error(
+                Err(format_ambiguous_error(
                     &self.anchor_text,
                     ancestor_node_type,
                     &anchor_info,
-                    source_code
-                )))
+                    source_code,
+                ))
             }
         }
     }
@@ -134,20 +131,17 @@ impl NodeSelector {
         &self,
         tree: &'a Tree,
         source_code: &str,
-        language: &str,
-    ) -> Result<Option<Node<'a>>> {
-        self.find_node(tree, source_code, language)
+    ) -> Result<Node<'a>, String> {
+        self.find_node(tree, source_code)
     }
 
-    /// Exploration mode: return information about available targeting options
     /// Exploration mode: return information about available targeting options
     fn explore_around_anchors<'a>(
         &self,
         tree: &'a Tree,
         source_code: &str,
-        language: &str,
         anchor_positions: &[usize],
-    ) -> Result<Option<Node<'a>>> {
+    ) -> String {
         let mut exploration_report = String::new();
         exploration_report.push_str(&format!(
             "🔍 **Exploration Mode**: Found anchor_text {:?} at {} location(s)\n\n",
@@ -215,7 +209,7 @@ impl NodeSelector {
         exploration_report.push_str("3. Run your edit operation\n");
 
         // Return exploration results as an error (this prevents actual editing)
-        Err(anyhow!(exploration_report))
+        exploration_report
     }
 }
 
@@ -334,7 +328,7 @@ fn format_no_ancestor_error(
         );
 
         // Show available ancestor types
-        let all_ancestors: std::collections::HashSet<String> = anchor_info
+        let all_ancestors: HashSet<String> = anchor_info
             .iter()
             .flat_map(|info| info.ancestor_chain.iter().cloned())
             .collect();
@@ -417,10 +411,7 @@ fn get_context_around_position(
 }
 
 /// Suggest a similar ancestor type based on fuzzy matching
-fn suggest_ancestor_type(
-    available: &std::collections::HashSet<String>,
-    target: &str,
-) -> Option<String> {
+fn suggest_ancestor_type(available: &HashSet<String>, target: &str) -> Option<String> {
     let target_lower = target.to_lowercase();
 
     // Look for exact substring matches first
@@ -440,8 +431,7 @@ fn suggest_ancestor_type(
     None
 }
 
-/// Simple Levenshtein distance calculation/// Get a human-readable description of an AST node type
-
+/// Simple Levenshtein distance calculation
 fn levenshtein_distance(a: &str, b: &str) -> usize {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();

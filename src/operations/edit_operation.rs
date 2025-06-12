@@ -119,10 +119,13 @@ impl EditOperation {
             .ok_or_else(|| anyhow!("failed to parse {}", language.language_name()))?;
 
         // Find target node using new text-anchored selection
-        let target_node = self
+        let target_node = match self
             .target_selector()
-            .find_node_with_suggestions(&tree, &source_code, language.language_name())?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
+            .find_node_with_suggestions(&tree, &source_code)
+        {
+            Ok(target_node) => target_node,
+            Err(response) => return Ok(ExecutionResult::ResponseOnly(response)),
+        };
 
         // Apply operation
         let edit_result = self.apply_inner(target_node, &tree, &source_code, language)?;
