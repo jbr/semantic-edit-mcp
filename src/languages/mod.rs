@@ -72,6 +72,6 @@ impl LanguageRegistry {
     }
 
     pub fn supported_languages(&self) -> Vec<&'static str> {
-        self.languages.keys().map(|x| *x).collect()
+        self.languages.keys().copied().collect()
     }
 }

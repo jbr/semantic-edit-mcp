@@ -95,7 +95,7 @@ impl ToolRegistry {
             .get("language")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        let selector = NodeSelector::new_from_value(&args)?;
+        let selector = NodeSelector::new_from_value(args)?;
 
         let operation = match tool_call.name.as_str() {
             "replace_node" => self.replace_node(selector, preview_only, args),

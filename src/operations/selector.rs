@@ -165,7 +165,7 @@ impl NodeSelector {
             if let Some(anchor_node) = find_node_at_byte_position(tree, byte_pos) {
                 // Get context around this position
                 if let Some(context) = get_context_around_position(source_code, byte_pos, 50) {
-                    exploration_report.push_str(&format!("   Context: \"{}\"\n", context));
+                    exploration_report.push_str(&format!("   Context: \"{context}\"\n"));
                 }
 
                 // Show available ancestor types
@@ -173,7 +173,7 @@ impl NodeSelector {
                 if !ancestor_chain.is_empty() {
                     exploration_report.push_str("   Available ancestor_node_type options:\n");
                     for (j, ancestor_type) in ancestor_chain.iter().enumerate() {
-                        exploration_report.push_str(&format!("   • \"{}\"\n", ancestor_type));
+                        exploration_report.push_str(&format!("   • \"{ancestor_type}\"\n"));
 
                         // Show selector example for the first few options
                         if j < 3 {

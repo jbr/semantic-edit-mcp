@@ -157,23 +157,23 @@ pub trait LanguageEditor: Send + Sync {
                 target,
                 new_content,
                 ..
-            } => self.replace(node, &tree, source_code, target, new_content),
+            } => self.replace(node, tree, source_code, target, new_content),
 
             EditOperation::InsertBefore {
                 target, content, ..
-            } => self.insert_before(node, &tree, source_code, target, content),
+            } => self.insert_before(node, tree, source_code, target, content),
 
             EditOperation::InsertAfter {
                 target, content, ..
-            } => self.insert_after(node, &tree, source_code, target, content),
+            } => self.insert_after(node, tree, source_code, target, content),
 
             EditOperation::Wrap {
                 target,
                 wrapper_template,
                 ..
-            } => self.wrap(node, &tree, source_code, target, wrapper_template),
+            } => self.wrap(node, tree, source_code, target, wrapper_template),
 
-            EditOperation::Delete { target, .. } => self.delete(node, &tree, source_code, target),
+            EditOperation::Delete { target, .. } => self.delete(node, tree, source_code, target),
         }
     }
 

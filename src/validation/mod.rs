@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 mod context_validator;
-pub use context_validator::{ContextValidator, OperationType};
+pub use context_validator::ContextValidator;
 use tree_sitter::Tree;
 
 use crate::languages::LanguageSupport;

@@ -1,5 +1,5 @@
 use crate::languages::traits::LanguageEditor;
-use crate::operations::{EditOperation, EditResult, NodeSelector};
+use crate::operations::{EditResult, NodeSelector};
 use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
 use ropey::Rope;
