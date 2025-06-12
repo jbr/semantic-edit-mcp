@@ -1,0 +1,6 @@
+error: expected one of `!`, `.`, `::`, `;`, `?`, `{`, `}`, or an operator, found `is`
+ --> <stdin>:2:6
+  |
+2 | this is not valid rust
+  |      ^^ expected one of 8 possible tokens
+

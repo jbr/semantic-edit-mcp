@@ -1,0 +1,9 @@
+Syntax error found prior to edit, not attempting.
+Suggestion: Pause and show your human collaborator this context:
+
+===SYNTAX ERRORS===
+   1   ⎸
+   2   ⎸
+   3   ⎸fn main() {
+   4 ->⎸    this is not valid rust
+   5   ⎸}

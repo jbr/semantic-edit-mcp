@@ -1,5 +1,5 @@
 use crate::languages::traits::LanguageEditor;
-use crate::operations::{EditResult, NodeSelector};
+use crate::operations::EditResult;
 use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
 use ropey::Rope;
@@ -186,7 +186,6 @@ impl MarkdownEditor {
             message: "Smart deletion: removed entire heading instead of creating empty heading"
                 .to_string(),
             new_content: new_rope.to_string(),
-            affected_range: (final_start, final_start),
         })
     }
 
@@ -221,7 +220,6 @@ impl MarkdownEditor {
                 "Smart deletion: removed entire list item instead of creating empty bullet point"
                     .to_string(),
             new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char),
         })
     }
 }
@@ -238,24 +236,8 @@ impl LanguageEditor for MarkdownEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         new_content: &str,
     ) -> Result<EditResult> {
-        // Smart deletion: if user is replacing with empty content, check if they
-        // really mean to delete the entire container (heading or list item)
-        if new_content.trim().is_empty() {
-            if let Some(deletion_result) = Self::try_smart_deletion(&node, source_code)? {
-                return Ok(deletion_result);
-            }
-        }
-
-        // Validate the new content would create valid Markdown
-        if !self.validate_replacement(source_code, &node, new_content)? {
-            return Ok(EditResult::Error(
-                "Replacement would create invalid Markdown structure".to_string(),
-            ));
-        }
-
         let rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
@@ -270,7 +252,6 @@ impl LanguageEditor for MarkdownEditor {
         Ok(EditResult::Success {
             message: format!("Successfully replaced {} node", node.kind()),
             new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + new_content.len()),
         })
     }
 
@@ -279,7 +260,6 @@ impl LanguageEditor for MarkdownEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
         let rope = Rope::from_str(source_code);
@@ -295,7 +275,6 @@ impl LanguageEditor for MarkdownEditor {
         Ok(EditResult::Success {
             message: format!("Successfully inserted content before {} node", node.kind()),
             new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + content_with_spacing.len()),
         })
     }
 
@@ -304,23 +283,20 @@ impl LanguageEditor for MarkdownEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let end_byte = node.end_byte();
         let end_char = rope.byte_to_char(end_byte);
 
         // For Markdown, we may need to add proper spacing
         let content_with_spacing = Self::ensure_proper_markdown_spacing(content, &node, false);
 
-        let mut new_rope = rope.clone();
-        new_rope.insert(end_char, &content_with_spacing);
+        rope.insert(end_char, &content_with_spacing);
 
         Ok(EditResult::Success {
             message: format!("Successfully inserted content after {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (end_char, end_char + content_with_spacing.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -329,7 +305,6 @@ impl LanguageEditor for MarkdownEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult> {
         let node_text = get_node_text(&node, source_code);
@@ -342,27 +317,18 @@ impl LanguageEditor for MarkdownEditor {
 
         let wrapped_content = wrapper_template.replace("{{content}}", node_text);
 
-        // Validate the wrapped content would create valid Markdown
-        if !self.validate_replacement(source_code, &node, &wrapped_content)? {
-            return Ok(EditResult::Error(
-                "Wrapping would create invalid Markdown structure".to_string(),
-            ));
-        }
-
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
 
-        let mut new_rope = rope.clone();
-        new_rope.remove(start_char..end_char);
-        new_rope.insert(start_char, &wrapped_content);
+        rope.remove(start_char..end_char);
+        rope.insert(start_char, &wrapped_content);
 
         Ok(EditResult::Success {
             message: format!("Successfully wrapped {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + wrapped_content.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -371,9 +337,8 @@ impl LanguageEditor for MarkdownEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
     ) -> Result<EditResult> {
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
@@ -383,40 +348,11 @@ impl LanguageEditor for MarkdownEditor {
         let (final_start, final_end) =
             Self::adjust_deletion_range_for_spacing(&rope, start_char, end_char, &node);
 
-        let mut new_rope = rope.clone();
-        new_rope.remove(final_start..final_end);
+        rope.remove(final_start..final_end);
 
         Ok(EditResult::Success {
             message: format!("Successfully deleted {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (final_start, final_start),
+            new_content: rope.to_string(),
         })
-    }
-
-    fn validate_replacement(
-        &self,
-        original_code: &str,
-        node: &Node,
-        replacement: &str,
-    ) -> Result<bool> {
-        let rope = Rope::from_str(original_code);
-        let start_char = rope.byte_to_char(node.start_byte());
-        let end_char = rope.byte_to_char(node.end_byte());
-
-        let mut temp_rope = rope.clone();
-        temp_rope.remove(start_char..end_char);
-        temp_rope.insert(start_char, replacement);
-
-        let temp_code = temp_rope.to_string();
-
-        // Parse and check for Markdown syntax errors
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_md::LANGUAGE.into())?;
-
-        if let Some(tree) = parser.parse(&temp_code, None) {
-            Ok(!tree.root_node().has_error())
-        } else {
-            Ok(false)
-        }
     }
 }

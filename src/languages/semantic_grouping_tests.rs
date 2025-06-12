@@ -1,6 +1,5 @@
 use crate::languages::rust::RustLanguage;
 use crate::languages::semantic_grouping::{SemanticGrouping, WithSemanticGrouping};
-use crate::languages::LanguageSupport;
 
 #[test]
 fn test_rust_semantic_grouping() {
@@ -16,8 +15,9 @@ fn another_function() {
     println!("Another function");
 }
 "#;
-    let rust_lang = RustLanguage::new().expect("Failed to create Rust language");
-    let mut parser = rust_lang.tree_sitter_parser().unwrap();
+    let rust_lang = RustLanguage::default();
+    let common = crate::languages::rust::language().unwrap();
+    let mut parser = common.tree_sitter_parser().unwrap();
     let tree = parser
         .parse(rust_code, None)
         .expect("Failed to parse Rust code");
@@ -121,7 +121,7 @@ fn test_grouping_rule_creation() {
 
 #[test]
 fn test_replacement_content_detection() {
-    let rust_lang = RustLanguage::new().expect("Failed to create Rust language");
+    let rust_lang = RustLanguage::default();
 
     // Test detection of attributes
     assert!(rust_lang.replacement_has_preceding_elements("#[derive(Debug)]\nfn test() {}"));

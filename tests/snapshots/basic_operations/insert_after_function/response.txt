@@ -1,12 +1,12 @@
-🔍 **INSERTION PREVIEW** - Changes to be made:
+🔍 **INSERTION PREVIEW**
 
+===DIFF===
+     println!("Existing function");
      42
  }
-
 +pub fn new_function() -> String {
 +    "inserted after existing_function".to_string()
 +}
-+
+
  pub struct TestStruct {
      value: i32,
- }

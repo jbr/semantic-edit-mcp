@@ -1,6 +1,7 @@
 use crate::languages::traits::NodeTypeInfo;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
+use tree_sitter::{Node, Tree, TreeCursor};
 
 /// Parse node-types.json file from tree-sitter
 pub fn parse_node_types_json(json_content: &str) -> Result<Vec<NodeTypeInfo>> {
@@ -33,16 +34,30 @@ pub fn parse_node_types_json(json_content: &str) -> Result<Vec<NodeTypeInfo>> {
     Ok(result)
 }
 
-/// Load query files from disk
-pub fn load_query_file(
-    language: &tree_sitter::Language,
-    file_path: &str,
-) -> Result<Option<tree_sitter::Query>> {
-    match std::fs::read_to_string(file_path) {
-        Ok(content) => {
-            let query = tree_sitter::Query::new(language, &content)?;
-            Ok(Some(query))
+pub fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
+    let mut errors = vec![];
+    let mut cursor = tree.root_node().walk();
+    collect_errors_with_cursor(&mut cursor, &mut errors);
+    errors
+}
+
+fn collect_errors_with_cursor<'tree>(
+    cursor: &mut TreeCursor<'tree>,
+    errors: &mut Vec<Node<'tree>>,
+) {
+    loop {
+        let node = cursor.node();
+        if node.kind() == "ERROR" {
+            errors.push(node);
         }
-        Err(_) => Ok(None), // File doesn't exist, which is fine
+
+        if cursor.goto_first_child() {
+            collect_errors_with_cursor(cursor, errors);
+            cursor.goto_parent();
+        }
+
+        if !cursor.goto_next_sibling() {
+            break;
+        }
     }
 }
