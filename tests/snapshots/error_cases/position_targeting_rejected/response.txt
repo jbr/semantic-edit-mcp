@@ -1,5 +1,5 @@
-Position-based targeting (line/column) is not allowed for edit operations.
-Use text-anchored selectors instead:
-• {"anchor_text": "exact text to find", "ancestor_node_type": "function_item"}
+Invalid selector: must specify:
+• Text-anchored: {"anchor_text": "exact text"}
+• With targeting: {"anchor_text": "exact text", "ancestor_node_type": "node_type"}
 
-💡 Use explore_ast with line/column to find the right anchor text and node type.
+💡 Omit ancestor_node_type to explore available options around your anchor text.

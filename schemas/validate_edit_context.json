@@ -11,7 +11,7 @@
             "properties": {
                 "anchor_text": {
                     "type": "string",
-                    "description": "Exact text to find in the source code as an anchor point"
+                    "description": "Exact short unique snippet to find in the source code as an anchor point.
                 },
                 "ancestor_node_type": {
                     "type": "string",
@@ -33,7 +33,7 @@
         "language": {
             "type": "string",
             "description": "Optional language hint. If not provided, language will be detected from file extension.",
-            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"]
+            "enum": ["rust", "json", "markdown"]
         }
     },
     "required": ["file_path", "selector", "content", "operation_type"],

@@ -1,55 +1,6 @@
-use anyhow::{anyhow, Result};
-use std::collections::HashMap;
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Tree};
 
 use crate::languages::LanguageRegistry;
-
-pub struct TreeSitterParser {
-    parsers: HashMap<&'static str, Parser>,
-}
-
-impl TreeSitterParser {
-    pub fn new() -> Result<Self> {
-        let mut parsers = HashMap::new();
-
-        // Initialize Rust parser
-        let mut rust_parser = Parser::new();
-        rust_parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
-        parsers.insert("rust", rust_parser);
-
-        // Initialize JSON parser
-        let mut json_parser = Parser::new();
-        json_parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
-        parsers.insert("json", json_parser);
-
-        // Initialize Markdown parser
-        let mut markdown_parser = Parser::new();
-        markdown_parser.set_language(&tree_sitter_md::LANGUAGE.into())?;
-        parsers.insert("markdown", markdown_parser);
-
-        // TODO: Add more languages as needed
-        // let mut ts_parser = Parser::new();
-        // ts_parser.set_language(&tree_sitter_typescript::language())?;
-        // parsers.insert("typescript", ts_parser);
-
-        Ok(Self { parsers })
-    }
-
-    pub fn parse(&mut self, language: &str, source_code: &str) -> Result<Tree> {
-        let parser = self
-            .parsers
-            .get_mut(language)
-            .ok_or_else(|| anyhow!("Unsupported language: {}", language))?;
-
-        parser
-            .parse(source_code, None)
-            .ok_or_else(|| anyhow!("Failed to parse {} code", language))
-    }
-
-    pub fn supported_languages(&self) -> Vec<&'static str> {
-        self.parsers.keys().map(|x| *x).collect()
-    }
-}
 
 pub fn detect_language_from_path(file_path: &str) -> Option<&'static str> {
     LanguageRegistry::new()

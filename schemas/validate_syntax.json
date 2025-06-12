@@ -12,7 +12,7 @@
         "language": {
             "type": "string",
             "description": "Programming language (required if validating content instead of file)",
-            "enum": ["rust", "json", "toml", "markdown", "typescript", "javascript", "python"],
+            "enum": ["rust", "json", "markdown"],
             "default": "rust"
         }
     },

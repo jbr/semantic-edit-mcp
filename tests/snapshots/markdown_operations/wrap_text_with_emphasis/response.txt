@@ -1,4 +1,4 @@
-Wrap operation result (syntax validation only):
+Wrap operation result:
 Successfully wrapped paragraph node
 
 ===DIFF===

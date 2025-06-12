@@ -1,13 +1,9 @@
-use crate::parser::TreeSitterParser;
-use anyhow::{anyhow, Result};
-use std::collections::HashMap;
-use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator, Tree};
+use crate::languages::LanguageSupport;
+use anyhow::Result;
+use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
 /// Tree-sitter based context validator for semantic code editing
-pub struct ContextValidator {
-    validation_queries: HashMap<String, Query>,
-    language_objects: HashMap<String, Language>,
-}
+pub struct ContextValidator;
 
 #[derive(Debug)]
 pub struct ValidationResult {
@@ -43,95 +39,22 @@ pub enum OperationType {
     InsertAfter,
     InsertBefore,
     InsertAfterStruct,
-    InsertAfterEnum,
-    InsertAfterImpl,
-    InsertAfterFunction,
     InsertInModule,
     Replace,
     Wrap,
 }
 
 impl ContextValidator {
-    pub fn new() -> Result<Self> {
-        // Only initialize validation for languages we support
-        let mut validation_queries = HashMap::new();
-        let mut language_objects = HashMap::new();
-
-        // Initialize Rust support
-        let rust_lang = tree_sitter_rust::LANGUAGE.into();
-        let rust_query = Self::load_validation_query("rust", &rust_lang)?;
-        language_objects.insert("rust".to_string(), rust_lang);
-        validation_queries.insert("rust".to_string(), rust_query);
-
-        Ok(Self {
-            validation_queries,
-            language_objects,
-        })
-    }
-
-    pub fn supports_language(&self, language: &str) -> bool {
-        self.validation_queries.contains_key(language)
-    }
-
-    fn load_validation_query(language: &str, lang_obj: &Language) -> Result<Query> {
-        // Try to load from file first, then fall back to built-in
-        let query_source =
-            match std::fs::read_to_string(format!("queries/{language}/validation.scm")) {
-                Ok(content) => content,
-                Err(_) => Self::default_validation_query(language),
-            };
-
-        Query::new(lang_obj, &query_source)
-            .map_err(|e| anyhow!("Failed to compile {} validation query: {}", language, e))
-    }
-
-    fn default_validation_query(language: &str) -> String {
-        match language {
-            "rust" => r#"
-;; Simple fallback validation for Rust
-(function_item 
-  body: (block
-    [(struct_item) (enum_item) (union_item)] @invalid.type.in.function.body))
-
-(function_item
-  body: (block
-    (impl_item) @invalid.impl.in.function.body))
-
-(function_item
-  body: (block
-    (trait_item) @invalid.trait.in.function.body))
-"#
-            .to_string(),
-            _ => "".to_string(),
-        }
-    }
-
     /// Validate if content can be safely inserted at the target location
-    pub fn validate_insertion(
-        &self,
-        _tree: &Tree,
+    pub fn validate_tree(
+        language_support: &dyn LanguageSupport,
+        tree: &Tree,
+        query: &Query,
         source_code: &str,
-        target_node: &Node,
-        content: &str,
-        language: &str,
-        operation_type: &OperationType,
     ) -> Result<ValidationResult> {
-        let query = self
-            .validation_queries
-            .get(language)
-            .ok_or_else(|| anyhow!("No validation rules for language: {}", language))?;
-
-        // Simulate the insertion to create a temporary tree
-        let temp_content =
-            self.simulate_insertion(source_code, target_node, content, operation_type)?;
-
-        // Parse the temporary content
-        let mut temp_parser = TreeSitterParser::new()?;
-        let temp_tree = temp_parser.parse(language, &temp_content)?;
-
         // Run validation queries against the temporary tree
         let mut cursor = QueryCursor::new();
-        let mut matches = cursor.matches(query, temp_tree.root_node(), temp_content.as_bytes());
+        let mut matches = cursor.matches(query, tree.root_node(), source_code.as_bytes());
 
         let mut violations = Vec::new();
 
@@ -140,7 +63,7 @@ impl ContextValidator {
                 let node = capture.node;
 
                 // Extract violation type from capture name
-                if let Some(violation_type) = self.extract_violation_type(capture.index, query) {
+                if let Some(violation_type) = Self::extract_violation_type(capture.index, query) {
                     // Only process "invalid" captures
                     if violation_type.starts_with("invalid.") {
                         violations.push(ContextViolation {
@@ -151,10 +74,10 @@ impl ContextValidator {
                                 node.start_position().row + 1,
                                 node.start_position().column + 1
                             ),
-                            message: self.get_violation_message(&violation_type),
-                            suggestion: self.get_violation_suggestion(
+                            message: Self::get_violation_message(&violation_type),
+                            suggestion: Self::get_violation_suggestion(
                                 &violation_type,
-                                &node,
+                                node,
                                 source_code,
                             ),
                         });
@@ -170,60 +93,14 @@ impl ContextValidator {
         })
     }
 
-    fn simulate_insertion(
-        &self,
-        source_code: &str,
-        target_node: &Node,
-        content: &str,
-        operation_type: &OperationType,
-    ) -> Result<String> {
-        use ropey::Rope;
-
-        let rope = Rope::from_str(source_code);
-        let mut temp_rope = rope.clone();
-
-        match operation_type {
-            OperationType::InsertAfter => {
-                let end_char = rope.byte_to_char(target_node.end_byte());
-                temp_rope.insert(end_char, &format!("\n{content}"));
-            }
-            OperationType::InsertBefore => {
-                let start_char = rope.byte_to_char(target_node.start_byte());
-                temp_rope.insert(start_char, &format!("{content}\n"));
-            }
-            OperationType::Replace => {
-                let start_char = rope.byte_to_char(target_node.start_byte());
-                let end_char = rope.byte_to_char(target_node.end_byte());
-                temp_rope.remove(start_char..end_char);
-                temp_rope.insert(start_char, content);
-            }
-            OperationType::Wrap => {
-                // For now, simulate as replacement
-                let start_char = rope.byte_to_char(target_node.start_byte());
-                let end_char = rope.byte_to_char(target_node.end_byte());
-                let original_content = rope.slice(start_char..end_char).to_string();
-                let wrapped_content = content.replace("{{content}}", &original_content);
-                temp_rope.remove(start_char..end_char);
-                temp_rope.insert(start_char, &wrapped_content);
-            }
-            _ => {
-                // For specialized operations, simulate as insert after
-                let end_char = rope.byte_to_char(target_node.end_byte());
-                temp_rope.insert(end_char, &format!("\n{content}"));
-            }
-        }
-
-        Ok(temp_rope.to_string())
-    }
-
-    fn extract_violation_type(&self, capture_index: u32, query: &Query) -> Option<String> {
+    fn extract_violation_type(capture_index: u32, query: &Query) -> Option<String> {
         query
             .capture_names()
             .get(capture_index as usize)
             .map(|s| s.to_string())
     }
 
-    fn get_violation_message(&self, violation_type: &str) -> String {
+    fn get_violation_message(violation_type: &str) -> String {
         match violation_type {
             "invalid.function.in.struct.fields" => {
                 "Functions cannot be defined inside struct field lists".to_string()
@@ -265,9 +142,8 @@ impl ContextValidator {
     }
 
     fn get_violation_suggestion(
-        &self,
         violation_type: &str,
-        _node: &Node,
+        _node: Node,
         _source_code: &str,
     ) -> ViolationSuggestion {
         match violation_type {
