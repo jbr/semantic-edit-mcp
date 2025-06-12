@@ -2,17 +2,31 @@ use crate::languages::semantic_grouping::{GroupingRule, SemanticGrouping, WithSe
 use crate::languages::traits::{
     LanguageEditor, LanguageParser, LanguageQueries, LanguageSupport, NodeTypeInfo,
 };
+use crate::languages::utils::{load_query_file, parse_node_types_json};
+use crate::languages::LanguageCommon;
 use crate::operations::{EditResult, NodeSelector};
 use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
 use ropey::Rope;
-use tree_sitter::{Language, Node, Query, StreamingIterator, Tree};
+use tree_sitter::{Language, Node, StreamingIterator, Tree};
 
-pub struct RustLanguage;
+pub struct RustLanguage(LanguageCommon);
 
 impl RustLanguage {
     pub fn new() -> Result<Self> {
-        Ok(Self)
+        let language = tree_sitter_rust::LANGUAGE.into();
+
+        let mut queries = LanguageQueries::new();
+
+        queries.validation = load_query_file(&language, "queries/rust/validation.scm")?;
+
+        let node_types = parse_node_types_json(tree_sitter_rust::NODE_TYPES)?;
+
+        Ok(Self(LanguageCommon {
+            language,
+            queries,
+            node_types,
+        }))
     }
 }
 
@@ -25,50 +39,16 @@ impl LanguageSupport for RustLanguage {
         &["rs"]
     }
 
-    fn tree_sitter_language(&self) -> Language {
-        tree_sitter_rust::LANGUAGE.into()
+    fn tree_sitter_language(&self) -> &Language {
+        &self.0.language
     }
 
-    fn get_node_types(&self) -> Result<Vec<NodeTypeInfo>> {
-        Ok(vec![
-            NodeTypeInfo::new(
-                "function_item".to_string(),
-                true,
-                vec![
-                    "name".to_string(),
-                    "parameters".to_string(),
-                    "body".to_string(),
-                ],
-            ),
-            NodeTypeInfo::new(
-                "struct_item".to_string(),
-                true,
-                vec!["name".to_string(), "body".to_string()],
-            ),
-            NodeTypeInfo::new(
-                "impl_item".to_string(),
-                true,
-                vec!["type".to_string(), "body".to_string()],
-            ),
-            NodeTypeInfo::new(
-                "mod_item".to_string(),
-                true,
-                vec!["name".to_string(), "body".to_string()],
-            ),
-        ])
+    fn node_types(&self) -> &[NodeTypeInfo] {
+        &self.0.node_types
     }
 
-    fn load_queries(&self) -> Result<LanguageQueries> {
-        let mut lq = LanguageQueries::new();
-        lq.validation_queries = Some(Query::new(
-            &self.tree_sitter_language(),
-            include_str!("../../queries/rust/validation.scm"),
-        )?);
-        Ok(lq)
-    }
-
-    fn parser(&self) -> Box<dyn LanguageParser> {
-        Box::new(RustParser::new())
+    fn queries(&self) -> &LanguageQueries {
+        &self.0.queries
     }
 
     fn editor(&self) -> Box<dyn LanguageEditor> {

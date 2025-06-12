@@ -17,7 +17,7 @@ fn another_function() {
 }
 "#;
     let rust_lang = RustLanguage::new().expect("Failed to create Rust language");
-    let mut parser = rust_lang.tree_sitter_parser();
+    let mut parser = rust_lang.tree_sitter_parser().unwrap();
     let tree = parser
         .parse(rust_code, None)
         .expect("Failed to parse Rust code");
