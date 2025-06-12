@@ -8,21 +8,18 @@ use crate::operations::{EditOperation, EditResult, NodeSelector};
 pub trait LanguageSupport: Send + Sync {
     fn language_name(&self) -> &'static str;
     fn file_extensions(&self) -> &'static [&'static str];
-    fn tree_sitter_language(&self) -> Language;
-    fn tree_sitter_parser(&self) -> Parser {
+    fn tree_sitter_language(&self) -> &Language;
+    fn tree_sitter_parser(&self) -> Result<Parser> {
         let mut parser = Parser::new();
-        parser.set_language(&self.tree_sitter_language());
-        parser
+        parser.set_language(&self.tree_sitter_language())?;
+        Ok(parser)
     }
 
     /// Load node types from the tree-sitter generated node-types.json
-    fn get_node_types(&self) -> Result<Vec<NodeTypeInfo>>;
+    fn node_types(&self) -> &[NodeTypeInfo];
 
-    /// Load tree-sitter query files for this language
-    fn load_queries(&self) -> Result<LanguageQueries>;
-
-    /// Get a parser instance for this language
-    fn parser(&self) -> Box<dyn LanguageParser>;
+    /// Retrieve tree-sitter query files for this language
+    fn queries(&self) -> &LanguageQueries;
 
     /// Get an editor instance for this language
     fn editor(&self) -> Box<dyn LanguageEditor>;
@@ -91,7 +88,7 @@ pub struct LanguageQueries {
     pub tags: Option<Query>,
     pub operations: Option<Query>,
     pub custom_queries: HashMap<String, Query>,
-    pub validation_queries: Option<Query>,
+    pub validation: Option<Query>,
 }
 
 impl Default for LanguageQueries {
@@ -108,7 +105,7 @@ impl LanguageQueries {
             tags: None,
             operations: None,
             custom_queries: HashMap::new(),
-            validation_queries: None,
+            validation: None,
         }
     }
 }

@@ -13,36 +13,44 @@ mod semantic_grouping_tests;
 pub use query_parser::QueryBasedParser;
 pub use traits::LanguageSupport;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::{collections::HashMap, path::Path};
+use tree_sitter::Language;
 
-use crate::languages::{json::JsonLanguage, markdown::MarkdownLanguage, rust::RustLanguage};
+use crate::languages::{
+    json::JsonLanguage,
+    markdown::MarkdownLanguage,
+    rust::RustLanguage,
+    traits::{LanguageQueries, NodeTypeInfo},
+};
 
 /// Registry to manage all supported languages
 pub struct LanguageRegistry {
     languages: HashMap<&'static str, Box<dyn LanguageSupport>>,
+    extensions: HashMap<&'static str, &'static str>,
+}
+
+struct LanguageCommon {
+    language: Language,
+    queries: LanguageQueries,
+    node_types: Vec<NodeTypeInfo>,
 }
 
 impl LanguageRegistry {
     pub fn new() -> Result<Self> {
         let mut registry = Self {
             languages: HashMap::new(),
+            extensions: HashMap::new(),
         };
 
         // Register JSON language
-        registry
-            .languages
-            .insert("json", Box::new(JsonLanguage::new()?));
+        registry.register_language(JsonLanguage::new()?);
 
         // Register Markdown language
-        registry
-            .languages
-            .insert("markdown", Box::new(MarkdownLanguage::new()?));
+        registry.register_language(MarkdownLanguage::new()?);
 
         // Register Rust language
-        registry
-            .languages
-            .insert("rust", Box::new(RustLanguage::new()?));
+        registry.register_language(RustLanguage::new()?);
 
         // TODO: Register other languages here as we implement them
         // registry.languages.insert("toml", Box::new(TomlLanguage::new()?));
@@ -50,28 +58,34 @@ impl LanguageRegistry {
         Ok(registry)
     }
 
+    pub fn register_language(&mut self, language: impl LanguageSupport + 'static) {
+        let name = language.language_name();
+        for extension in language.file_extensions() {
+            self.extensions.insert(extension, name);
+        }
+        self.languages.insert(name, Box::new(language));
+    }
+
     pub fn get_language(&self, name: &str) -> Option<&dyn LanguageSupport> {
         self.languages.get(name).map(|l| l.as_ref())
     }
 
-    pub fn detect_language_from_path(&self, file_path: &str) -> Option<&'static str> {
-        if let Some(extension) = Path::new(file_path).extension() {
-            match extension.to_str()? {
-                "rs" => Some("rust"),
-                "json" => Some("json"),
-                "toml" => Some("toml"),
-                "md" | "markdown" => Some("markdown"),
-                "ts" | "tsx" => Some("typescript"),
-                "js" | "jsx" => Some("javascript"),
-                "py" => Some("python"),
-                _ => None,
-            }
-        } else {
-            None
-        }
+    pub fn get_language_with_hint(
+        &self,
+        file_path: &str,
+        language_hint: Option<&str>,
+    ) -> Result<&dyn LanguageSupport> {
+        let language_name = language_hint
+            .or_else(|| self.detect_language_from_path(file_path))
+            .ok_or_else(|| {
+                anyhow!("Unable to detect language from file path and no language hint provided")
+            })?;
+        self.get_language(language_name)
+            .ok_or_else(|| anyhow!("Unsupported language {language_name}"))
     }
 
-    pub fn supported_languages(&self) -> Vec<&'static str> {
-        self.languages.keys().copied().collect()
+    pub fn detect_language_from_path(&self, file_path: &str) -> Option<&'static str> {
+        let extension = Path::new(file_path).extension()?.to_str()?;
+        self.extensions.get(extension).copied()
     }
 }

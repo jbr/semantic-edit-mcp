@@ -106,17 +106,9 @@ impl ToolRegistry {
             _ => Err(anyhow!("Unknown tool: {}", tool_call.name)),
         }?;
 
-        let language_name = language_hint
-            .map(Cow::Owned)
-            .or_else(|| detect_language_from_path(file_path).map(Cow::Borrowed))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
-
         let language = self
             .language_registry
-            .get_language(&language_name)
-            .ok_or_else(|| anyhow!("unsupported language {language_name}"))?;
+            .get_language_with_hint(file_path, language_hint.as_deref())?;
 
         operation.apply(language, file_path, preview_only)
     }

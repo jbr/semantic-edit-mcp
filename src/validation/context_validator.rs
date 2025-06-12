@@ -1,4 +1,3 @@
-use crate::languages::LanguageSupport;
 use anyhow::Result;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
@@ -47,7 +46,6 @@ pub enum OperationType {
 impl ContextValidator {
     /// Validate if content can be safely inserted at the target location
     pub fn validate_tree(
-        language_support: &dyn LanguageSupport,
         tree: &Tree,
         query: &Query,
         source_code: &str,

@@ -1,16 +1,26 @@
-use crate::languages::traits::{
-    LanguageEditor, LanguageParser, LanguageQueries, LanguageSupport, NodeTypeInfo,
-};
+use crate::languages::traits::{LanguageEditor, LanguageQueries, LanguageSupport, NodeTypeInfo};
 use crate::languages::utils::{load_query_file, parse_node_types_json};
-use crate::languages::QueryBasedParser;
+use crate::languages::LanguageCommon;
 use anyhow::Result;
 use tree_sitter::Language;
 
-pub struct JsonLanguage;
+pub struct JsonLanguage(LanguageCommon);
 
 impl JsonLanguage {
     pub fn new() -> Result<Self> {
-        Ok(Self)
+        let language = tree_sitter_json::LANGUAGE.into();
+
+        let mut queries = LanguageQueries::new();
+
+        queries.operations = load_query_file(&language, "queries/json/operations.scm")?;
+
+        let node_types = parse_node_types_json(tree_sitter_json::NODE_TYPES)?;
+
+        Ok(Self(LanguageCommon {
+            language,
+            queries,
+            node_types,
+        }))
     }
 }
 
@@ -23,36 +33,16 @@ impl LanguageSupport for JsonLanguage {
         &["json"]
     }
 
-    fn tree_sitter_language(&self) -> Language {
-        tree_sitter_json::LANGUAGE.into()
+    fn tree_sitter_language(&self) -> &Language {
+        &self.0.language
     }
 
-    fn get_node_types(&self) -> Result<Vec<NodeTypeInfo>> {
-        let node_types_json = include_str!("../../../queries/json/node-types.json");
-        parse_node_types_json(node_types_json)
+    fn node_types(&self) -> &[NodeTypeInfo] {
+        &self.0.node_types
     }
 
-    fn load_queries(&self) -> Result<LanguageQueries> {
-        let language = self.tree_sitter_language();
-        let mut queries = LanguageQueries::new();
-
-        // Load operations query
-        queries.operations = load_query_file(&language, "queries/json/operations.scm")?;
-
-        // TODO: Load other standard query files as needed
-        // queries.highlights = load_query_file(&language, "queries/json/highlights.scm")?;
-
-        Ok(queries)
-    }
-
-    fn parser(&self) -> Box<dyn LanguageParser> {
-        let language = self.tree_sitter_language();
-        let queries = self
-            .load_queries()
-            .unwrap_or_else(|_| LanguageQueries::new());
-        let node_types = self.get_node_types().unwrap_or_default();
-
-        Box::new(QueryBasedParser::new(language, queries, node_types))
+    fn queries(&self) -> &LanguageQueries {
+        &self.0.queries
     }
 
     fn editor(&self) -> Box<dyn LanguageEditor> {

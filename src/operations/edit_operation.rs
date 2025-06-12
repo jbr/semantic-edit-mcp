@@ -3,6 +3,7 @@ use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
 use crate::validation::{ContextValidator, SyntaxValidator};
 use anyhow::{anyhow, Result};
+use diffy::{DiffOptions, PatchFormatter};
 use tree_sitter::{Node, Tree};
 
 #[derive(Debug, Clone)]
@@ -113,7 +114,7 @@ impl EditOperation {
         preview_only: bool,
     ) -> Result<ExecutionResult> {
         let source_code = std::fs::read_to_string(file_path)?;
-        let mut parser = language.tree_sitter_parser();
+        let mut parser = language.tree_sitter_parser()?;
         let tree = parser
             .parse(&source_code, None)
             .ok_or_else(|| anyhow!("failed to parse {}", language.language_name()))?;
@@ -261,10 +262,9 @@ impl EditOperation {
             return Ok(None);
         };
 
-        let language_queries = language.load_queries()?;
-        if let Some(query) = language_queries.validation_queries {
-            let validation_result =
-                ContextValidator::validate_tree(language, tree, &query, new_content)?;
+        let language_queries = language.queries();
+        if let Some(query) = &language_queries.validation {
+            let validation_result = ContextValidator::validate_tree(tree, query, new_content)?;
 
             if !validation_result.is_valid {
                 let prefix = if preview_only { "PREVIEW: " } else { "" };
@@ -279,10 +279,8 @@ impl EditOperation {
 }
 
 fn generate_diff(source_code: &str, new_content: &str) -> String {
-    // Use diffy to generate a clean diff
-
-    let patch = diffy::DiffOptions::new().create_patch(source_code, new_content);
-    let formatter = diffy::PatchFormatter::new().missing_newline_message(false);
+    let patch = DiffOptions::new().create_patch(source_code, new_content);
+    let formatter = PatchFormatter::new().missing_newline_message(false);
 
     // Get the diff string and clean it up for AI consumption
     let diff_output = formatter.fmt_patch(&patch).to_string();
