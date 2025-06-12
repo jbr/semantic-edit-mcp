@@ -349,15 +349,15 @@ pub trait WithSemanticGrouping: SemanticGrouping {
 mod tests {
     use super::*;
 
-    struct TestGrouping;
+    // struct TestGrouping;
 
-    impl SemanticGrouping for TestGrouping {
-        fn get_grouping_rules(&self) -> Vec<GroupingRule> {
-            vec![GroupingRule::new("function_item")
-                .with_preceding_types(vec!["attribute_item", "line_comment"])
-                .with_max_gap_nodes(1)]
-        }
-    }
+    // impl SemanticGrouping for TestGrouping {
+    //     fn get_grouping_rules(&self) -> Vec<GroupingRule> {
+    //         vec![GroupingRule::new("function_item")
+    //             .with_preceding_types(vec!["attribute_item", "line_comment"])
+    //             .with_max_gap_nodes(1)]
+    //     }
+    // }
 
     #[test]
     fn test_grouping_rule_builder() {

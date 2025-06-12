@@ -1,13 +1,5 @@
 use tree_sitter::{Node, Tree};
 
-use crate::languages::LanguageRegistry;
-
-pub fn detect_language_from_path(file_path: &str) -> Option<&'static str> {
-    LanguageRegistry::new()
-        .ok()?
-        .detect_language_from_path(file_path)
-}
-
 pub fn get_node_text<'a>(node: &Node, source_code: &'a str) -> &'a str {
     &source_code[node.start_byte()..node.end_byte()]
 }

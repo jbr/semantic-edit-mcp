@@ -16,10 +16,10 @@ pub struct SnapshotRunner {
 #[derive(Debug)]
 pub struct SnapshotTest {
     pub name: String,
-    pub input_path: PathBuf,
+    pub input_path: Option<PathBuf>,
     pub args_path: PathBuf,
     pub response_path: PathBuf,
-    pub output_path: PathBuf, // NEW: Expected file after transformation
+    pub output_path: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -114,30 +114,27 @@ impl SnapshotRunner {
                 });
 
                 if args_path.exists() {
-                    if let Some(input_path) = input_path {
+                    let output_path = input_path.as_ref().map(|input_path| {
                         let mut output_path = path.join("output");
                         if let Some(extension) = input_path.extension() {
                             output_path.set_extension(extension);
                         }
+                        output_path
+                    });
 
-                        // This is a test directory
-                        let test_name = path
-                            .strip_prefix("tests/snapshots")
-                            .unwrap_or(&path)
-                            .to_string_lossy()
-                            .replace('/', "::");
+                    let test_name = path
+                        .strip_prefix("tests/snapshots")
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .replace('/', "::");
 
-                        tests.push(SnapshotTest {
-                            name: test_name,
-                            input_path,
-                            args_path,
-                            response_path,
-                            output_path,
-                        });
-                    } else {
-                        // Recurse into subdirectories
-                        Self::discover_tests_recursive(&path, tests)?;
-                    }
+                    tests.push(SnapshotTest {
+                        name: test_name,
+                        input_path,
+                        args_path,
+                        response_path,
+                        output_path,
+                    });
                 } else {
                     // Recurse into subdirectories
                     Self::discover_tests_recursive(&path, tests)?;
@@ -170,7 +167,19 @@ impl SnapshotRunner {
 
                 // Write the actual output as the new expected output
                 if let Some(output) = &output {
-                    if let Err(e) = tokio::fs::write(&test.output_path, &output).await {
+                    let Some(output_path) = &test.output_path else {
+                        return SnapshotResult {
+                            test,
+                            actual_response: response,
+                            expected_response: None,
+                            response_matches: false,
+                            output_matches: false,
+                            error: Some("output without input is unexpected".to_string()),
+                            actual_output: Some(output.to_string()),
+                            expected_output: None,
+                        };
+                    };
+                    if let Err(e) = tokio::fs::write(&output_path, &output).await {
                         return SnapshotResult {
                             test,
                             actual_response: response,
@@ -182,21 +191,23 @@ impl SnapshotRunner {
                             expected_output: None,
                         };
                     }
-                } else if let Ok(true) = test.output_path.try_exists() {
-                    // If there is no expected output but the file exists, delete the file
-                    if let Err(e) = tokio::fs::remove_file(&test.output_path).await {
-                        return SnapshotResult {
-                            test,
-                            actual_response: response,
-                            expected_response: None,
-                            response_matches: false,
-                            output_matches: false,
-                            error: Some(format!(
-                                "No output expected, but was unable to delete: {e}"
-                            )),
-                            actual_output: None,
-                            expected_output: None,
-                        };
+                } else if let Some(output_path) = &test.output_path {
+                    if let Ok(true) = output_path.try_exists() {
+                        // If there is no expected output but the file exists, delete the file
+                        if let Err(e) = tokio::fs::remove_file(&output_path).await {
+                            return SnapshotResult {
+                                test,
+                                actual_response: response,
+                                expected_response: None,
+                                response_matches: false,
+                                output_matches: false,
+                                error: Some(format!(
+                                    "No output expected, but was unable to delete: {e}"
+                                )),
+                                actual_output: None,
+                                expected_output: None,
+                            };
+                        }
                     }
                 }
 
@@ -233,7 +244,11 @@ impl SnapshotRunner {
                     }
                 };
 
-                let expected_output = tokio::fs::read_to_string(&test.output_path).await.ok();
+                let expected_output = if let Some(output_path) = &test.output_path {
+                    tokio::fs::read_to_string(&output_path).await.ok()
+                } else {
+                    None
+                };
 
                 let response_matches = expected_response.trim() == response.trim();
                 let output_matches = match (output.as_ref(), expected_output.as_ref()) {
@@ -284,12 +299,14 @@ impl SnapshotRunner {
             .cloned()
             .unwrap_or(serde_json::json!({}));
 
-        // Update file_path in arguments to point to temp file
-        if let Some(args_obj) = tool_args.as_object_mut() {
-            args_obj.insert(
-                "file_path".to_string(),
-                Value::String(test.input_path.to_string_lossy().to_string()),
-            );
+        if let Some(input_path) = &test.input_path {
+            // Update file_path in arguments to point to temp file
+            if let Some(args_obj) = tool_args.as_object_mut() {
+                args_obj.insert(
+                    "file_path".to_string(),
+                    Value::String(input_path.to_string_lossy().to_string()),
+                );
+            }
         }
 
         // Create tool call params
