@@ -192,6 +192,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "fieldwork"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "272a83cdf21e9f37b9faeb81385fe880b41e3117f1158af88e6caf279cb733bf"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -230,6 +241,12 @@ name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
+name = "jsonformat"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e9e814853c1f5f3d6b38bc08a304f2865a09f711b642f74956f394de37dd2c8"
 
 [[package]]
 name = "libc"
@@ -426,6 +443,8 @@ dependencies = [
  "anyhow",
  "clap",
  "diffy",
+ "fieldwork",
+ "jsonformat",
  "ropey",
  "serde",
  "serde_json",

@@ -1,0 +1,10 @@
+{
+  "tool": "insert_after_node",
+  "arguments": {
+    "selector": {
+      "anchor_text": "webpack",
+      "ancestor_node_type": "object"
+    },
+    "content": "\"nested\": ,,{[]{\"object\": [1,2,3,4,5]}, \"second\": \"key\"}{,,,"
+  }
+}

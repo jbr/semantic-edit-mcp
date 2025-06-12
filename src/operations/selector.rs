@@ -75,22 +75,22 @@ impl NodeSelector {
                     valid_targets.push(target_node);
 
                     // Get context for error reporting
-                    let (line, column) = byte_position_to_line_column(source_code, byte_pos);
+                    let (line, _column) = byte_position_to_line_column(source_code, byte_pos);
                     let ancestor_chain = get_ancestor_chain(&anchor_node);
                     anchor_info.push(AnchorInfo {
                         line,
-                        column,
+                        // column,
                         byte_pos,
                         ancestor_chain,
                         found_target: true,
                     });
                 } else {
                     // Record info about failed ancestor search
-                    let (line, column) = byte_position_to_line_column(source_code, byte_pos);
+                    let (line, _column) = byte_position_to_line_column(source_code, byte_pos);
                     let ancestor_chain = get_ancestor_chain(&anchor_node);
                     anchor_info.push(AnchorInfo {
                         line,
-                        column,
+                        // column,
                         byte_pos,
                         ancestor_chain,
                         found_target: false,
@@ -136,9 +136,9 @@ impl NodeSelector {
     }
 
     /// Exploration mode: return information about available targeting options
-    fn explore_around_anchors<'a>(
+    fn explore_around_anchors(
         &self,
-        tree: &'a Tree,
+        tree: &Tree,
         source_code: &str,
         anchor_positions: &[usize],
     ) -> String {
@@ -194,19 +194,12 @@ impl NodeSelector {
             exploration_report.push('\n');
         }
 
-        // Add AST structure education
-        exploration_report.push_str("⚠️  **AST Structure Note**: Comments and attributes are siblings to functions in the AST, not parents.\n");
-        exploration_report
-            .push_str("   If your anchor_text includes comments/attributes with a function:\n");
-        exploration_report.push_str("   • Use anchor text from INSIDE the function body, or\n");
-        exploration_report.push_str(
-            "   • Target the comment/attribute separately if that's what you want to edit\n\n",
-        );
-
         exploration_report.push_str("**Next Steps**:\n");
-        exploration_report.push_str("1. Pick an ancestor_node_type from the options above\n");
-        exploration_report.push_str("2. Use preview_only: true to verify your selection\n");
-        exploration_report.push_str("3. Run your edit operation\n");
+        exploration_report.push_str("1. Use the read_documentation tool to learn the full set of node types for this language if you have not yet done so\n");
+        exploration_report.push_str("2. Pick an ancestor_node_type from the options above\n");
+        exploration_report.push_str("3. Pick an ancestor_node_type from the options above\n");
+        exploration_report.push_str("4. Use preview_only: true to verify your selection\n");
+        exploration_report.push_str("5. Run your edit operation\n");
 
         // Return exploration results as an error (this prevents actual editing)
         exploration_report
@@ -217,7 +210,7 @@ impl NodeSelector {
 #[derive(Debug)]
 struct AnchorInfo {
     line: usize,
-    column: usize,
+    //column: usize,
     byte_pos: usize,
     ancestor_chain: Vec<String>,
     found_target: bool,

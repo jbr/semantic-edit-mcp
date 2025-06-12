@@ -1,11 +1,10 @@
-🔍 **INSERTION PREVIEW** - Changes to be made:
+🔍 **INSERTION PREVIEW**
 
+===DIFF===
+ pub fn second_function() {
      println!("Second function - content will be inserted after this");
  }
-
 +// This comment is inserted after the second function
-+
-+
+
  pub fn third_function() {
      println!("Third function");
- }

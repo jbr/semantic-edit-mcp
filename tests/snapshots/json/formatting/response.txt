@@ -1,0 +1,8 @@
+Syntax error found prior to edit, not attempting.
+Suggestion: Pause and show your human collaborator this context:
+
+===SYNTAX ERRORS===
+   9   ⎸        "test": "jest",
+  10   ⎸      "build": "webpack"
+  11   ⎸    },
+  12 ->⎸}

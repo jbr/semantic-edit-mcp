@@ -1,7 +1,10 @@
-use crate::languages::traits::LanguageEditor;
-use crate::operations::{EditResult, NodeSelector};
+use std::{borrow::Cow, collections::BTreeMap};
+
+use crate::languages::{traits::LanguageEditor, utils::collect_errors};
+use crate::operations::EditResult;
 use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
+use jsonformat::Indentation;
 use ropey::Rope;
 use tree_sitter::{Node, Tree};
 
@@ -16,24 +19,6 @@ impl Default for JsonEditor {
 impl JsonEditor {
     pub fn new() -> Self {
         Self
-    }
-
-    fn needs_comma_after(node: &Node) -> bool {
-        // Check if this node is followed by another sibling in an object or array
-        if let Some(next_sibling) = node.next_sibling() {
-            matches!(next_sibling.kind(), "pair" | "value")
-        } else {
-            false
-        }
-    }
-
-    fn needs_comma_before(node: &Node) -> bool {
-        // Check if this node is preceded by another sibling in an object or array
-        if let Some(prev_sibling) = node.prev_sibling() {
-            matches!(prev_sibling.kind(), "pair" | "value")
-        } else {
-            false
-        }
     }
 
     fn adjust_deletion_range_for_comma(
@@ -63,9 +48,44 @@ impl JsonEditor {
 
 impl LanguageEditor for JsonEditor {
     fn format_code(&self, source: &str) -> Result<String> {
-        // For now, just return the original code
-        // In a full implementation, we'd integrate with a JSON formatter
-        Ok(source.to_string())
+        let mut tab_count = 0;
+        let mut space_counts = BTreeMap::<usize, usize>::new();
+        let mut last_indentation = 0;
+        let mut last_change = 0;
+        for line in source.lines().take(100) {
+            if line.starts_with('\t') {
+                tab_count += 1;
+            } else {
+                let count = line.chars().take_while(|c| c == &' ').count();
+                let diff = count.abs_diff(last_indentation);
+                last_indentation = count;
+                if diff > 0 {
+                    last_change = diff;
+                }
+                let entry = space_counts.entry(last_change).or_default();
+                *entry += 1;
+            }
+        }
+
+        let custom;
+
+        let indentation_style = match space_counts
+            .into_iter()
+            .map(|(k, v)| (Some(k), v))
+            .chain(std::iter::once((None, tab_count)))
+            .max_by_key(|(_, count)| *count)
+        {
+            Some((Some(2), _)) => Indentation::TwoSpace,
+            Some((Some(4), _)) => Indentation::FourSpace,
+            Some((None, _)) => Indentation::Tab,
+            Some((Some(n), _)) => {
+                custom = " ".repeat(n);
+                Indentation::Custom(&custom)
+            }
+            None => Indentation::FourSpace,
+        };
+
+        Ok(jsonformat::format(source, indentation_style))
     }
 
     fn replace<'tree>(
@@ -73,31 +93,21 @@ impl LanguageEditor for JsonEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         new_content: &str,
     ) -> Result<EditResult> {
-        // Validate the new content would create valid JSON
-        if !self.validate_replacement(source_code, &node, new_content)? {
-            return Ok(EditResult::Error(
-                "Replacement would create invalid JSON".to_string(),
-            ));
-        }
-
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
 
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
 
-        let mut new_rope = rope.clone();
-        new_rope.remove(start_char..end_char);
-        new_rope.insert(start_char, new_content);
+        rope.remove(start_char..end_char);
+        rope.insert(start_char, new_content);
 
         Ok(EditResult::Success {
             message: format!("Successfully replaced {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + new_content.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -106,33 +116,24 @@ impl LanguageEditor for JsonEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let start_char = rope.byte_to_char(start_byte);
 
-        // For JSON, we need to handle commas properly
-        let content_with_comma = match node.kind() {
-            "pair" => {
-                // If inserting before a property, add comma after new content
-                if Self::needs_comma_after(&node) {
-                    format!("{content},")
-                } else {
-                    content.to_string()
-                }
-            }
-            _ => content.to_string(),
-        };
+        let mut content = Cow::Borrowed(content);
 
-        let mut new_rope = rope.clone();
-        new_rope.insert(start_char, &content_with_comma);
+        let trimmed = content.trim_end();
+        if !trimmed.ends_with(',') {
+            content = Cow::Owned(format!("{trimmed},"));
+        }
+
+        rope.insert(start_char, &content);
 
         Ok(EditResult::Success {
             message: format!("Successfully inserted content before {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + content_with_comma.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -141,33 +142,20 @@ impl LanguageEditor for JsonEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let end_byte = node.end_byte();
         let end_char = rope.byte_to_char(end_byte);
 
-        // For JSON, we need to handle commas properly
-        let content_with_comma = match node.kind() {
-            "pair" => {
-                // If inserting after a property, add comma before new content
-                if Self::needs_comma_before(&node) {
-                    format!(",{content}")
-                } else {
-                    content.to_string()
-                }
-            }
-            _ => content.to_string(),
-        };
-
-        let mut new_rope = rope.clone();
-        new_rope.insert(end_char, &content_with_comma);
+        rope.insert(end_char, content);
+        if !content.trim_start().starts_with(',') {
+            rope.insert_char(end_char, ',');
+        }
 
         Ok(EditResult::Success {
             message: format!("Successfully inserted content after {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (end_char, end_char + content_with_comma.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -176,7 +164,6 @@ impl LanguageEditor for JsonEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult> {
         let node_text = get_node_text(&node, source_code);
@@ -189,27 +176,18 @@ impl LanguageEditor for JsonEditor {
 
         let wrapped_content = wrapper_template.replace("{{content}}", node_text);
 
-        // Validate the wrapped content would create valid JSON
-        if !self.validate_replacement(source_code, &node, &wrapped_content)? {
-            return Ok(EditResult::Error(
-                "Wrapping would create invalid JSON".to_string(),
-            ));
-        }
-
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
         let end_char = rope.byte_to_char(end_byte);
 
-        let mut new_rope = rope.clone();
-        new_rope.remove(start_char..end_char);
-        new_rope.insert(start_char, &wrapped_content);
+        rope.remove(start_char..end_char);
+        rope.insert(start_char, &wrapped_content);
 
         Ok(EditResult::Success {
             message: format!("Successfully wrapped {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (start_char, start_char + wrapped_content.len()),
+            new_content: rope.to_string(),
         })
     }
 
@@ -218,9 +196,8 @@ impl LanguageEditor for JsonEditor {
         node: Node<'tree>,
         _tree: &Tree,
         source_code: &str,
-        _selector: &NodeSelector,
     ) -> Result<EditResult> {
-        let rope = Rope::from_str(source_code);
+        let mut rope = Rope::from_str(source_code);
         let start_byte = node.start_byte();
         let end_byte = node.end_byte();
         let start_char = rope.byte_to_char(start_byte);
@@ -233,40 +210,20 @@ impl LanguageEditor for JsonEditor {
             (start_char, end_char)
         };
 
-        let mut new_rope = rope.clone();
-        new_rope.remove(final_start..final_end);
+        rope.remove(final_start..final_end);
 
         Ok(EditResult::Success {
             message: format!("Successfully deleted {} node", node.kind()),
-            new_content: new_rope.to_string(),
-            affected_range: (final_start, final_start),
+            new_content: rope.to_string(),
         })
     }
 
-    fn validate_replacement(
-        &self,
-        original_code: &str,
-        node: &Node,
-        replacement: &str,
-    ) -> Result<bool> {
-        let rope = Rope::from_str(original_code);
-        let start_char = rope.byte_to_char(node.start_byte());
-        let end_char = rope.byte_to_char(node.end_byte());
-
-        let mut temp_rope = rope.clone();
-        temp_rope.remove(start_char..end_char);
-        temp_rope.insert(start_char, replacement);
-
-        let temp_code = temp_rope.to_string();
-
-        // Parse and check for JSON syntax errors
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&tree_sitter_json::LANGUAGE.into())?;
-
-        if let Some(tree) = parser.parse(&temp_code, None) {
-            Ok(!tree.root_node().has_error())
-        } else {
-            Ok(false)
+    fn collect_errors(&self, _tree: &Tree, content: &str) -> Vec<usize> {
+        match serde_json::from_str::<serde_json::Value>(content) {
+            Ok(_) => vec![],
+            Err(e) => {
+                vec![e.line().saturating_sub(1)]
+            }
         }
     }
 }

@@ -1,29 +1,10 @@
 use anyhow::Result;
-use std::collections::HashMap;
-use tree_sitter::{Language, Node, Parser, Query, Tree};
+use tree_sitter::{Node, Tree};
 
-use crate::operations::{EditOperation, EditResult, NodeSelector};
-
-/// Core trait that all language implementations must provide
-pub trait LanguageSupport: Send + Sync {
-    fn language_name(&self) -> &'static str;
-    fn file_extensions(&self) -> &'static [&'static str];
-    fn tree_sitter_language(&self) -> &Language;
-    fn tree_sitter_parser(&self) -> Result<Parser> {
-        let mut parser = Parser::new();
-        parser.set_language(&self.tree_sitter_language())?;
-        Ok(parser)
-    }
-
-    /// Load node types from the tree-sitter generated node-types.json
-    fn node_types(&self) -> &[NodeTypeInfo];
-
-    /// Retrieve tree-sitter query files for this language
-    fn queries(&self) -> &LanguageQueries;
-
-    /// Get an editor instance for this language
-    fn editor(&self) -> Box<dyn LanguageEditor>;
-}
+use crate::{
+    languages::utils::collect_errors,
+    operations::{EditOperation, EditResult},
+};
 
 /// Information about a node type from tree-sitter's node-types.json
 #[derive(Debug, Clone)]
@@ -80,36 +61,6 @@ impl NodeTypeInfo {
     }
 }
 
-/// Collection of tree-sitter queries for a language
-#[derive(Debug)]
-pub struct LanguageQueries {
-    pub highlights: Option<Query>,
-    pub locals: Option<Query>,
-    pub tags: Option<Query>,
-    pub operations: Option<Query>,
-    pub custom_queries: HashMap<String, Query>,
-    pub validation: Option<Query>,
-}
-
-impl Default for LanguageQueries {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl LanguageQueries {
-    pub fn new() -> Self {
-        Self {
-            highlights: None,
-            locals: None,
-            tags: None,
-            operations: None,
-            custom_queries: HashMap::new(),
-            validation: None,
-        }
-    }
-}
-
 /// Trait for language-specific parsing operations
 pub trait LanguageParser: Send + Sync {
     /// Find a node by name (for nodes that have a "name" field)
@@ -150,28 +101,32 @@ pub trait LanguageEditor: Send + Sync {
         source_code: &str,
     ) -> Result<EditResult> {
         match operation {
-            EditOperation::Replace {
-                target,
-                new_content,
-                ..
-            } => self.replace(node, tree, source_code, target, new_content),
+            EditOperation::Replace { new_content, .. } => {
+                self.replace(node, tree, source_code, new_content)
+            }
 
-            EditOperation::InsertBefore {
-                target, content, ..
-            } => self.insert_before(node, tree, source_code, target, content),
+            EditOperation::InsertBefore { content, .. } => {
+                self.insert_before(node, tree, source_code, content)
+            }
 
-            EditOperation::InsertAfter {
-                target, content, ..
-            } => self.insert_after(node, tree, source_code, target, content),
+            EditOperation::InsertAfter { content, .. } => {
+                self.insert_after(node, tree, source_code, content)
+            }
 
             EditOperation::Wrap {
-                target,
-                wrapper_template,
-                ..
-            } => self.wrap(node, tree, source_code, target, wrapper_template),
+                wrapper_template, ..
+            } => self.wrap(node, tree, source_code, wrapper_template),
 
-            EditOperation::Delete { target, .. } => self.delete(node, tree, source_code, target),
+            EditOperation::Delete { .. } => self.delete(node, tree, source_code),
         }
+    }
+
+    fn collect_errors(&self, tree: &Tree, content: &str) -> Vec<usize> {
+        let _ = content;
+        collect_errors(tree)
+            .into_iter()
+            .map(|node| node.start_position().row)
+            .collect()
     }
 
     fn replace<'tree>(
@@ -179,44 +134,34 @@ pub trait LanguageEditor: Send + Sync {
         node: Node<'tree>,
         tree: &Tree,
         source: &str,
-        selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult>;
+
     fn insert_before<'tree>(
         &self,
         node: Node<'tree>,
         tree: &Tree,
         source: &str,
-        selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult>;
+
     fn insert_after<'tree>(
         &self,
         node: Node<'tree>,
         tree: &Tree,
         source: &str,
-        selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult>;
+
     fn wrap<'tree>(
         &self,
         node: Node<'tree>,
         tree: &Tree,
         source: &str,
-        selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult>;
-    fn delete<'tree>(
-        &self,
-        node: Node<'tree>,
-        tree: &Tree,
-        source: &str,
-        selector: &NodeSelector,
-    ) -> Result<EditResult>;
 
-    /// Format code according to language conventions
+    fn delete<'tree>(&self, node: Node<'tree>, tree: &Tree, source: &str) -> Result<EditResult>;
+
     fn format_code(&self, source: &str) -> Result<String>;
-
-    /// Validate that a replacement would create valid syntax
-    fn validate_replacement(&self, original: &str, node: &Node, replacement: &str) -> Result<bool>;
 }

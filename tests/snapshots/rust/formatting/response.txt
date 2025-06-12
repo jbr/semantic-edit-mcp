@@ -1,0 +1,12 @@
+Replace operation result:
+Successfully replaced function_item node
+
+===DIFF===
+ pub fn main() {
+-    println!("hello");
++    if true {
++        println!("this code was reformatted");
++    } else {
++        println!("false");
++    }
+ }

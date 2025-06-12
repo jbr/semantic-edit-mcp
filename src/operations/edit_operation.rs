@@ -1,10 +1,13 @@
-use crate::languages::LanguageSupport;
+use std::collections::BTreeSet;
+
+use crate::languages::utils::collect_errors;
+use crate::languages::LanguageCommon;
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
-use crate::validation::{ContextValidator, SyntaxValidator};
+use crate::validation::ContextValidator;
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
-use tree_sitter::{Node, Tree};
+use tree_sitter::{Node, Parser, Tree};
 
 #[derive(Debug, Clone)]
 pub enum EditOperation {
@@ -39,7 +42,6 @@ pub enum EditResult {
     Success {
         message: String,
         new_content: String,
-        affected_range: (usize, usize),
     },
     Error(String),
 }
@@ -58,6 +60,14 @@ impl EditResult {
             EditResult::Error(message) => message,
         }
     }
+}
+
+macro_rules! maybe_early_return {
+    ($expr:expr) => {
+        if let Some(response) = $expr {
+            return Ok(ExecutionResult::ResponseOnly(response));
+        }
+    };
 }
 
 impl EditOperation {
@@ -96,7 +106,7 @@ impl EditOperation {
     /// Apply operation with full validation pipeline
     pub fn apply(
         &self,
-        language: &dyn LanguageSupport,
+        language: &LanguageCommon,
         file_path: &str,
         preview_only: bool,
     ) -> Result<ExecutionResult> {
@@ -104,7 +114,14 @@ impl EditOperation {
         let mut parser = language.tree_sitter_parser()?;
         let tree = parser
             .parse(&source_code, None)
-            .ok_or_else(|| anyhow!("failed to parse {}", language.language_name()))?;
+            .ok_or_else(|| anyhow!("failed to parse {}", language.name()))?;
+
+        maybe_early_return!(
+            validate_tree(language, &tree, &source_code).map(|errors| format!(
+                "Syntax error found prior to edit, not attempting.
+Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
+            ))
+        );
 
         // Find target node using new text-anchored selection
         let target_node = match self
@@ -116,18 +133,18 @@ impl EditOperation {
         };
 
         // Apply operation
-        let edit_result = self.apply_inner(target_node, &tree, &source_code, language)?;
+        let mut edit_result = self.apply_inner(target_node, &tree, &source_code, language)?;
 
-        if let Some(invalid_syntax_response) =
-            self.validate_syntax(&tree, &edit_result, preview_only, language)?
-        {
-            return Ok(invalid_syntax_response);
-        }
+        maybe_early_return!(validate(
+            &edit_result,
+            &mut parser,
+            language,
+            &source_code,
+            &tree
+        )?);
 
-        if let Some(invalid_context_response) =
-            self.validate_context(&tree, &edit_result, preview_only, language)?
-        {
-            return Ok(invalid_context_response);
+        if let EditResult::Success { new_content, .. } = &mut edit_result {
+            *new_content = language.editor().format_code(new_content)?;
         }
 
         // Format response
@@ -147,7 +164,7 @@ impl EditOperation {
                 let diff = generate_diff(&source_code, &new_content);
 
                 let response = format!(
-                    "{} operation result:\n{message}\n\n===DIFF===\n{diff}",
+                    "{} operation result:\n{message}\n\n{diff}",
                     self.operation_name(),
                 );
                 Ok(ExecutionResult::Change {
@@ -167,10 +184,11 @@ impl EditOperation {
         target_node: Node<'tree>,
         tree: &Tree,
         source_code: &str,
-        language: &dyn LanguageSupport,
+        language: &LanguageCommon,
     ) -> Result<EditResult> {
         let editor = language.editor();
         let mut edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
+
         if self.is_preview_only() {
             edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
         }
@@ -189,16 +207,16 @@ impl EditOperation {
             // Add operation-specific header
             match self {
                 EditOperation::Replace { .. } => {
-                    preview.push_str("🔍 **REPLACEMENT PREVIEW** - Changes to be made:\n\n");
+                    preview.push_str("🔍 **REPLACEMENT PREVIEW**\n\n");
                 }
                 EditOperation::InsertBefore { .. } | EditOperation::InsertAfter { .. } => {
-                    preview.push_str("🔍 **INSERTION PREVIEW** - Changes to be made:\n\n");
+                    preview.push_str("🔍 **INSERTION PREVIEW**\n\n");
                 }
                 EditOperation::Wrap { .. } => {
-                    preview.push_str("🔍 **WRAP PREVIEW** - Changes to be made:\n\n");
+                    preview.push_str("🔍 **WRAP PREVIEW**\n\n");
                 }
                 EditOperation::Delete { .. } => {
-                    preview.push_str("🔍 **DELETE PREVIEW** - Changes to be made:\n\n");
+                    preview.push_str("🔍 **DELETE PREVIEW**\n\n");
                 }
             }
 
@@ -209,60 +227,6 @@ impl EditOperation {
             Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
         }
     }
-
-    fn validate_syntax(
-        &self,
-        tree: &Tree,
-        edit_result: &EditResult,
-        preview_only: bool,
-        language: &dyn LanguageSupport,
-    ) -> Result<Option<ExecutionResult>> {
-        let EditResult::Success { new_content, .. } = edit_result else {
-            return Ok(None);
-        };
-        let validation = SyntaxValidator::validate_content(tree, new_content, language)?;
-
-        if !validation.is_valid {
-            let prefix = if preview_only { "PREVIEW: " } else { "" };
-            return Ok(Some(ExecutionResult::ResponseOnly(format!(
-                "{prefix}❌ Edit would create invalid syntax and was blocked:\n{}",
-                validation
-                    .errors
-                    .iter()
-                    .map(|e| format!("  Line {}: {}", e.line, e.message))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ))));
-        }
-
-        Ok(None)
-    }
-
-    fn validate_context(
-        &self,
-        tree: &Tree,
-        edit_result: &EditResult,
-        preview_only: bool,
-        language: &dyn LanguageSupport,
-    ) -> Result<Option<ExecutionResult>> {
-        let EditResult::Success { new_content, .. } = edit_result else {
-            return Ok(None);
-        };
-
-        let language_queries = language.queries();
-        if let Some(query) = &language_queries.validation {
-            let validation_result = ContextValidator::validate_tree(tree, query, new_content)?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(Some(ExecutionResult::ResponseOnly(format!(
-                    "{prefix}{}",
-                    validation_result.format_errors()
-                ))));
-            }
-        }
-        Ok(None)
-    }
 }
 
 fn generate_diff(source_code: &str, new_content: &str) -> String {
@@ -272,7 +236,7 @@ fn generate_diff(source_code: &str, new_content: &str) -> String {
     // Get the diff string and clean it up for AI consumption
     let diff_output = formatter.fmt_patch(&patch).to_string();
     let lines: Vec<&str> = diff_output.lines().collect();
-    let mut cleaned_diff = String::new();
+    let mut cleaned_diff = String::from("===DIFF===\n");
 
     for line in lines {
         // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
@@ -290,4 +254,78 @@ fn generate_diff(source_code: &str, new_content: &str) -> String {
         cleaned_diff.pop();
     }
     cleaned_diff
+}
+
+fn validate_tree(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
+    let errors = language.editor().collect_errors(tree, content);
+    if errors.is_empty() {
+        return None;
+    }
+    let context_lines = 3;
+    let lines_with_errors = errors.into_iter().collect::<BTreeSet<_>>();
+    let context_lines = lines_with_errors
+        .iter()
+        .copied()
+        .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
+        .collect::<BTreeSet<_>>();
+    Some(
+        std::iter::once(String::from("===SYNTAX ERRORS===\n"))
+            .chain(
+                content
+                    .lines()
+                    .enumerate()
+                    .filter(|(index, _)| context_lines.contains(index))
+                    .map(|(index, line)| {
+                        let display_index = index + 1;
+                        if lines_with_errors.contains(&index) {
+                            format!("{display_index:>4} ->⎸{line}\n")
+                        } else {
+                            format!("{display_index:>4}   ⎸{line}\n")
+                        }
+                    }),
+            )
+            .collect(),
+    )
+}
+fn validate(
+    edit_result: &EditResult,
+    parser: &mut Parser,
+    language: &LanguageCommon,
+    source_code: &str,
+    tree: &Tree,
+) -> Result<Option<String>> {
+    let EditResult::Success { new_content, .. } = &edit_result else {
+        return Ok(None);
+    };
+
+    let old_tree = if language.name() == "markdown" {
+        // workaround for a segfault in markdown
+        None
+    } else {
+        Some(tree)
+    };
+
+    let new_tree = parser
+        .parse(new_content, old_tree)
+        .ok_or_else(|| anyhow!("unable to parse tree"))?;
+
+    if let Some(errors) = validate_tree(language, &new_tree, new_content) {
+        let diff = generate_diff(source_code, new_content);
+        return Ok(Some(format!(
+            "This edit would result in invalid syntax, but the file is still in a valid state. \
+No change was performed.
+Suggestion: Try a different change.\n
+{errors}\n\n{diff}"
+        )));
+    }
+
+    if let Some(query) = language.validation_query() {
+        let validation_result = ContextValidator::validate_tree(&new_tree, query, new_content)?;
+
+        if !validation_result.is_valid {
+            return Ok(Some(validation_result.format_errors()));
+        }
+    }
+
+    Ok(None)
 }
