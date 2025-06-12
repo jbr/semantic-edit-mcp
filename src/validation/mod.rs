@@ -1,24 +1,19 @@
-use crate::parser::{detect_language_from_path, TreeSitterParser};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 mod context_validator;
 pub use context_validator::{ContextValidator, OperationType};
+use tree_sitter::Tree;
+
+use crate::languages::LanguageSupport;
 
 pub struct SyntaxValidator;
 
 impl SyntaxValidator {
-    pub fn validate_file(file_path: &str) -> Result<BasicValidationResult> {
-        let language = detect_language_from_path(file_path)
-            .ok_or_else(|| anyhow!("Unable to detect language from file path: {}", file_path))?;
-
-        let content = std::fs::read_to_string(file_path)?;
-        Self::validate_content(&content, &language)
-    }
-
-    pub fn validate_content(content: &str, language: &str) -> Result<BasicValidationResult> {
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(language, content)?;
-
+    pub fn validate_content(
+        tree: &Tree,
+        content: &str,
+        language: &dyn LanguageSupport,
+    ) -> Result<BasicValidationResult> {
         let root_node = tree.root_node();
         let has_errors = root_node.has_error();
 
@@ -29,7 +24,7 @@ impl SyntaxValidator {
 
         Ok(BasicValidationResult {
             is_valid: !has_errors,
-            language: language.to_string(),
+            language: language.language_name(),
             errors,
             warnings: Vec::new(), // TODO: Add warning detection
         })
@@ -75,9 +70,14 @@ impl SyntaxValidator {
 #[derive(Debug)]
 pub struct BasicValidationResult {
     pub is_valid: bool,
-    pub language: String,
+    pub language: &'static str,
     pub errors: Vec<SyntaxError>,
     pub warnings: Vec<SyntaxWarning>,
+}
+
+pub enum ValidationResult {
+    Performed(BasicValidationResult),
+    NotPerformed,
 }
 
 #[derive(Debug)]

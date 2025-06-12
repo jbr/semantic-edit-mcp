@@ -1,4 +1,4 @@
-Insert after operation result (syntax validation only):
+Insert after operation result:
 Successfully inserted content after fenced_code_block node
 
 ===DIFF===

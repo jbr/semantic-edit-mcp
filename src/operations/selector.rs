@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tree_sitter::{Node, Tree};
 
 /// Text-anchored node selector using content as anchor points and AST structure for navigation
@@ -12,6 +13,34 @@ pub struct NodeSelector {
 }
 
 impl NodeSelector {
+    pub fn new_from_value(args: &Value) -> Result<Self> {
+        let selector_obj = args
+            .get("selector")
+            .ok_or_else(|| anyhow!("selector is required"))?
+            .as_object()
+            .ok_or_else(|| anyhow!("selector must be an object"))?;
+
+        if let Some(anchor_text) = selector_obj.get("anchor_text").and_then(|v| v.as_str()) {
+            let ancestor_node_type = selector_obj
+                .get("ancestor_node_type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            return Ok(NodeSelector {
+                anchor_text: anchor_text.to_string(),
+                ancestor_node_type,
+            });
+        }
+
+        Err(anyhow!(
+            "Invalid selector: must specify:\n\
+             • Text-anchored: {{\"anchor_text\": \"exact text\"}}\n\
+             • With targeting: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node_type\"}}\n\
+             \n\
+             💡 Omit ancestor_node_type to explore available options around your anchor text."
+        ))
+    }
+
     /// Find a node using text-anchored selection
     pub fn find_node<'a>(
         &self,
@@ -36,7 +65,7 @@ impl NodeSelector {
 
         // Specific targeting mode - find exact ancestor type
         let ancestor_node_type = self.ancestor_node_type.as_ref().unwrap();
-        
+
         // 2. Convert positions to nodes and walk up to find ancestors
         let mut valid_targets = Vec::new();
         let mut anchor_info = Vec::new();
@@ -45,9 +74,7 @@ impl NodeSelector {
             // Convert byte position to tree-sitter node
             if let Some(anchor_node) = find_node_at_byte_position(tree, byte_pos) {
                 // Walk up to find the desired ancestor type
-                if let Some(target_node) =
-                    find_ancestor_of_type(&anchor_node, ancestor_node_type)
-                {
+                if let Some(target_node) = find_ancestor_of_type(&anchor_node, ancestor_node_type) {
                     valid_targets.push(target_node);
 
                     // Get context for error reporting
@@ -111,10 +138,9 @@ impl NodeSelector {
     ) -> Result<Option<Node<'a>>> {
         self.find_node(tree, source_code, language)
     }
-    
 
     /// Exploration mode: return information about available targeting options
-        /// Exploration mode: return information about available targeting options
+    /// Exploration mode: return information about available targeting options
     fn explore_around_anchors<'a>(
         &self,
         tree: &'a Tree,
@@ -148,7 +174,7 @@ impl NodeSelector {
                     exploration_report.push_str("   Available ancestor_node_type options:\n");
                     for (j, ancestor_type) in ancestor_chain.iter().enumerate() {
                         exploration_report.push_str(&format!("   • \"{}\"\n", ancestor_type));
-                        
+
                         // Show selector example for the first few options
                         if j < 3 {
                             exploration_report.push_str(&format!(
@@ -161,11 +187,14 @@ impl NodeSelector {
 
                 // Show current focus node and its position in hierarchy
                 exploration_report.push_str(&format!("   Focus node: {}\n", anchor_node.kind()));
-                
+
                 // Show structural context: what contains what
                 if let Some(parent) = anchor_node.parent() {
-                    exploration_report.push_str(&format!("   Parent: {} → {}\n", 
-                        parent.kind(), anchor_node.kind()));
+                    exploration_report.push_str(&format!(
+                        "   Parent: {} → {}\n",
+                        parent.kind(),
+                        anchor_node.kind()
+                    ));
                 }
             }
             exploration_report.push('\n');
@@ -173,9 +202,12 @@ impl NodeSelector {
 
         // Add AST structure education
         exploration_report.push_str("⚠️  **AST Structure Note**: Comments and attributes are siblings to functions in the AST, not parents.\n");
-        exploration_report.push_str("   If your anchor_text includes comments/attributes with a function:\n");
+        exploration_report
+            .push_str("   If your anchor_text includes comments/attributes with a function:\n");
         exploration_report.push_str("   • Use anchor text from INSIDE the function body, or\n");
-        exploration_report.push_str("   • Target the comment/attribute separately if that's what you want to edit\n\n");
+        exploration_report.push_str(
+            "   • Target the comment/attribute separately if that's what you want to edit\n\n",
+        );
 
         exploration_report.push_str("**Next Steps**:\n");
         exploration_report.push_str("1. Pick an ancestor_node_type from the options above\n");
@@ -409,8 +441,6 @@ fn suggest_ancestor_type(
 }
 
 /// Simple Levenshtein distance calculation/// Get a human-readable description of an AST node type
-
-
 
 fn levenshtein_distance(a: &str, b: &str) -> usize {
     let a_chars: Vec<char> = a.chars().collect();

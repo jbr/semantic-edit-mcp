@@ -1,5 +1,4 @@
 use crate::handlers::RequestHandler;
-use crate::parser::TreeSitterParser;
 use crate::server::{McpMessage, McpRequest, McpResponse, Tool, ToolCallParams};
 use crate::tools::ToolRegistry;
 use anyhow::Result;
@@ -8,21 +7,18 @@ use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub struct SemanticEditServer {
     tools: Vec<Tool>,
-    _parser: TreeSitterParser,
     tool_registry: ToolRegistry,
     request_handler: RequestHandler,
 }
 
 impl SemanticEditServer {
     pub fn new() -> Result<Self> {
-        let _parser = TreeSitterParser::new()?;
         let tool_registry = ToolRegistry::new()?;
         let tools = tool_registry.get_tools();
         let request_handler = RequestHandler::new();
 
         Ok(Self {
             tools,
-            _parser,
             tool_registry,
             request_handler,
         })

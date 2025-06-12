@@ -21,7 +21,6 @@ mod tests {
     }
 }
 
-// Helper function with attributes
 #[inline]
 #[must_use]
 pub fn helper_function() -> String {

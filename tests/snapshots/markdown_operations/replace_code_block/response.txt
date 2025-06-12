@@ -1,4 +1,4 @@
-Replace operation result (syntax validation only):
+Replace operation result:
 Successfully replaced fenced_code_block node
 
 ===DIFF===

@@ -2,11 +2,11 @@ use crate::languages::semantic_grouping::{GroupingRule, SemanticGrouping, WithSe
 use crate::languages::traits::{
     LanguageEditor, LanguageParser, LanguageQueries, LanguageSupport, NodeTypeInfo,
 };
-use crate::operations::{EditOperation, EditResult, NodeSelector};
-use crate::parser::{get_node_text, TreeSitterParser};
+use crate::operations::{EditResult, NodeSelector};
+use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
 use ropey::Rope;
-use tree_sitter::{Language, Node, StreamingIterator, Tree};
+use tree_sitter::{Language, Node, Query, StreamingIterator, Tree};
 
 pub struct RustLanguage;
 
@@ -30,10 +30,8 @@ impl LanguageSupport for RustLanguage {
     }
 
     fn get_node_types(&self) -> Result<Vec<NodeTypeInfo>> {
-        // For now, return a basic set of Rust node types
-        // In a full implementation, this would load from node-types.json
         Ok(vec![
-            crate::languages::traits::NodeTypeInfo::new(
+            NodeTypeInfo::new(
                 "function_item".to_string(),
                 true,
                 vec![
@@ -42,17 +40,17 @@ impl LanguageSupport for RustLanguage {
                     "body".to_string(),
                 ],
             ),
-            crate::languages::traits::NodeTypeInfo::new(
+            NodeTypeInfo::new(
                 "struct_item".to_string(),
                 true,
                 vec!["name".to_string(), "body".to_string()],
             ),
-            crate::languages::traits::NodeTypeInfo::new(
+            NodeTypeInfo::new(
                 "impl_item".to_string(),
                 true,
                 vec!["type".to_string(), "body".to_string()],
             ),
-            crate::languages::traits::NodeTypeInfo::new(
+            NodeTypeInfo::new(
                 "mod_item".to_string(),
                 true,
                 vec!["name".to_string(), "body".to_string()],
@@ -61,7 +59,12 @@ impl LanguageSupport for RustLanguage {
     }
 
     fn load_queries(&self) -> Result<LanguageQueries> {
-        Ok(LanguageQueries::new())
+        let mut lq = LanguageQueries::new();
+        lq.validation_queries = Some(Query::new(
+            &self.tree_sitter_language(),
+            include_str!("../../queries/rust/validation.scm"),
+        )?);
+        Ok(lq)
     }
 
     fn parser(&self) -> Box<dyn LanguageParser> {
@@ -117,16 +120,10 @@ impl WithSemanticGrouping for RustLanguage {
     }
 }
 
-pub struct RustParser {
-    tree_sitter_parser: TreeSitterParser,
-}
-
+pub struct RustParser;
 impl RustParser {
     pub fn new() -> Self {
-        Self {
-            tree_sitter_parser: TreeSitterParser::new()
-                .expect("Failed to create TreeSitter parser"),
-        }
+        Self
     }
 }
 
@@ -262,181 +259,21 @@ impl RustEditor {
 }
 
 impl LanguageEditor for RustEditor {
-    fn apply_operation(&self, operation: &EditOperation, source: &str) -> Result<EditResult> {
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse("rust", source)?;
-
-        match operation {
-            EditOperation::Replace {
-                target,
-                new_content,
-                preview_only,
-            } => {
-                let mut result =
-                    self.replace_node_with_grouping(&tree, source, target, new_content)?;
-                if preview_only.unwrap_or(false) {
-                    result.set_message(format!("PREVIEW: {}", result.message()));
-                }
-                Ok(result)
-            }
-            EditOperation::InsertBefore {
-                target,
-                content,
-                preview_only,
-            } => {
-                let mut result =
-                    self.insert_before_node_with_grouping(&tree, source, target, content)?;
-                if preview_only.unwrap_or(false) {
-                    result.set_message(format!("PREVIEW: {}", result.message()));
-                }
-                Ok(result)
-            }
-            EditOperation::InsertAfter {
-                target,
-                content,
-                preview_only,
-            } => {
-                let mut result =
-                    self.insert_after_node_with_grouping(&tree, source, target, content)?;
-                if preview_only.unwrap_or(false) {
-                    result.set_message(format!("PREVIEW: {}", result.message()));
-                }
-                Ok(result)
-            }
-            EditOperation::Wrap {
-                target,
-                wrapper_template,
-                preview_only,
-            } => {
-                let mut result =
-                    self.wrap_node_with_grouping(&tree, source, target, wrapper_template)?;
-                if preview_only.unwrap_or(false) {
-                    result.set_message(format!("PREVIEW: {}", result.message()));
-                }
-                Ok(result)
-            }
-            EditOperation::Delete {
-                target,
-                preview_only,
-            } => {
-                let mut result = self.delete_node_with_grouping(&tree, source, target)?;
-                if preview_only.unwrap_or(false) {
-                    result.set_message(format!("PREVIEW: {}", result.message()));
-                }
-                Ok(result)
-            }
-        }
-    }
-
-    fn get_node_info(&self, tree: &Tree, source: &str, selector: &NodeSelector) -> Result<String> {
-        let node = selector
-            .find_node_with_suggestions(tree, source, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
-        // Use semantic grouping to provide richer information
-        let group = self.rust_language.find_semantic_group(tree, node)?;
-
-        let node_text = get_node_text(&node, source);
-        let start_pos = node.start_position();
-        let end_pos = node.end_position();
-
-        let mut info = format!(
-            "Node Information:\n\
-            - Kind: {}\n\
-            - Start: {}:{}\n\
-            - End: {}:{}\n\
-            - Byte range: {}-{}\n",
-            node.kind(),
-            start_pos.row + 1,
-            start_pos.column + 1,
-            end_pos.row + 1,
-            end_pos.column + 1,
-            node.start_byte(),
-            node.end_byte()
-        );
-
-        // Add semantic grouping information
-        if group.has_preceding_elements() || group.has_following_elements() {
-            info.push_str("\nSemantic Group:\n");
-            if group.has_preceding_elements() {
-                info.push_str(&format!(
-                    "- {} preceding elements: ",
-                    group.preceding_nodes.len()
-                ));
-                let types: Vec<String> = group
-                    .preceding_nodes
-                    .iter()
-                    .map(|n| n.kind().to_string())
-                    .collect();
-                info.push_str(&types.join(", "));
-                info.push('\n');
-            }
-            if group.has_following_elements() {
-                info.push_str(&format!(
-                    "- {} following elements: ",
-                    group.following_nodes.len()
-                ));
-                let types: Vec<String> = group
-                    .following_nodes
-                    .iter()
-                    .map(|n| n.kind().to_string())
-                    .collect();
-                info.push_str(&types.join(", "));
-                info.push('\n');
-            }
-
-            let (group_start, group_end) = group.byte_range();
-            info.push_str(&format!("- Group byte range: {group_start}-{group_end}\n",));
-        }
-
-        info.push_str(&format!(
-            "- Content: {}\n",
-            if node_text.len() > 100 {
-                format!("{}...", &node_text[..100])
-            } else {
-                node_text.to_string()
-            }
-        ));
-
-        Ok(info)
-    }
-
     fn format_code(&self, source: &str) -> Result<String> {
         // For now, just return the original code
         // In a full implementation, we'd integrate with rustfmt
         Ok(source.to_string())
     }
 
-    fn validate_replacement(&self, original: &str, node: &Node, replacement: &str) -> Result<bool> {
-        // Create a temporary version with the replacement
-        let rope = Rope::from_str(original);
-        let start_char = rope.byte_to_char(node.start_byte());
-        let end_char = rope.byte_to_char(node.end_byte());
-
-        let mut temp_rope = rope.clone();
-        temp_rope.remove(start_char..end_char);
-        temp_rope.insert(start_char, replacement);
-
-        let temp_code = temp_rope.to_string();
-
-        // Parse and check for syntax errors
-        validate_rust_syntax(&temp_code)
-    }
-}
-
-impl RustEditor {
     /// Replace a node using semantic grouping to determine the appropriate range
-    fn replace_node_with_grouping(
+    fn replace<'tree>(
         &self,
+        node: Node<'tree>,
         tree: &Tree,
         source_code: &str,
-        selector: &NodeSelector,
+        _selector: &NodeSelector,
         new_content: &str,
     ) -> Result<EditResult> {
-        let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
         // Use semantic grouping to calculate the replacement range
         let (actual_start_byte, actual_end_byte) =
             self.rust_language
@@ -465,17 +302,7 @@ impl RustEditor {
         new_rope.remove(start_char..end_char);
         new_rope.insert(start_char, new_content);
 
-        // Get semantic group information for better messaging
-        let group = self.rust_language.find_semantic_group(tree, node)?;
-        let message = if group.has_preceding_elements() {
-            format!(
-                "Successfully replaced {} node with {} preceding elements",
-                node.kind(),
-                group.preceding_nodes.len()
-            )
-        } else {
-            format!("Successfully replaced {} node", node.kind())
-        };
+        let message = format!("Successfully replaced {} node", node.kind());
 
         Ok(EditResult::Success {
             message,
@@ -485,17 +312,14 @@ impl RustEditor {
     }
 
     /// Insert before a node using semantic grouping
-    fn insert_before_node_with_grouping(
+    fn insert_before<'tree>(
         &self,
+        node: Node<'tree>,
         tree: &Tree,
         source_code: &str,
-        selector: &NodeSelector,
+        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
-        let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
         let (insert_pos, _) = self
             .rust_language
             .calculate_insertion_range(tree, node, true)?;
@@ -516,17 +340,7 @@ impl RustEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(insert_char, &content_with_newline);
 
-        // Get semantic group for better messaging
-        let group = self.rust_language.find_semantic_group(tree, node)?;
-        let message = if group.has_preceding_elements() {
-            format!(
-                "Successfully inserted content before {} group (including {} preceding elements)",
-                node.kind(),
-                group.preceding_nodes.len()
-            )
-        } else {
-            format!("Successfully inserted content before {} node", node.kind())
-        };
+        let message = format!("Successfully inserted content before {} node", node.kind());
 
         Ok(EditResult::Success {
             message,
@@ -536,17 +350,14 @@ impl RustEditor {
     }
 
     /// Insert after a node using semantic grouping
-    fn insert_after_node_with_grouping(
+    fn insert_after<'tree>(
         &self,
+        node: Node<'tree>,
         tree: &Tree,
         source_code: &str,
-        selector: &NodeSelector,
+        _selector: &NodeSelector,
         content: &str,
     ) -> Result<EditResult> {
-        let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
         let (insert_pos, _) = self
             .rust_language
             .calculate_insertion_range(tree, node, false)?;
@@ -568,17 +379,7 @@ impl RustEditor {
         let mut new_rope = rope.clone();
         new_rope.insert(insert_char, &content_with_newline);
 
-        // Get semantic group for better messaging
-        let group = self.rust_language.find_semantic_group(tree, node)?;
-        let message = if group.has_following_elements() {
-            format!(
-                "Successfully inserted content after {} group (including {} following elements)",
-                node.kind(),
-                group.following_nodes.len()
-            )
-        } else {
-            format!("Successfully inserted content after {} node", node.kind())
-        };
+        let message = format!("Successfully inserted content after {} node", node.kind());
 
         Ok(EditResult::Success {
             message,
@@ -588,17 +389,14 @@ impl RustEditor {
     }
 
     /// Wrap a node using semantic grouping
-    fn wrap_node_with_grouping(
+    fn wrap<'tree>(
         &self,
+        node: Node<'tree>,
         tree: &Tree,
         source_code: &str,
-        selector: &NodeSelector,
+        _selector: &NodeSelector,
         wrapper_template: &str,
     ) -> Result<EditResult> {
-        let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
         if !wrapper_template.contains("{{content}}") {
             return Err(anyhow!(
                 "Wrapper template must contain {{content}} placeholder"
@@ -650,16 +448,13 @@ impl RustEditor {
     }
 
     /// Delete a node using semantic grouping
-    fn delete_node_with_grouping(
+    fn delete(
         &self,
+        node: Node,
         tree: &Tree,
         source_code: &str,
-        selector: &NodeSelector,
+        _selector: &NodeSelector,
     ) -> Result<EditResult> {
-        let node = selector
-            .find_node_with_suggestions(tree, source_code, "rust")?
-            .ok_or_else(|| anyhow!("Target node not found"))?;
-
         // Get the semantic group
         let group = self.rust_language.find_semantic_group(tree, node)?;
         let (group_start, group_end) = group.byte_range();
@@ -688,6 +483,24 @@ impl RustEditor {
         })
     }
 
+    fn validate_replacement(&self, original: &str, node: &Node, replacement: &str) -> Result<bool> {
+        // Create a temporary version with the replacement
+        let rope = Rope::from_str(original);
+        let start_char = rope.byte_to_char(node.start_byte());
+        let end_char = rope.byte_to_char(node.end_byte());
+
+        let mut temp_rope = rope.clone();
+        temp_rope.remove(start_char..end_char);
+        temp_rope.insert(start_char, replacement);
+
+        let temp_code = temp_rope.to_string();
+
+        // Parse and check for syntax errors
+        validate_rust_syntax(&temp_code)
+    }
+}
+
+impl RustEditor {
     /// Validate replacement with custom byte range
     fn validate_replacement_with_range(
         &self,

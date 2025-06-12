@@ -30,3 +30,11 @@
 (function_item
   body: (block
     [(const_item) (static_item)] @invalid.const.in.function.body))
+
+(function_item 
+  body: (block
+    [(struct_item) (enum_item) (union_item)] @invalid.type.in.function.body))
+
+(function_item
+  body: (block
+    (trait_item) @invalid.trait.in.function.body))

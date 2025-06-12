@@ -1,4 +1,4 @@
-Insert after operation result (syntax validation only):
+Insert after operation result:
 Successfully inserted content after pipe_table_row node
 
 ===DIFF===

@@ -1,35 +1,38 @@
 use std::borrow::Cow;
 
+use crate::languages::LanguageSupport;
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
+use crate::validation::{ContextValidator, OperationType, SyntaxValidator, ValidationResult};
 use crate::{languages::LanguageRegistry, validation};
 use anyhow::{anyhow, Result};
+use tree_sitter::{Node, Parser, Tree};
 
 #[derive(Debug, Clone)]
 pub enum EditOperation {
     Replace {
         target: NodeSelector,
         new_content: String,
-        preview_only: Option<bool>,
+        preview_only: bool,
     },
     InsertBefore {
         target: NodeSelector,
         content: String,
-        preview_only: Option<bool>,
+        preview_only: bool,
     },
     InsertAfter {
         target: NodeSelector,
         content: String,
-        preview_only: Option<bool>,
+        preview_only: bool,
     },
     Wrap {
         target: NodeSelector,
         wrapper_template: String,
-        preview_only: Option<bool>,
+        preview_only: bool,
     },
     Delete {
         target: NodeSelector,
-        preview_only: Option<bool>,
+        preview_only: bool,
     },
 }
 
@@ -62,11 +65,11 @@ impl EditResult {
 impl EditOperation {
     pub fn is_preview_only(&self) -> bool {
         match self {
-            EditOperation::Replace { preview_only, .. } => preview_only.unwrap_or(false),
-            EditOperation::InsertBefore { preview_only, .. } => preview_only.unwrap_or(false),
-            EditOperation::InsertAfter { preview_only, .. } => preview_only.unwrap_or(false),
-            EditOperation::Wrap { preview_only, .. } => preview_only.unwrap_or(false),
-            EditOperation::Delete { preview_only, .. } => preview_only.unwrap_or(false),
+            EditOperation::Replace { preview_only, .. } => *preview_only,
+            EditOperation::InsertBefore { preview_only, .. } => *preview_only,
+            EditOperation::InsertAfter { preview_only, .. } => *preview_only,
+            EditOperation::Wrap { preview_only, .. } => *preview_only,
+            EditOperation::Delete { preview_only, .. } => *preview_only,
         }
     }
 
@@ -106,97 +109,48 @@ impl EditOperation {
     }
 
     /// Apply operation with full validation pipeline
-    pub fn apply_with_validation(
+    pub fn apply(
         &self,
-        language_hint: Option<String>,
+        language: &dyn LanguageSupport,
         file_path: &str,
         preview_only: bool,
     ) -> Result<ExecutionResult> {
-        use crate::parser::{detect_language_from_path, TreeSitterParser};
-        use crate::validation::SyntaxValidator;
-
         let source_code = std::fs::read_to_string(file_path)?;
-
-        let language = language_hint
-            .map(Cow::Owned)
-            .or_else(|| detect_language_from_path(file_path).map(Cow::Borrowed))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
-
-        // Parse tree (needed for validation)
-        let mut parser = TreeSitterParser::new()?;
-        let tree = parser.parse(&language, &source_code)?;
+        let mut parser = language.tree_sitter_parser();
+        let tree = parser
+            .parse(&source_code, None)
+            .ok_or_else(|| anyhow!("failed to parse {}", language.language_name()))?;
 
         // Find target node using new text-anchored selection
         let target_node = self
             .target_selector()
-            .find_node_with_suggestions(&tree, &source_code, &language)?
+            .find_node_with_suggestions(&tree, &source_code, language.language_name())?
             .ok_or_else(|| anyhow!("Target node not found"))?;
 
-        // Context validation
-        let validator = validation::ContextValidator::new()?;
-        if validator.supports_language(&language) {
-            let operation_type = match self {
-                EditOperation::Replace { .. } => validation::OperationType::Replace,
-                EditOperation::InsertBefore { .. } => validation::OperationType::InsertBefore,
-                EditOperation::InsertAfter { .. } => validation::OperationType::InsertAfter,
-                EditOperation::Wrap { .. } => validation::OperationType::Wrap,
-                EditOperation::Delete { .. } => {
-                    return Err(anyhow!(
-                        "Delete operation not yet supported with validation"
-                    ))
-                }
-            };
+        // Apply operation
+        let edit_result = self.apply_inner(target_node, &tree, &source_code, language)?;
 
-            let validation_result = validator.validate_insertion(
-                &tree,
-                &source_code,
-                &target_node,
-                self.content(),
-                &language,
-                &operation_type,
-            )?;
-
-            if !validation_result.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(ExecutionResult::ResponseOnly(format!(
-                    "{prefix}{}",
-                    validation_result.format_errors()
-                )));
-            }
+        if let Some(invalid_syntax_response) =
+            self.validate_syntax(&tree, &edit_result, preview_only, language)?
+        {
+            return Ok(invalid_syntax_response);
         }
 
-        // Apply operation
-        let result = self.apply(&source_code, &language)?;
-
-        // Syntax validation and file writing
-        if let EditResult::Success { new_content, .. } = &result {
-            let validation = SyntaxValidator::validate_content(new_content, &language)?;
-
-            if !validation.is_valid {
-                let prefix = if preview_only { "PREVIEW: " } else { "" };
-                return Ok(ExecutionResult::ResponseOnly(format!(
-                    "{prefix}❌ Edit would create invalid syntax and was blocked:\n{}",
-                    validation
-                        .errors
-                        .iter()
-                        .map(|e| format!("  Line {}: {}", e.line, e.message))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )));
-            }
+        if let Some(invalid_context_response) =
+            self.validate_context(&tree, &edit_result, preview_only, language)?
+        {
+            return Ok(invalid_context_response);
         }
 
         // Format response
         if preview_only {
             // Generate contextual preview showing insertion point
             return self
-                .generate_contextual_preview(&target_node, &source_code, &language)
+                .generate_contextual_preview(&edit_result, &source_code)
                 .map(ExecutionResult::ResponseOnly);
         }
 
-        match result {
+        match edit_result {
             EditResult::Success {
                 message,
                 new_content,
@@ -204,14 +158,8 @@ impl EditOperation {
             } => {
                 let diff = generate_diff(&source_code, &new_content);
 
-                // Normal response for actual operations
-                let validation_note = if validator.supports_language(&language) {
-                    "with context validation"
-                } else {
-                    "syntax validation only"
-                };
                 let response = format!(
-                    "{} operation result ({validation_note}):\n{message}\n\n===DIFF===\n{diff}",
+                    "{} operation result:\n{message}\n\n===DIFF===\n{diff}",
                     self.operation_name(),
                 );
                 Ok(ExecutionResult::Change {
@@ -226,27 +174,27 @@ impl EditOperation {
     }
 
     /// Apply the edit operation to source code
-    fn apply(&self, source_code: &str, language: &str) -> Result<EditResult> {
-        if let Ok(registry) = LanguageRegistry::new() {
-            if let Some(lang_support) = registry.get_language(language) {
-                let editor = lang_support.editor();
-                return editor.apply_operation(self, source_code);
-            }
+    fn apply_inner<'tree>(
+        &self,
+        target_node: Node<'tree>,
+        tree: &Tree,
+        source_code: &str,
+        language: &dyn LanguageSupport,
+    ) -> Result<EditResult> {
+        let editor = language.editor();
+        let mut edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
+        if self.is_preview_only() {
+            edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
         }
-
-        Err(anyhow!("Unsupported language for editing: {language}"))
+        return Ok(edit_result);
     }
 
     /// Generate contextual preview showing changes using diff format
     fn generate_contextual_preview(
         &self,
-        _target_node: &tree_sitter::Node<'_>,
+        result: &EditResult,
         source_code: &str,
-        language: &str,
     ) -> Result<String> {
-        // Apply the actual operation to get the new content
-        let result = self.apply(source_code, language)?;
-
         if let EditResult::Success { new_content, .. } = &result {
             let mut preview = String::new();
 
@@ -272,6 +220,61 @@ impl EditOperation {
         } else {
             Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
         }
+    }
+
+    fn validate_syntax(
+        &self,
+        tree: &Tree,
+        edit_result: &EditResult,
+        preview_only: bool,
+        language: &dyn LanguageSupport,
+    ) -> Result<Option<ExecutionResult>> {
+        let EditResult::Success { new_content, .. } = edit_result else {
+            return Ok(None);
+        };
+        let validation = SyntaxValidator::validate_content(&tree, new_content, language)?;
+
+        if !validation.is_valid {
+            let prefix = if preview_only { "PREVIEW: " } else { "" };
+            return Ok(Some(ExecutionResult::ResponseOnly(format!(
+                "{prefix}❌ Edit would create invalid syntax and was blocked:\n{}",
+                validation
+                    .errors
+                    .iter()
+                    .map(|e| format!("  Line {}: {}", e.line, e.message))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ))));
+        }
+
+        Ok(None)
+    }
+
+    fn validate_context(
+        &self,
+        tree: &Tree,
+        edit_result: &EditResult,
+        preview_only: bool,
+        language: &dyn LanguageSupport,
+    ) -> Result<Option<ExecutionResult>> {
+        let EditResult::Success { new_content, .. } = edit_result else {
+            return Ok(None);
+        };
+
+        let language_queries = language.load_queries()?;
+        if let Some(query) = language_queries.validation_queries {
+            let validation_result =
+                ContextValidator::validate_tree(language, tree, &query, new_content)?;
+
+            if !validation_result.is_valid {
+                let prefix = if preview_only { "PREVIEW: " } else { "" };
+                return Ok(Some(ExecutionResult::ResponseOnly(format!(
+                    "{prefix}{}",
+                    validation_result.format_errors()
+                ))));
+            }
+        }
+        Ok(None)
     }
 }
 

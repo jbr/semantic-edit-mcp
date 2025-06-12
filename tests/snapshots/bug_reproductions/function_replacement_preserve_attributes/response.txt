@@ -1,4 +1,4 @@
-Replace operation result (with context validation):
+Replace operation result:
 Successfully replaced function_item node
 
 ===DIFF===

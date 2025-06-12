@@ -1,4 +1,4 @@
-Replace operation result (syntax validation only):
+Replace operation result:
 Successfully replaced atx_heading node
 
 ===DIFF===
