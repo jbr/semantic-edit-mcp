@@ -1,0 +1,1 @@
+Node types you can use for json: _value, array, document, object, pair, string, comment, escape_sequence, false, null, number, string_content, true

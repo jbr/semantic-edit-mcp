@@ -1,8 +1,5 @@
-use std::borrow::Cow;
-
 use crate::languages::LanguageRegistry;
 use crate::operations::{EditOperation, NodeSelector};
-use crate::parser::detect_language_from_path;
 use crate::server::{Tool, ToolCallParams};
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
@@ -40,32 +37,40 @@ impl ToolRegistry {
     pub fn new() -> Result<Self> {
         let tools = vec![
             Tool {
-                name: "replace_node".to_string(),
-                description: "Replace an entire AST node with new content".to_string(),
+                name: "read_documentation",
+                description:
+                    "Read the docs for this tool. Do this once for each language used per session.",
+                input_schema: serde_json::from_str(include_str!(
+                    "../schemas/read_documentation.json"
+                ))?,
+            },
+            Tool {
+                name: "replace_node",
+                description: "Replace an entire AST node with new content",
                 input_schema: serde_json::from_str(include_str!("../schemas/replace_node.json"))?,
             },
             Tool {
-                name: "remove_node".to_string(),
-                description: "Remove an entire AST node".to_string(),
+                name: "remove_node",
+                description: "Remove an entire AST node",
                 input_schema: serde_json::from_str(include_str!("../schemas/remove_node.json"))?,
             },
             Tool {
-                name: "insert_before_node".to_string(),
-                description: "Insert content before a specified AST node".to_string(),
+                name: "insert_before_node",
+                description: "Insert content before a specified AST node",
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_before_node.json"
                 ))?,
             },
             Tool {
-                name: "insert_after_node".to_string(),
-                description: "Insert content after a specified AST node".to_string(),
+                name: "insert_after_node",
+                description: "Insert content after a specified AST node",
                 input_schema: serde_json::from_str(include_str!(
                     "../schemas/insert_after_node.json"
                 ))?,
             },
             Tool {
-                name: "wrap_node".to_string(),
-                description: "Wrap an AST node with new syntax".to_string(),
+                name: "wrap_node",
+                description: "Wrap an AST node with new syntax",
                 input_schema: serde_json::from_str(include_str!("../schemas/wrap_node.json"))?,
             },
         ];
@@ -83,6 +88,18 @@ impl ToolRegistry {
     pub async fn execute_tool(&self, tool_call: &ToolCallParams) -> Result<ExecutionResult> {
         let empty_args = json!({});
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
+
+        if tool_call.name == "read_documentation" {
+            let language = args
+                .get("language")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow!("language is required"))?;
+
+            return Ok(ExecutionResult::ResponseOnly(
+                self.language_registry.get_documentation(language)?,
+            ));
+        }
+
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())

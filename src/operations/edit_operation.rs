@@ -82,19 +82,6 @@ impl EditOperation {
         }
     }
 
-    /// Get the content for this operation
-    pub fn content(&self) -> &str {
-        match self {
-            EditOperation::Replace { new_content, .. } => new_content,
-            EditOperation::InsertBefore { content, .. } => content,
-            EditOperation::InsertAfter { content, .. } => content,
-            EditOperation::Wrap {
-                wrapper_template, ..
-            } => wrapper_template,
-            EditOperation::Delete { .. } => "",
-        }
-    }
-
     /// Get a human-readable operation name
     pub fn operation_name(&self) -> &str {
         match self {

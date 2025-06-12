@@ -43,8 +43,8 @@ pub struct McpError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tool {
-    pub name: String,
-    pub description: String,
+    pub name: &'static str,
+    pub description: &'static str,
     #[serde(rename = "inputSchema")]
     pub input_schema: Value,
 }

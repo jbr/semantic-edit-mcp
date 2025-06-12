@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "language": {
+      "type": "string",
+      "description": "Language to read the documentation for",
+      "enum": ["rust", "json", "markdown"]
+    }
+  },
+  "required": ["language"],
+  "additionalProperties": false
+}

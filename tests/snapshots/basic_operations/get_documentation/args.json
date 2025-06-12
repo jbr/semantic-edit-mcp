@@ -1,0 +1,6 @@
+{
+  "tool": "read_documentation",
+  "arguments": {
+    "language": "json"
+  }
+}

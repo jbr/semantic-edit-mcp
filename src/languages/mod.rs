@@ -9,8 +9,6 @@ pub mod utils;
 #[cfg(test)]
 mod semantic_grouping_tests;
 
-// Re-export key types for easier access
-pub use query_parser::QueryBasedParser;
 pub use traits::LanguageSupport;
 
 use anyhow::{anyhow, Result};
@@ -87,5 +85,20 @@ impl LanguageRegistry {
     pub fn detect_language_from_path(&self, file_path: &str) -> Option<&'static str> {
         let extension = Path::new(file_path).extension()?.to_str()?;
         self.extensions.get(extension).copied()
+    }
+
+    pub(crate) fn get_documentation(&self, language: &str) -> Result<String> {
+        let language = self
+            .get_language(language)
+            .ok_or_else(|| anyhow!("language not recogized"))?;
+        let node_types = language.node_types();
+        let name = language.language_name();
+        let named_types = node_types
+            .iter()
+            .filter(|nt| nt.named)
+            .map(|nt| &*nt.node_type)
+            .collect::<Vec<_>>()
+            .join(", ");
+        Ok(format!("Node types you can use for {name}: {named_types}"))
     }
 }
