@@ -121,6 +121,12 @@ impl WithSemanticGrouping for RustLanguage {
 }
 
 pub struct RustParser;
+impl Default for RustParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RustParser {
     pub fn new() -> Self {
         Self
@@ -248,6 +254,12 @@ impl LanguageParser for RustParser {
 
 pub struct RustEditor {
     rust_language: RustLanguage,
+}
+
+impl Default for RustEditor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RustEditor {

@@ -184,10 +184,8 @@ pub trait SemanticGrouping {
                 gap_count = 0; // Reset gap count
             } else if self.is_gap_node(&current_node) {
                 gap_count += 1;
-                if gap_count > rule.max_gap_nodes {
-                    if rule.require_consecutive {
-                        break;
-                    }
+                if gap_count > rule.max_gap_nodes && rule.require_consecutive {
+                    break;
                 }
             } else {
                 // Hit a non-matching, non-gap node
@@ -242,10 +240,8 @@ pub trait SemanticGrouping {
                 gap_count = 0; // Reset gap count
             } else if self.is_gap_node(&current_node) {
                 gap_count += 1;
-                if gap_count > rule.max_gap_nodes {
-                    if rule.require_consecutive {
-                        break;
-                    }
+                if gap_count > rule.max_gap_nodes && rule.require_consecutive {
+                    break;
                 }
             } else {
                 // Hit a non-matching, non-gap node

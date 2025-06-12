@@ -1,12 +1,9 @@
-use std::borrow::Cow;
-
 use crate::languages::LanguageSupport;
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
-use crate::validation::{ContextValidator, OperationType, SyntaxValidator, ValidationResult};
-use crate::{languages::LanguageRegistry, validation};
+use crate::validation::{ContextValidator, SyntaxValidator};
 use anyhow::{anyhow, Result};
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Tree};
 
 #[derive(Debug, Clone)]
 pub enum EditOperation {
@@ -186,7 +183,7 @@ impl EditOperation {
         if self.is_preview_only() {
             edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
         }
-        return Ok(edit_result);
+        Ok(edit_result)
     }
 
     /// Generate contextual preview showing changes using diff format
@@ -232,7 +229,7 @@ impl EditOperation {
         let EditResult::Success { new_content, .. } = edit_result else {
             return Ok(None);
         };
-        let validation = SyntaxValidator::validate_content(&tree, new_content, language)?;
+        let validation = SyntaxValidator::validate_content(tree, new_content, language)?;
 
         if !validation.is_valid {
             let prefix = if preview_only { "PREVIEW: " } else { "" };
