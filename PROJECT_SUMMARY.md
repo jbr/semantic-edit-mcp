@@ -144,9 +144,8 @@ All 16 tools support `preview_only: true` for zero-risk testing:
   "arguments": {
     "file_path": "src/main.rs",
     "selector": {"type": "function_item", "name": "main"},
-    "new_content": "fn main() -> Result<(), Box<dyn Error>> { Ok(()) }",
-    "preview_only": true
-  }
+    "content": "fn main() -> Result<(), Box<dyn Error>> { Ok(()) }",
+    }
 }
 
 // JSON property addition with syntax validation
@@ -156,8 +155,7 @@ All 16 tools support `preview_only: true` for zero-risk testing:
     "file_path": "package.json",
     "selector": {"line": 3, "column": 20},
     "content": ",\n  \"description\": \"Updated package\"",
-    "preview_only": false
-  }
+    }
 }
 ```
 
@@ -170,8 +168,7 @@ All 16 tools support `preview_only: true` for zero-risk testing:
     "file_path": "src/lib.rs", 
     "struct_name": "Point",
     "content": "impl Display for Point { /* implementation */ }",
-    "preview_only": false
-  }
+    }
 }
 
 // Smart module-level insertion
@@ -253,9 +250,8 @@ fn calculate_total(items: &[Item]) -> f64 {
   "arguments": {
     "file_path": "src/calc.rs",
     "selector": {"type": "function_item", "name": "calculate_total"},
-    "new_content": "fn calculate_total(items: &[Item]) -> Result<f64, TaxError> {\n    // Safe implementation\n    Ok(total)\n}",
-    "preview_only": true
-  }
+    "content": "fn calculate_total(items: &[Item]) -> Result<f64, TaxError> {\n    // Safe implementation\n    Ok(total)\n}",
+    }
 }
 ```
 

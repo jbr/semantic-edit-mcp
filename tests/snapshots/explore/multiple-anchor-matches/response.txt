@@ -1,0 +1,41 @@
+anchor_text `var` with ancestor_node_type `function_item` matches 2 nodes
+Occurrences:
+pub fn main() {\n    match std::env::var("x") ...
+
+pub fn other() {\n    let my_var = "var";\n}
+
+Suggestions: 
+-> Use more specific anchor text to distinguish between matches
+-> use the read_documentation tool if you have not yet done so
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "var",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: None,
+    },
+    file_path: "tests/snapshots/explore/multiple-anchor-matches/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+anchor_text `var` with ancestor_node_type `function_item` matches 2 nodes
+Occurrences:
+pub fn main() {\n    match std::env::var("x") ...
+
+pub fn other() {\n    let my_var = "var";\n}
+
+Suggestions: 
+-> Use more specific anchor text to distinguish between matches
+-> use the read_documentation tool if you have not yet done so

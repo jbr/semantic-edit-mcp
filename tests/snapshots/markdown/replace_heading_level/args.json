@@ -1,11 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "## Important Section",
       "ancestor_node_type": "atx_heading"
     },
-    "new_content": "### Important Section (Now Subsection)",
-    "preview_only": false
-  }
+    "content": "### Important Section (Now Subsection)"
+    }
 }

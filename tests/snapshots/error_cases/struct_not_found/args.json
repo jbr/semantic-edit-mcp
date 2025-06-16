@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "NonexistentStruct",
       "ancestor_node_type": "struct_item"
     },
-    "content": "\n// This should fail",
-    "preview_only": true
-  }
+    "content": "\n// This should fail"
+    }
 }

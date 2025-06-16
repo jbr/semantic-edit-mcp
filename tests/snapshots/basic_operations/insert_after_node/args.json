@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "second_function",
       "ancestor_node_type": "function_item"
     },
-    "content": "\n// This comment is inserted after the second function\n",
-    "preview_only": true
-  }
+    "content": "\n// This comment is inserted after the second function\n"
+    }
 }

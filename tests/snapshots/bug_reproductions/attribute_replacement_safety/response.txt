@@ -10,3 +10,42 @@
 +    println!("Updated test that should not duplicate attributes");
      assert!(true);
  }
+
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "original_async_test",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}",
+        ),
+    },
+    file_path: "tests/snapshots/bug_reproductions/attribute_replacement_safety/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Replace operation result:
+Successfully replaced function_item node
+
+===DIFF===
+ }
+
+ #[tokio::test]
+-async fn original_async_test() {
+-    println!("Original test");
++async fn updated_async_test() {
++    println!("Updated test that should not duplicate attributes");
+     assert!(true);
+ }

@@ -1,3 +1,42 @@
+🔍 **INSERTION PREVIEW**
+
+===DIFF===
+ - API routes
+ - Authentication
+
++
++## Frontend Components
++
++Now moving to the frontend:
++
+ - Frontend components
+ - User interface
+ - State management
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "Authentication",
+            ancestor_node_type: Some(
+                "list_item",
+            ),
+        },
+        content: Some(
+            "## Frontend Components\n\nNow moving to the frontend:\n\n",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/insert_paragraph_between_lists/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Insert after operation result:
 Successfully inserted content after list_item node
 

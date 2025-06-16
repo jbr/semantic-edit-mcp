@@ -24,3 +24,54 @@ Suggestion: Try a different change.
  }
 
  pub fn regular_function() {
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "helper_function",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}",
+        ),
+    },
+    file_path: "tests/snapshots/bug_reproductions/duplicate_function_pattern/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERRORS===
+  21   ⎸    }
+  22   ⎸}
+  23   ⎸
+  24 ->⎸#[inline]
+  25   ⎸#[must_use]
+  26   ⎸pub fn helper_function() -> String {
+
+
+===DIFF===
+     }
+ }
+
+-// Helper function with attributes
+ #[inline]
+ #[must_use]
+ pub fn helper_function() -> String {
+-    "original implementation".to_string()
++    // Updated implementation with same attributes
++    "updated implementation".to_string()
+ }
+
+ pub fn regular_function() {

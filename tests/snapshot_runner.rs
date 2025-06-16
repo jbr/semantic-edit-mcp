@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
+use semantic_edit_mcp::staging::StagingStore;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ pub struct SnapshotRunner {
     test_filter: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SnapshotTest {
     pub name: String,
     pub input_path: Option<PathBuf>,
@@ -29,9 +30,28 @@ pub struct SnapshotResult {
     pub expected_response: Option<String>,
     pub actual_output: Option<String>, // NEW: Actual file content after transformation
     pub expected_output: Option<String>, // NEW: Expected file content
+    pub error: Option<String>,
     pub response_matches: bool,
     pub output_matches: bool,
-    pub error: Option<String>,
+}
+impl SnapshotResult {
+    fn populate_response_matches(&mut self) {
+        self.response_matches = self
+            .expected_response
+            .as_deref()
+            .is_some_and(|expected| expected.trim() == self.actual_response.trim());
+    }
+
+    fn populate_output_matches(&mut self) {
+        self.output_matches = match (
+            self.actual_output.as_deref(),
+            self.expected_output.as_deref(),
+        ) {
+            (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
+            (None, None) => true,
+            _ => false
+        };
+    }
 }
 
 #[derive(Debug)]
@@ -46,7 +66,7 @@ impl SnapshotRunner {
         Ok(Self {
             update_mode,
             registry,
-            test_filter,
+            test_filter
         })
     }
 
@@ -133,7 +153,7 @@ impl SnapshotRunner {
                         input_path,
                         args_path,
                         response_path,
-                        output_path,
+                        output_path
                     });
                 } else {
                     // Recurse into subdirectories
@@ -147,142 +167,130 @@ impl SnapshotRunner {
 
     /// Run a single snapshot test
     pub async fn run_test(&self, test: SnapshotTest) -> SnapshotResult {
-        let result = self.execute_test(&test).await;
-
-        match result {
-            Ok(SnapshotExecutionResult { response, output }) if self.update_mode => {
-                // Write the actual response as the new expected response
-                if let Err(e) = tokio::fs::write(&test.response_path, &response).await {
-                    return SnapshotResult {
-                        test,
-                        actual_response: response,
-                        expected_response: None,
-                        response_matches: false,
-                        output_matches: false,
-                        error: Some(format!("Failed to write expected output: {e}")),
-                        actual_output: output,
-                        expected_output: None,
-                    };
-                }
-
-                // Write the actual output as the new expected output
-                if let Some(output) = &output {
-                    let Some(output_path) = &test.output_path else {
-                        return SnapshotResult {
-                            test,
-                            actual_response: response,
-                            expected_response: None,
-                            response_matches: false,
-                            output_matches: false,
-                            error: Some("output without input is unexpected".to_string()),
-                            actual_output: Some(output.to_string()),
-                            expected_output: None,
-                        };
-                    };
-                    if let Err(e) = tokio::fs::write(&output_path, &output).await {
-                        return SnapshotResult {
-                            test,
-                            actual_response: response,
-                            expected_response: None,
-                            response_matches: false,
-                            output_matches: false,
-                            error: Some(format!("Failed to write expected output: {e}")),
-                            actual_output: Some(output.to_string()),
-                            expected_output: None,
-                        };
-                    }
-                } else if let Some(output_path) = &test.output_path {
-                    if let Ok(true) = output_path.try_exists() {
-                        // If there is no expected output but the file exists, delete the file
-                        if let Err(e) = tokio::fs::remove_file(&output_path).await {
-                            return SnapshotResult {
-                                test,
-                                actual_response: response,
-                                expected_response: None,
-                                response_matches: false,
-                                output_matches: false,
-                                error: Some(format!(
-                                    "No output expected, but was unable to delete: {e}"
-                                )),
-                                actual_output: None,
-                                expected_output: None,
-                            };
-                        }
-                    }
-                }
-
-                SnapshotResult {
+        let result = match self.execute_test(&test).await {
+            Ok(result) => result,
+            Err(e) => {
+                return SnapshotResult {
                     test,
-                    actual_response: response,
+                    actual_response: String::new(),
                     expected_response: None,
-                    error: None,
-                    actual_output: output,
+                    error: Some(e.to_string()),
+                    actual_output: None,
                     expected_output: None,
-                    response_matches: true,
-                    output_matches: true,
-                }
+                    response_matches: false,
+                    output_matches: false
+                };
             }
-
-            Ok(SnapshotExecutionResult { response, output }) => {
-                // Compare with expected output
-                let expected_response = match tokio::fs::read_to_string(&test.response_path).await {
-                    Ok(content) => content,
-                    Err(_) => {
-                        return SnapshotResult {
-                            test,
-                            actual_response: response,
-                            expected_response: None,
-                            response_matches: false,
-                            output_matches: false,
-                            error: Some(
-                                "Response file not found. Run with --update to create it."
-                                    .to_string(),
-                            ),
-                            actual_output: output,
-                            expected_output: None,
-                        };
-                    }
-                };
-
-                let expected_output = if let Some(output_path) = &test.output_path {
-                    tokio::fs::read_to_string(&output_path).await.ok()
-                } else {
-                    None
-                };
-
-                let response_matches = expected_response.trim() == response.trim();
-                let output_matches = match (output.as_ref(), expected_output.as_ref()) {
-                    (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
-                    (None, None) => true,
-                    _ => false,
-                };
-
-                SnapshotResult {
-                    test,
-                    actual_response: response,
-                    expected_response: Some(expected_response),
-                    response_matches,
-                    output_matches,
-                    error: None,
-                    actual_output: output,
-                    expected_output,
-                }
-            }
-
-            Err(e) => SnapshotResult {
-                test,
-                actual_response: String::new(),
-                expected_response: None,
-                response_matches: false,
-                output_matches: false,
-                error: Some(e.to_string()),
-                actual_output: None,
-                expected_output: None,
-            },
+        };
+        if self.update_mode {
+            self.update_snapshot(result, test).await
+        } else {
+            self.compare_snapshot(result, test).await
         }
     }
 
+    async fn update_snapshot(
+        &self,
+        result: SnapshotExecutionResult,
+        test: SnapshotTest,
+    ) -> SnapshotResult {
+        let SnapshotExecutionResult { response, output } = result;
+        let mut result = SnapshotResult {
+            test,
+            actual_response: response,
+            expected_response: None,
+            actual_output: output,
+            expected_output: None,
+            error: None,
+            response_matches: true,
+            output_matches: true
+        };
+        // Write the actual response as the new expected response
+        if let Err(e) = tokio::fs::write(&result.test.response_path, &result.actual_response).await
+        {
+            result.error = Some(format!("Failed to write expected output: {e}"));
+            return result;
+        }
+
+        // Write the actual output as the new expected output
+        if let Some(output) = &result.actual_output {
+            let Some(output_path) = &result.test.output_path else {
+                result.error = Some("output without input is unexpected".to_string());
+                return result;
+            };
+            if let Err(e) = tokio::fs::write(&output_path, &output).await {
+                result.error = Some(format!("Failed to write expected output: {e}"));
+                return result;
+            }
+        } else if let Some(output_path) = &result.test.output_path {
+            if let Ok(true) = output_path.try_exists() {
+                // If there is no expected output but the file exists, delete the file
+                if let Err(e) = tokio::fs::remove_file(&output_path).await {
+                    result.error =
+                        Some(format!("No output expected, but was unable to delete: {e}"));
+                    return result;
+                }
+            }
+        }
+
+        result
+    }
+
+    async fn compare_snapshot(
+        &self,
+        result: SnapshotExecutionResult,
+        test: SnapshotTest,
+    ) -> SnapshotResult {
+        let SnapshotExecutionResult { response, output } = result;
+        let mut result = SnapshotResult {
+            test,
+            actual_response: response,
+            expected_response: None,
+            actual_output: output,
+            expected_output: None,
+            error: None,
+            response_matches: false,
+            output_matches: false
+        };
+
+        // Compare with expected output
+        result.expected_response = Some(
+            match tokio::fs::read_to_string(&result.test.response_path).await {
+                Ok(content) => content,
+                Err(_) => {
+                    result.error = Some(
+                        "Response file not found. Run with --update to create it.".to_string(),
+                    );
+                    return result;
+                }
+            },
+        );
+
+        result.expected_output = if let Some(output_path) = &result.test.output_path {
+            tokio::fs::read_to_string(&output_path).await.ok()
+        } else {
+            None
+        };
+
+        result.response_matches = result
+            .expected_response
+            .as_deref()
+            .is_some_and(|expected| expected.trim() == result.actual_response.trim());
+
+        result.output_matches = match (
+            result.actual_output.as_deref(),
+            result.expected_output.as_deref(),
+        ) {
+            (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
+            (None, None) => true,
+            _ => false
+        };
+
+        result
+    }
+
     /// Execute a single test and return the tool output
+    #[allow(unused_assignments)]
     async fn execute_test(&self, test: &SnapshotTest) -> Result<SnapshotExecutionResult> {
         // Read the arguments
         let args_content = fs::read_to_string(&test.args_path)?;
@@ -312,38 +320,61 @@ impl SnapshotRunner {
         // Create tool call params
         let tool_call = ToolCallParams {
             name: tool_name.to_string(),
-            arguments: Some(tool_args),
+            arguments: Some(tool_args)
         };
+        let staging_store = StagingStore::new();
 
-        // Execute the tool - capture both success and error outputs
-        match self.registry.execute_tool(&tool_call).await {
-            Ok(ExecutionResult::Change {
-                response, output, ..
-            }) => Ok(SnapshotExecutionResult {
-                response,
-                output: Some(output),
-            }),
-            Ok(ExecutionResult::ResponseOnly(response)) => Ok(SnapshotExecutionResult {
-                response,
-                output: None,
-            }),
-            Err(e) => {
-                // For snapshot testing, we want to capture error messages too
-                // Strip any "Tool execution failed: " prefix to get the actual error
-                let error_msg = e.to_string();
-                if let Some(actual_error) = error_msg.strip_prefix("Tool execution failed: ") {
-                    Ok(SnapshotExecutionResult {
-                        response: actual_error.to_string(),
-                        output: None,
-                    })
-                } else {
-                    Ok(SnapshotExecutionResult {
-                        response: error_msg,
-                        output: None,
-                    })
+        let mut snapshot_execution_result = SnapshotExecutionResult {
+            response: String::new(),
+            output: None
+        };
+        let mut execution_result = self.registry.execute_tool(&tool_call, &staging_store).await;
+        loop {
+            // Execute the tool - capture both success and error outputs
+            match execution_result {
+                Ok(ExecutionResult::ChangeStaged(stage_response, staged_operation)) => {
+                    snapshot_execution_result.response.push_str(&stage_response);
+                    snapshot_execution_result
+                        .response
+                        .push_str("\n\n\n==========STAGED==========\n\n\n");
+                    snapshot_execution_result
+                        .response
+                        .push_str(&format!("{staged_operation:#?}"));
+                    snapshot_execution_result
+                        .response
+                        .push_str("\n\n\n==========COMMIT==========\n\n\n");
+                    execution_result = self.registry.handle_commit_staged(&staging_store).await;
+                    continue;
+                }
+                Ok(ExecutionResult::Change {
+                    response: change_response,
+                    output,
+                    ..
+                }) => {
+                    snapshot_execution_result
+                        .response
+                        .push_str(&change_response);
+                    snapshot_execution_result.output = Some(output);
+                    break;
+                }
+                Ok(ExecutionResult::ResponseOnly(new_response)) => {
+                    snapshot_execution_result.response.push_str(&new_response);
+                    break;
+                }
+                Err(e) => {
+                    // For snapshot testing, we want to capture error messages too
+                    // Strip any "Tool execution failed: " prefix to get the actual error
+                    let error_msg = e.to_string();
+                    if let Some(actual_error) = error_msg.strip_prefix("Tool execution failed: ") {
+                        snapshot_execution_result.response.push_str(actual_error);
+                    } else {
+                        snapshot_execution_result.response.push_str(&error_msg);
+                    }
+                    break;
                 }
             }
         }
+        Ok(snapshot_execution_result)
     }
 
     /// Run all discovered tests (filtered if TEST_FILTER is set)

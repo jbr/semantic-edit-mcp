@@ -8,3 +8,39 @@
    "description": "A test package",
    "dependencies": {
      "lodash": "^4.17.21"
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "1.0.0",
+            ancestor_node_type: Some(
+                "string",
+            ),
+        },
+        content: Some(
+            "\"2.0.0\"",
+        ),
+    },
+    file_path: "tests/snapshots/json/replace_property/input.json",
+    language_name: "json",
+}
+
+
+==========COMMIT==========
+
+
+Replace operation result:
+Successfully replaced string node
+
+===DIFF===
+ {
+   "name": "test-package",
+-  "version": "1.0.0",
++  "version": "2.0.0",
+   "description": "A test package",
+   "dependencies": {
+     "lodash": "^4.17.21"

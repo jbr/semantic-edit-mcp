@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "Enable debug",
       "ancestor_node_type": "pipe_table_row"
     },
-    "content": "\n| timeout | 30000 | Request timeout in ms |",
-    "preview_only": false
-  }
+    "content": "\n| timeout | 30000 | Request timeout in ms |"
+    }
 }

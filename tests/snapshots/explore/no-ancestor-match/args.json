@@ -1,0 +1,10 @@
+{
+  "tool": "stage_operation",
+  "arguments": {
+    "operation": "replace",
+    "selector": {
+      "anchor_text": "var",
+      "ancestor_node_type": "enum_item"
+    }
+  }
+}

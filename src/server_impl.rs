@@ -1,14 +1,16 @@
 use crate::handlers::RequestHandler;
 use crate::server::{McpMessage, McpRequest, McpResponse, Tool, ToolCallParams};
+use crate::staging::StagingStore;
 use crate::tools::ToolRegistry;
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub struct SemanticEditServer {
     tools: Vec<Tool>,
     tool_registry: ToolRegistry,
     request_handler: RequestHandler,
+    staging_store: StagingStore,
 }
 
 impl SemanticEditServer {
@@ -16,11 +18,13 @@ impl SemanticEditServer {
         let tool_registry = ToolRegistry::new()?;
         let tools = tool_registry.get_tools();
         let request_handler = RequestHandler::new();
+        let staging_store = StagingStore::new();
 
         Ok(Self {
             tools,
             tool_registry,
             request_handler,
+            staging_store,
         })
     }
 
@@ -105,7 +109,11 @@ impl SemanticEditServer {
             }
         };
 
-        let result = match self.tool_registry.execute_tool(&tool_call).await {
+        let result = match self
+            .tool_registry
+            .execute_tool(&tool_call, &self.staging_store)
+            .await
+        {
             Ok(output) => output,
             Err(e) => {
                 return McpResponse::error(id, -32603, format!("Tool execution failed: {e}"));

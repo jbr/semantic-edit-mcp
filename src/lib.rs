@@ -4,5 +4,6 @@ pub mod operations;
 pub mod parser;
 pub mod server;
 pub mod server_impl;
+pub mod staging;
 pub mod tools;
 pub mod validation;

@@ -1,3 +1,50 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+
+ ## Example Usage
+
+-```javascript
+-console.log("Old example");
++```typescript
++interface User {
++  name: string;
++  email: string;
++}
++
++const user: User = {
++  name: "Alice",
++  email: "alice@example.com"
++};
++console.log(user);
+ ```
+-
+ This example needs updating.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "console",
+            ancestor_node_type: Some(
+                "fenced_code_block",
+            ),
+        },
+        content: Some(
+            "```typescript\ninterface User {\n  name: string;\n  email: string;\n}\n\nconst user: User = {\n  name: \"Alice\",\n  email: \"alice@example.com\"\n};\nconsole.log(user);\n```",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/replace_code_block/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced fenced_code_block node
 

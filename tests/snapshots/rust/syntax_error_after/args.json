@@ -1,10 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "main",
       "ancestor_node_type": "function_item"
     },
-    "new_content": "fn main() {\nthis is not valid rust\n}"
+    "content": "fn main() {\nthis is not valid rust\n}"
   }
 }

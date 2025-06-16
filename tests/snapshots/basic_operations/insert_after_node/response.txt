@@ -8,3 +8,39 @@
 
  pub fn third_function() {
      println!("Third function");
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "second_function",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "\n// This comment is inserted after the second function\n",
+        ),
+    },
+    file_path: "tests/snapshots/basic_operations/insert_after_node/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after function_item node
+
+===DIFF===
+ pub fn second_function() {
+     println!("Second function - content will be inserted after this");
+ }
++// This comment is inserted after the second function
+
+ pub fn third_function() {
+     println!("Third function");

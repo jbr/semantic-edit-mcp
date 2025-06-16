@@ -1,11 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "async_test",
       "ancestor_node_type": "function_item"
     },
-    "new_content": "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}",
-    "preview_only": false
-  }
+    "content": "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}"
+    }
 }

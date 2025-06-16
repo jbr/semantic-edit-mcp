@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "- Write documentation",
       "ancestor_node_type": "list_item"
     },
-    "content": "- Add comprehensive tests",
-    "preview_only": false
-  }
+    "content": "- Add comprehensive tests"
+    }
 }

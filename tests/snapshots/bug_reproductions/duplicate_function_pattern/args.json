@@ -1,11 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "helper_function",
       "ancestor_node_type": "function_item"
     },
-    "new_content": "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}",
-    "preview_only": false
-  }
+    "content": "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}"
+    }
 }

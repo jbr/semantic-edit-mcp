@@ -10,3 +10,41 @@
 
  pub struct TestStruct {
      value: i32,
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "existing_function",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
+        ),
+    },
+    file_path: "tests/snapshots/basic_operations/insert_after_function/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after function_item node
+
+===DIFF===
+     println!("Existing function");
+     42
+ }
++pub fn new_function() -> String {
++    "inserted after existing_function".to_string()
++}
+
+ pub struct TestStruct {
+     value: i32,

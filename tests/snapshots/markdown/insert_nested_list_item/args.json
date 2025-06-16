@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "Database",
       "ancestor_node_type": "list_item"
     },
-    "content": "  - Session management\n",
-    "preview_only": false
-  }
+    "content": "  - Session management\n"
+    }
 }

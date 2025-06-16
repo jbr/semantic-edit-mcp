@@ -1,7 +1,61 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+ impl DataProcessor {
+     pub fn new() -> Self {
+         Self {
+-            data: HashMap::new()
++            data: HashMap::new(),
+         }
+     }
+ }
+ #[deprecated(since = "1.0.0", note = "Use new_process instead")]
+ #[allow(dead_code)]
+ pub fn old_process(input: &str) -> String {
+-    format!("Processing: {}", input)
++    // Updated implementation without providing attributes
++    // Should preserve existing #[deprecated] and #[allow] attributes
++    format!("New processing: {}", input.to_uppercase())
+ }
+
+ pub fn simple_function() {
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "old_process",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "pub fn old_process(input: &str) -> String {\n    // Updated implementation without providing attributes\n    // Should preserve existing #[deprecated] and #[allow] attributes\n    format!(\"New processing: {}\", input.to_uppercase())\n}",
+        ),
+    },
+    file_path: "tests/snapshots/bug_reproductions/function_replacement_preserve_attributes/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced function_item node
 
 ===DIFF===
+ impl DataProcessor {
+     pub fn new() -> Self {
+         Self {
+-            data: HashMap::new()
++            data: HashMap::new(),
+         }
+     }
+ }
  #[deprecated(since = "1.0.0", note = "Use new_process instead")]
  #[allow(dead_code)]
  pub fn old_process(input: &str) -> String {
