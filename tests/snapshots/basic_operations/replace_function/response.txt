@@ -11,3 +11,42 @@
  }
 
  pub fn other_function() -> String {
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "old_function",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
+        ),
+    },
+    file_path: "tests/snapshots/basic_operations/replace_function/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Replace operation result:
+Successfully replaced function_item node
+
+===DIFF===
+ // Sample Rust code for testing
+-pub fn old_function() -> i32 {
+-    println!("This is the old implementation");
+-    42
++pub fn new_function() -> i32 {
++    println!("This is the new implementation");
++    100
+ }
+
+ pub fn other_function() -> String {

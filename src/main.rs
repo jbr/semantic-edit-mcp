@@ -4,6 +4,7 @@ mod operations;
 mod parser;
 mod server;
 mod server_impl;
+mod staging;
 mod tools;
 mod validation;
 

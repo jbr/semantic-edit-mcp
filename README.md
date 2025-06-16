@@ -64,8 +64,7 @@ Replace an entire AST node with new content.
     "type": "function_item",
     "name": "main"
   },
-  "new_content": "fn main() {\n    println!(\"Hello, semantic editing!\");\n}",
-  "preview_only": true
+  "content": "fn main() {\n    println!(\"Hello, semantic editing!\");\n}",
 }
 ```
 
@@ -81,7 +80,6 @@ Insert content before or after a specified node.
     "column": 21
   },
   "content": ",\n  \"description\": \"Added field\"",
-  "preview_only": false
 }
 ```
 
@@ -97,7 +95,6 @@ Wrap an existing node with new syntax.
     "column": 10
   },
   "wrapper_template": "if some_condition {\n    {{content}}\n}",
-  "preview_only": true
 }
 ```
 
@@ -149,7 +146,6 @@ Insert content after a struct definition.
   "file_path": "src/lib.rs",
   "struct_name": "MyStruct",
   "content": "impl Default for MyStruct {\n    fn default() -> Self {\n        Self::new()\n    }\n}",
-  "preview_only": true
 }
 ```
 
@@ -162,7 +158,6 @@ Insert content after an enum definition.
   "file_path": "src/lib.rs", 
   "enum_name": "Color",
   "content": "impl Color {\n    fn is_primary(&self) -> bool {\n        matches!(self, Color::Red | Color::Blue | Color::Yellow)\n    }\n}",
-  "preview_only": false
 }
 ```
 
@@ -175,7 +170,6 @@ Insert content after an impl block.
   "file_path": "src/lib.rs",
   "impl_type": "MyStruct",
   "content": "impl Display for MyStruct {\n    fn fmt(&self, f: &mut Formatter) -> fmt::Result {\n        write!(f, \"MyStruct\")\n    }\n}",
-  "preview_only": true
 }
 ```
 
@@ -188,7 +182,6 @@ Insert content after a function definition.
   "file_path": "src/lib.rs",
   "function_name": "main",
   "content": "fn helper_function() -> i32 {\n    42\n}",
-  "preview_only": false
 }
 ```
 
@@ -201,7 +194,6 @@ Smart module-level insertion with positioning control.
   "file_path": "src/lib.rs",
   "content": "use std::collections::HashMap;",
   "position": "start",
-  "preview_only": true
 }
 ```
 
@@ -329,8 +321,7 @@ Our architecture makes it easy to add new programming languages:
     "file_path": "src/main.rs",
     "selector": {"type": "function_item", "name": "main"},
     "new_content": "fn main() -> Result<(), Box<dyn Error>> {\n    println!(\"Safe main!\");\n    Ok(())\n}",
-    "preview_only": true
-  }
+    }
 }
 ```
 
@@ -342,8 +333,7 @@ Our architecture makes it easy to add new programming languages:
     "file_path": "package.json",
     "selector": {"line": 3, "column": 20},
     "content": ",\n  \"description\": \"Updated package\"",
-    "preview_only": false
-  }
+    }
 }
 ```
 
@@ -357,8 +347,7 @@ Our architecture makes it easy to add new programming languages:
     "file_path": "src/lib.rs",
     "struct_name": "Point",
     "content": "impl Display for Point {\n    fn fmt(&self, f: &mut Formatter) -> fmt::Result {\n        write!(f, \"({}, {})\", self.x, self.y)\n    }\n}",
-    "preview_only": false
-  }
+    }
 }
 ```
 
@@ -370,8 +359,7 @@ Our architecture makes it easy to add new programming languages:
     "file_path": "src/lib.rs",
     "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_basic_functionality() {\n        assert!(true);\n    }\n}",
     "position": "end",
-    "preview_only": true
-  }
+    }
 }
 ```
 

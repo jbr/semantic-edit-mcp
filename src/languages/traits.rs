@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use tree_sitter::{Node, Tree};
 
 use crate::{
@@ -101,21 +101,43 @@ pub trait LanguageEditor: Send + Sync {
         source_code: &str,
     ) -> Result<EditResult> {
         match operation {
-            EditOperation::Replace { new_content, .. } => {
-                self.replace(node, tree, source_code, new_content)
-            }
+            EditOperation::Replace { content, .. } => self.replace(
+                node,
+                tree,
+                source_code,
+                content
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("expected content"))?,
+            ),
 
-            EditOperation::InsertBefore { content, .. } => {
-                self.insert_before(node, tree, source_code, content)
-            }
+            EditOperation::InsertBefore { content, .. } => self.insert_before(
+                node,
+                tree,
+                source_code,
+                content
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("expected content"))?,
+            ),
 
-            EditOperation::InsertAfter { content, .. } => {
-                self.insert_after(node, tree, source_code, content)
-            }
+            EditOperation::InsertAfter { content, .. } => self.insert_after(
+                node,
+                tree,
+                source_code,
+                content
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("expected content"))?,
+            ),
 
             EditOperation::Wrap {
                 wrapper_template, ..
-            } => self.wrap(node, tree, source_code, wrapper_template),
+            } => self.wrap(
+                node,
+                tree,
+                source_code,
+                wrapper_template
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("expected wrapper template"))?,
+            ),
 
             EditOperation::Delete { .. } => self.delete(node, tree, source_code),
         }

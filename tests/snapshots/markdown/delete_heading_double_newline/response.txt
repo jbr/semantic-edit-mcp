@@ -1,3 +1,35 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+-## Heading to Delete
+
+
+ Next paragraph should have proper spacing after deletion.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "to Delete",
+            ancestor_node_type: Some(
+                "atx_heading",
+            ),
+        },
+        content: Some(
+            "",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/delete_heading_double_newline/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced atx_heading node
 

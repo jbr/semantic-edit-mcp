@@ -1,3 +1,41 @@
+🔍 **INSERTION PREVIEW**
+
+===DIFF===
+
+ - Set up repository
+ - Write documentation
+-- Implement core features
+
++- Add comprehensive tests- Implement core features
++
+ ## Next Steps
+
+ Continue with implementation.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "- Write documentation",
+            ancestor_node_type: Some(
+                "list_item",
+            ),
+        },
+        content: Some(
+            "- Add comprehensive tests",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/insert_list_item/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Insert after operation result:
 Successfully inserted content after list_item node
 

@@ -23,32 +23,20 @@ pub struct LanguageRegistry {
 #[derive(fieldwork::Fieldwork)]
 #[fieldwork(get)]
 pub struct LanguageCommon {
-    #[fieldwork(get(copy))]
     name: &'static str,
-    #[fieldwork(get(copy))]
     file_extensions: &'static [&'static str],
     #[fieldwork(rename = tree_sitter_language)]
     language: Language,
     node_types: Vec<NodeTypeInfo>,
-    #[fieldwork(skip)]
     editor: Box<dyn LanguageEditor>,
-    #[fieldwork(skip)]
     validation_query: Option<Query>,
 }
 
 impl LanguageCommon {
-    pub fn editor(&self) -> &dyn LanguageEditor {
-        &*self.editor
-    }
-
     pub fn tree_sitter_parser(&self) -> Result<Parser> {
         let mut parser = Parser::new();
         parser.set_language(self.tree_sitter_language())?;
         Ok(parser)
-    }
-
-    pub fn validation_query(&self) -> Option<&Query> {
-        self.validation_query.as_ref()
     }
 }
 

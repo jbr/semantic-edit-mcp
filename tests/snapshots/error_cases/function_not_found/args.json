@@ -1,11 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "nonexistent_function",
       "ancestor_node_type": "function_item"
     },
-    "new_content": "// This should fail",
-    "preview_only": true
-  }
+    "content": "// This should fail"
+    }
 }

@@ -1,3 +1,40 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+
+ #[tokio::test]
+ async fn async_test() {
+-    // Original async test with tokio::test attribute
++    // Modified without any attributes - should preserve existing #[tokio::test]
++    println!("Debug output");
+     assert!(true);
+ }
+
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "async_test",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "async fn async_test() {\n    // Modified without any attributes - should preserve existing #[tokio::test]\n    println!(\"Debug output\");\n    assert!(true);\n}",
+        ),
+    },
+    file_path: "tests/snapshots/bug_reproductions/attribute_preservation/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced function_item node
 

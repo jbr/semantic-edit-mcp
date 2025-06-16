@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "Download",
       "ancestor_node_type": "list_item"
     },
-    "content": "4. Configure settings",
-    "preview_only": false
-  }
+    "content": "4. Configure settings"
+    }
 }

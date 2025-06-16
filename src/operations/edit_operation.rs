@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use crate::languages::utils::collect_errors;
 use crate::languages::LanguageCommon;
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
@@ -13,27 +12,22 @@ use tree_sitter::{Node, Parser, Tree};
 pub enum EditOperation {
     Replace {
         target: NodeSelector,
-        new_content: String,
-        preview_only: bool,
+        content: Option<String>,
     },
     InsertBefore {
         target: NodeSelector,
-        content: String,
-        preview_only: bool,
+        content: Option<String>,
     },
     InsertAfter {
         target: NodeSelector,
-        content: String,
-        preview_only: bool,
+        content: Option<String>,
     },
     Wrap {
         target: NodeSelector,
-        wrapper_template: String,
-        preview_only: bool,
+        wrapper_template: Option<String>,
     },
     Delete {
         target: NodeSelector,
-        preview_only: bool,
     },
 }
 
@@ -71,16 +65,6 @@ macro_rules! maybe_early_return {
 }
 
 impl EditOperation {
-    pub fn is_preview_only(&self) -> bool {
-        match self {
-            EditOperation::Replace { preview_only, .. } => *preview_only,
-            EditOperation::InsertBefore { preview_only, .. } => *preview_only,
-            EditOperation::InsertAfter { preview_only, .. } => *preview_only,
-            EditOperation::Wrap { preview_only, .. } => *preview_only,
-            EditOperation::Delete { preview_only, .. } => *preview_only,
-        }
-    }
-
     /// Get the target selector for this operation
     pub fn target_selector(&self) -> &NodeSelector {
         match self {
@@ -187,11 +171,11 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         language: &LanguageCommon,
     ) -> Result<EditResult> {
         let editor = language.editor();
-        let mut edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
+        let edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
 
-        if self.is_preview_only() {
-            edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
-        }
+        // if self.is_preview_only() {
+        //     edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
+        // }
         Ok(edit_result)
     }
 

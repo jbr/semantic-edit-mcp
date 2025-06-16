@@ -1,0 +1,41 @@
+Error: anchor_text "var" appears 3 time(s) but no instances have ancestor "enum_item"
+Suggestion: use the read_documentation tool if you have not yet done so for this language
+
+- Occurence 1: `std::env::var`
+   Available ancestors: identifier, scoped_identifier, call_expression, match_expression, expression_statement, block, function_item, source_file
+- Occurence 2: `Ok(var)`
+   Available ancestors: identifier, tuple_struct_pattern, match_pattern, match_arm, match_block, match_expression, expression_statement, block, function_item, source_file
+- Occurence 3: `("{}", var.to_ascii_uppercase())`
+   Available ancestors: identifier, token_tree, macro_invocation, expression_statement, block, match_arm, match_block, match_expression, expression_statement, block, function_item, source_file
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "var",
+            ancestor_node_type: Some(
+                "enum_item",
+            ),
+        },
+        content: None,
+    },
+    file_path: "tests/snapshots/explore/no-ancestor-match/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Error: anchor_text "var" appears 3 time(s) but no instances have ancestor "enum_item"
+Suggestion: use the read_documentation tool if you have not yet done so for this language
+
+- Occurence 1: `std::env::var`
+   Available ancestors: identifier, scoped_identifier, call_expression, match_expression, expression_statement, block, function_item, source_file
+- Occurence 2: `Ok(var)`
+   Available ancestors: identifier, tuple_struct_pattern, match_pattern, match_arm, match_block, match_expression, expression_statement, block, function_item, source_file
+- Occurence 3: `("{}", var.to_ascii_uppercase())`
+   Available ancestors: identifier, token_tree, macro_invocation, expression_statement, block, match_arm, match_block, match_expression, expression_statement, block, function_item, source_file

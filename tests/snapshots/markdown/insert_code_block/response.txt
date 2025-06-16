@@ -1,3 +1,40 @@
+🔍 **INSERTION PREVIEW**
+
+===DIFF===
+ }
+ ```
+
++
++```python
++def greet(name):
++    print(f"Hello, {name}!")
++```
+ That's the basic example.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "println",
+            ancestor_node_type: Some(
+                "fenced_code_block",
+            ),
+        },
+        content: Some(
+            "```python\ndef greet(name):\n    print(f\"Hello, {name}!\")\n```",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/insert_code_block/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Insert after operation result:
 Successfully inserted content after fenced_code_block node
 

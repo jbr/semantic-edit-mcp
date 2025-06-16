@@ -225,8 +225,7 @@ Automatic grouping of content under headings
     "file_path": "README.md",
     "selector": {"type": "atx_heading"},
     "new_content": "# Updated Project Title",
-    "preview_only": true
-  }
+    }
 }
 ```
 

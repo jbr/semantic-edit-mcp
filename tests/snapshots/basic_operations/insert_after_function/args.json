@@ -1,11 +1,11 @@
 {
-  "tool": "insert_after_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "insert_after",
     "selector": {
       "anchor_text": "existing_function",
       "ancestor_node_type": "function_item"
     },
-    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
-    "preview_only": true
-  }
+    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}"
+    }
 }

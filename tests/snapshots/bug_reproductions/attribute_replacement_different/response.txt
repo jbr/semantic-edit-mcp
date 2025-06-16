@@ -1,3 +1,45 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+     println!("Regular function");
+ }
+
+-#[tokio::test]
+-async fn async_test() {
+-    // Original async test with tokio::test attribute
++#[test]
++fn async_test() {
++    // Changed from #[tokio::test] async fn to #[test] fn
++    // Should replace the attribute, not duplicate
++    println!("Now a regular test");
+     assert!(true);
+ }
+
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "async_test",
+            ancestor_node_type: Some(
+                "function_item",
+            ),
+        },
+        content: Some(
+            "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}",
+        ),
+    },
+    file_path: "tests/snapshots/bug_reproductions/attribute_replacement_different/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced function_item node
 

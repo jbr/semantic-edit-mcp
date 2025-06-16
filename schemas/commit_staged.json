@@ -1,0 +1,17 @@
+{
+    "type": "object",
+    "properties": {
+        "acknowledge": {
+            "type": "boolean",
+            "description": "Confirm that you want to execute the staged operation",
+            "default": true
+        }
+    },
+    "additionalProperties": false,
+    "examples": [
+        {
+            "description": "Commit the currently staged operation",
+            "acknowledge": true
+        }
+    ]
+}

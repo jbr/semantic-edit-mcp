@@ -1,11 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "Placeholder",
       "ancestor_node_type": "atx_heading"
     },
-    "new_content": "",
-    "preview_only": false
-  }
+    "content": ""
+    }
 }

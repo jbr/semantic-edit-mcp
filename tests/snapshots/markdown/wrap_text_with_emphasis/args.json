@@ -1,11 +1,11 @@
 {
-  "tool": "wrap_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "wrap",
     "selector": {
       "anchor_text": "critical message",
       "ancestor_node_type": "paragraph"
     },
-    "wrapper_template": "**{{content}}**",
-    "preview_only": false
-  }
+    "content": "**{{content}}**"
+    }
 }

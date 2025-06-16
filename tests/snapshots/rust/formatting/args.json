@@ -1,10 +1,11 @@
 {
-  "tool": "replace_node",
+  "tool": "stage_operation",
   "arguments": {
+    "operation": "replace",
     "selector": {
       "anchor_text": "hello",
       "ancestor_node_type": "function_item"
     },
-    "new_content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}"
+    "content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}"
   }
 }

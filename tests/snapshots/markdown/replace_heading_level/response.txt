@@ -1,3 +1,39 @@
+🔍 **REPLACEMENT PREVIEW**
+
+===DIFF===
+ # Main Title
+
+-## Important Section
+-
++### Important Section (Now Subsection)
+ This section contains critical information.
+
+ ### Subsection
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Replace {
+        target: NodeSelector {
+            anchor_text: "## Important Section",
+            ancestor_node_type: Some(
+                "atx_heading",
+            ),
+        },
+        content: Some(
+            "### Important Section (Now Subsection)",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/replace_heading_level/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Replace operation result:
 Successfully replaced atx_heading node
 

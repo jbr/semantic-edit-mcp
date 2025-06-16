@@ -8,7 +8,7 @@ pub struct DataProcessor {
 impl DataProcessor {
     pub fn new() -> Self {
         Self {
-            data: HashMap::new(),
+            data: HashMap::new()
         }
     }
 }

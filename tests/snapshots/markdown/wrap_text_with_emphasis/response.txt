@@ -1,3 +1,38 @@
+🔍 **WRAP PREVIEW**
+
+===DIFF===
+ # Important Notice
+
+-This is a critical message that users need to pay attention to immediately.
+-
++**This is a critical message that users need to pay attention to immediately.
++**
+ Please read the documentation carefully.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: Wrap {
+        target: NodeSelector {
+            anchor_text: "critical message",
+            ancestor_node_type: Some(
+                "paragraph",
+            ),
+        },
+        wrapper_template: Some(
+            "**{{content}}**",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/wrap_text_with_emphasis/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Wrap operation result:
 Successfully wrapped paragraph node
 

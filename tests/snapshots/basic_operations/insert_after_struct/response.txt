@@ -16,3 +16,47 @@
 
  pub struct Circle {
      center: Point,
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "pub struct Point",
+            ancestor_node_type: Some(
+                "struct_item",
+            ),
+        },
+        content: Some(
+            "\nimpl Point {\n    pub fn new(x: f64, y: f64) -> Self {\n        Self { x, y }\n    }\n\n    pub fn distance_to(&self, other: &Point) -> f64 {\n        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()\n    }\n}",
+        ),
+    },
+    file_path: "tests/snapshots/basic_operations/insert_after_struct/input.rs",
+    language_name: "rust",
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after struct_item node
+
+===DIFF===
+     x: f64,
+     y: f64,
+ }
++impl Point {
++    pub fn new(x: f64, y: f64) -> Self {
++        Self { x, y }
++    }
++
++    pub fn distance_to(&self, other: &Point) -> f64 {
++        ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
++    }
++}
+
+ pub struct Circle {
+     center: Point,

@@ -1,8 +1,68 @@
-Syntax error found prior to edit, not attempting.
-Suggestion: Pause and show your human collaborator this context:
+🔍 **INSERTION PREVIEW**
 
-===SYNTAX ERRORS===
-   9   ⎸        "test": "jest",
-  10   ⎸      "build": "webpack"
-  11   ⎸    },
-  12 ->⎸}
+===DIFF===
+     },
+     "scripts": {
+         "test": "jest",
+-      "build": "webpack"
+-    }
++        "build": "webpack"
++    },
++    "nested": {
++        "object": [
++            1,
++            2,
++            3,
++            4,
++            5
++        ]
++    },
++    "second": "key"
+ }
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "webpack",
+            ancestor_node_type: Some(
+                "object",
+            ),
+        },
+        content: Some(
+            "\"nested\": {\"object\": [1,2,3,4,5]}, \"second\": \"key\"",
+        ),
+    },
+    file_path: "tests/snapshots/json/formatting/input.json",
+    language_name: "json",
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after object node
+
+===DIFF===
+     },
+     "scripts": {
+         "test": "jest",
+-      "build": "webpack"
+-    }
++        "build": "webpack"
++    },
++    "nested": {
++        "object": [
++            1,
++            2,
++            3,
++            4,
++            5
++        ]
++    },
++    "second": "key"
+ }

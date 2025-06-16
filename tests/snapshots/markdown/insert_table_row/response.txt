@@ -1,3 +1,38 @@
+🔍 **INSERTION PREVIEW**
+
+===DIFF===
+ | Option | Default | Description |
+ |--------|---------|-------------|
+ | debug  | false   | Enable debug mode |
++| timeout | 30000 | Request timeout in ms |
+ | port   | 3000    | Server port |
+
+ These are the current options.
+
+
+==========STAGED==========
+
+
+StagedOperation {
+    operation: InsertAfter {
+        target: NodeSelector {
+            anchor_text: "Enable debug",
+            ancestor_node_type: Some(
+                "pipe_table_row",
+            ),
+        },
+        content: Some(
+            "\n| timeout | 30000 | Request timeout in ms |",
+        ),
+    },
+    file_path: "tests/snapshots/markdown/insert_table_row/input.md",
+    language_name: "markdown",
+}
+
+
+==========COMMIT==========
+
+
 Insert after operation result:
 Successfully inserted content after pipe_table_row node
 
