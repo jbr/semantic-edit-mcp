@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  }
@@ -16,20 +16,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "original_async_test",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "original_async_test",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/bug_reproductions/attribute_replacement_safety/input.rs",
-    language_name: "rust",
+    "content": "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}"
+  },
+  "file_path": "tests/snapshots/bug_reproductions/attribute_replacement_safety/input.rs",
+  "language_name": "rust"
 }
 
 

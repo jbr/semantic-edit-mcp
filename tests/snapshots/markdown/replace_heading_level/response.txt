@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  # Main Title
@@ -14,20 +14,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "## Important Section",
-            ancestor_node_type: Some(
-                "atx_heading",
-            ),
-        },
-        content: Some(
-            "### Important Section (Now Subsection)",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "## Important Section",
+      "ancestor_node_type": "atx_heading"
     },
-    file_path: "tests/snapshots/markdown/replace_heading_level/input.md",
-    language_name: "markdown",
+    "content": "### Important Section (Now Subsection)"
+  },
+  "file_path": "tests/snapshots/markdown/replace_heading_level/input.md",
+  "language_name": "markdown"
 }
 
 

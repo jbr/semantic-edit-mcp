@@ -49,7 +49,7 @@ impl SnapshotResult {
         ) {
             (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
             (None, None) => true,
-            _ => false
+            _ => false,
         };
     }
 }
@@ -66,7 +66,7 @@ impl SnapshotRunner {
         Ok(Self {
             update_mode,
             registry,
-            test_filter
+            test_filter,
         })
     }
 
@@ -153,7 +153,7 @@ impl SnapshotRunner {
                         input_path,
                         args_path,
                         response_path,
-                        output_path
+                        output_path,
                     });
                 } else {
                     // Recurse into subdirectories
@@ -178,7 +178,7 @@ impl SnapshotRunner {
                     actual_output: None,
                     expected_output: None,
                     response_matches: false,
-                    output_matches: false
+                    output_matches: false,
                 };
             }
         };
@@ -203,7 +203,7 @@ impl SnapshotRunner {
             expected_output: None,
             error: None,
             response_matches: true,
-            output_matches: true
+            output_matches: true,
         };
         // Write the actual response as the new expected response
         if let Err(e) = tokio::fs::write(&result.test.response_path, &result.actual_response).await
@@ -250,7 +250,7 @@ impl SnapshotRunner {
             expected_output: None,
             error: None,
             response_matches: false,
-            output_matches: false
+            output_matches: false,
         };
 
         // Compare with expected output
@@ -283,7 +283,7 @@ impl SnapshotRunner {
         ) {
             (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
             (None, None) => true,
-            _ => false
+            _ => false,
         };
 
         result
@@ -320,13 +320,13 @@ impl SnapshotRunner {
         // Create tool call params
         let tool_call = ToolCallParams {
             name: tool_name.to_string(),
-            arguments: Some(tool_args)
+            arguments: Some(tool_args),
         };
         let staging_store = StagingStore::new();
 
         let mut snapshot_execution_result = SnapshotExecutionResult {
             response: String::new(),
-            output: None
+            output: None,
         };
         let mut execution_result = self.registry.execute_tool(&tool_call, &staging_store).await;
         loop {
@@ -339,11 +339,11 @@ impl SnapshotRunner {
                         .push_str("\n\n\n==========STAGED==========\n\n\n");
                     snapshot_execution_result
                         .response
-                        .push_str(&format!("{staged_operation:#?}"));
+                        .push_str(&serde_json::to_string_pretty(&staged_operation).unwrap());
                     snapshot_execution_result
                         .response
                         .push_str("\n\n\n==========COMMIT==========\n\n\n");
-                    execution_result = self.registry.handle_commit_staged(&staging_store).await;
+                    execution_result = self.registry.commit_staged(&staging_store).await;
                     continue;
                 }
                 Ok(ExecutionResult::Change {

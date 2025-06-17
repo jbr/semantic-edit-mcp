@@ -3,7 +3,7 @@ use tree_sitter::{Node, Tree};
 
 use crate::{
     languages::utils::collect_errors,
-    operations::{EditOperation, EditResult},
+    operations::{selector::Position, EditOperation, EditResult},
 };
 
 /// Information about a node type from tree-sitter's node-types.json
@@ -100,46 +100,21 @@ pub trait LanguageEditor: Send + Sync {
         operation: &EditOperation,
         source_code: &str,
     ) -> Result<EditResult> {
-        match operation {
-            EditOperation::Replace { content, .. } => self.replace(
-                node,
-                tree,
-                source_code,
-                content
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("expected content"))?,
-            ),
-
-            EditOperation::InsertBefore { content, .. } => self.insert_before(
-                node,
-                tree,
-                source_code,
-                content
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("expected content"))?,
-            ),
-
-            EditOperation::InsertAfter { content, .. } => self.insert_after(
-                node,
-                tree,
-                source_code,
-                content
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("expected content"))?,
-            ),
-
-            EditOperation::Wrap {
-                wrapper_template, ..
-            } => self.wrap(
-                node,
-                tree,
-                source_code,
-                wrapper_template
-                    .as_deref()
-                    .ok_or_else(|| anyhow!("expected wrapper template"))?,
-            ),
-
-            EditOperation::Delete { .. } => self.delete(node, tree, source_code),
+        let EditOperation { target, content } = operation;
+        match (&target.position, content) {
+            (None, _) => todo!(),
+            (Some(Position::Before), Some(content)) => {
+                self.insert_before(node, tree, source_code, content)
+            }
+            (Some(Position::After), Some(content)) => {
+                self.insert_after(node, tree, source_code, content)
+            }
+            (Some(Position::Around), Some(content)) => self.wrap(node, tree, source_code, content),
+            (Some(Position::Replace), Some(content)) => {
+                self.replace(node, tree, source_code, content)
+            }
+            (Some(Position::Replace), None) => self.delete(node, tree, source_code),
+            (Some(op), None) => Err(anyhow!("Content required for {op:?}")),
         }
     }
 

@@ -67,16 +67,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "to_ascii",
-            ancestor_node_type: None,
-        },
-        content: None,
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "to_ascii",
+      "ancestor_node_type": null
     },
-    file_path: "tests/snapshots/explore/omitting-ancestor/input.rs",
-    language_name: "rust",
+    "content": null
+  },
+  "file_path": "tests/snapshots/explore/omitting-ancestor/input.rs",
+  "language_name": "rust"
 }
 
 

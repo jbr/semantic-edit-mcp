@@ -90,11 +90,6 @@ impl ToolRegistry {
         args: &Value,
         staging_store: &StagingStore,
     ) -> Result<ExecutionResult> {
-        let operation_type = args
-            .get("operation")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("operation is required"))?;
-
         let file_path = args
             .get("file_path")
             .and_then(|v| v.as_str())
@@ -113,17 +108,7 @@ impl ToolRegistry {
 
         let target = NodeSelector::new_from_value(args)?;
 
-        let operation = match operation_type {
-            "replace" => Ok(EditOperation::Replace { target, content }),
-            "remove" => Ok(EditOperation::Delete { target }),
-            "insert_before" => Ok(EditOperation::InsertBefore { target, content }),
-            "insert_after" => Ok(EditOperation::InsertAfter { target, content }),
-            "wrap" => Ok(EditOperation::Wrap {
-                target,
-                wrapper_template: content,
-            }),
-            _ => Err(anyhow!("Unknown operation type: {}", operation_type)),
-        }?;
+        let operation = EditOperation { target, content };
 
         let language = self
             .language_registry

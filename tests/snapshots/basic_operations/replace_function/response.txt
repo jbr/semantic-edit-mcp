@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  // Sample Rust code for testing
@@ -16,20 +16,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "old_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "old_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/basic_operations/replace_function/input.rs",
-    language_name: "rust",
+    "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}"
+  },
+  "file_path": "tests/snapshots/basic_operations/replace_function/input.rs",
+  "language_name": "rust"
 }
 
 

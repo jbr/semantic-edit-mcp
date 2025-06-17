@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  {
@@ -13,20 +13,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "1.0.0",
-            ancestor_node_type: Some(
-                "string",
-            ),
-        },
-        content: Some(
-            "\"2.0.0\"",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "1.0.0",
+      "ancestor_node_type": "string"
     },
-    file_path: "tests/snapshots/json/replace_property/input.json",
-    language_name: "json",
+    "content": "\"2.0.0\""
+  },
+  "file_path": "tests/snapshots/json/replace_property/input.json",
+  "language_name": "json"
 }
 
 

@@ -4,20 +4,17 @@ anchor_text "nonexistent_function" not found in file
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "nonexistent_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "// This should fail",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "nonexistent_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/error_cases/function_not_found/input.rs",
-    language_name: "rust",
+    "content": "// This should fail"
+  },
+  "file_path": "tests/snapshots/error_cases/function_not_found/input.rs",
+  "language_name": "rust"
 }
 
 

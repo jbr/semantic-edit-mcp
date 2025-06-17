@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use super::selector::Position::{After, Around, Before, Replace};
 use crate::languages::LanguageCommon;
 use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
@@ -8,27 +9,10 @@ use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use tree_sitter::{Node, Parser, Tree};
 
-#[derive(Debug, Clone)]
-pub enum EditOperation {
-    Replace {
-        target: NodeSelector,
-        content: Option<String>,
-    },
-    InsertBefore {
-        target: NodeSelector,
-        content: Option<String>,
-    },
-    InsertAfter {
-        target: NodeSelector,
-        content: Option<String>,
-    },
-    Wrap {
-        target: NodeSelector,
-        wrapper_template: Option<String>,
-    },
-    Delete {
-        target: NodeSelector,
-    },
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EditOperation {
+    pub(crate) target: NodeSelector,
+    pub(crate) content: Option<String>,
 }
 
 #[derive(Debug)]
@@ -67,23 +51,18 @@ macro_rules! maybe_early_return {
 impl EditOperation {
     /// Get the target selector for this operation
     pub fn target_selector(&self) -> &NodeSelector {
-        match self {
-            EditOperation::Replace { target, .. } => target,
-            EditOperation::InsertBefore { target, .. } => target,
-            EditOperation::InsertAfter { target, .. } => target,
-            EditOperation::Wrap { target, .. } => target,
-            EditOperation::Delete { target, .. } => target,
-        }
+        &self.target
     }
 
     /// Get a human-readable operation name
     pub fn operation_name(&self) -> &str {
-        match self {
-            EditOperation::Replace { .. } => "Replace",
-            EditOperation::InsertBefore { .. } => "Insert before",
-            EditOperation::InsertAfter { .. } => "Insert after",
-            EditOperation::Wrap { .. } => "Wrap",
-            EditOperation::Delete { .. } => "Delete",
+        match (&self.target.position, &self.content) {
+            (None, _) => "Explore",
+            (Some(Before), _) => "Insert before",
+            (Some(After), _) => "Insert after",
+            (Some(Around), _) => "Insert around",
+            (Some(Replace), Some(_)) => "Replace",
+            (Some(Replace), None) => "Delete",
         }
     }
 
@@ -98,7 +77,7 @@ impl EditOperation {
         let mut parser = language.tree_sitter_parser()?;
         let tree = parser
             .parse(&source_code, None)
-            .ok_or_else(|| anyhow!("failed to parse {}", language.name()))?;
+            .ok_or_else(|| anyhow!("Unable to parse {file_path} as {}", language.name()))?;
 
         maybe_early_return!(
             validate_tree(language, &tree, &source_code).map(|errors| format!(
@@ -107,7 +86,6 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             ))
         );
 
-        // Find target node using new text-anchored selection
         let target_node = match self
             .target_selector()
             .find_node_with_suggestions(&tree, &source_code)
@@ -117,7 +95,8 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         };
 
         // Apply operation
-        let mut edit_result = self.apply_inner(target_node, &tree, &source_code, language)?;
+        let editor = language.editor();
+        let mut edit_result = editor.apply_operation(target_node, &tree, &self, &source_code)?;
 
         maybe_early_return!(validate(
             &edit_result,
@@ -172,10 +151,6 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     ) -> Result<EditResult> {
         let editor = language.editor();
         let edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
-
-        // if self.is_preview_only() {
-        //     edit_result.set_message(format!("PREVIEW: {}", edit_result.message()));
-        // }
         Ok(edit_result)
     }
 
@@ -188,22 +163,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         if let EditResult::Success { new_content, .. } = &result {
             let mut preview = String::new();
 
-            // Add operation-specific header
-            match self {
-                EditOperation::Replace { .. } => {
-                    preview.push_str("🔍 **REPLACEMENT PREVIEW**\n\n");
-                }
-                EditOperation::InsertBefore { .. } | EditOperation::InsertAfter { .. } => {
-                    preview.push_str("🔍 **INSERTION PREVIEW**\n\n");
-                }
-                EditOperation::Wrap { .. } => {
-                    preview.push_str("🔍 **WRAP PREVIEW**\n\n");
-                }
-                EditOperation::Delete { .. } => {
-                    preview.push_str("🔍 **DELETE PREVIEW**\n\n");
-                }
-            }
-
+            preview.push_str(&format!("STAGED: {}\n\n", self.operation_name()));
             preview.push_str(&generate_diff(source_code, new_content));
 
             Ok(preview)
@@ -213,13 +173,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     pub(crate) fn target_selector_mut(&mut self) -> &mut NodeSelector {
-        match self {
-            EditOperation::Replace { target, .. } => target,
-            EditOperation::InsertBefore { target, .. } => target,
-            EditOperation::InsertAfter { target, .. } => target,
-            EditOperation::Wrap { target, .. } => target,
-            EditOperation::Delete { target } => target,
-        }
+        &mut self.target
     }
 }
 

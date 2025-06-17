@@ -1,4 +1,4 @@
-🔍 **WRAP PREVIEW**
+STAGED: Insert around
 
 ===DIFF===
 +#[cfg(test)]
@@ -10,27 +10,24 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Wrap {
-        target: NodeSelector {
-            anchor_text: "target_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        wrapper_template: Some(
-            "#[cfg(test)]\n{{content}}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "around",
+      "anchor_text": "target_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/basic_operations/wrap_node/input.rs",
-    language_name: "rust",
+    "content": "#[cfg(test)]\n{{content}}"
+  },
+  "file_path": "tests/snapshots/basic_operations/wrap_node/input.rs",
+  "language_name": "rust"
 }
 
 
 ==========COMMIT==========
 
 
-Wrap operation result:
+Insert around operation result:
 Successfully wrapped function_item group (2 total elements)
 
 ===DIFF===

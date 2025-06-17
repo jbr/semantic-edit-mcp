@@ -1,8 +1,8 @@
 {
   "tool": "stage_operation",
   "arguments": {
-    "operation": "insert_after",
     "selector": {
+      "position": "after",
       "anchor_text": "Database",
       "ancestor_node_type": "list_item"
     },

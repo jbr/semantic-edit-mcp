@@ -6,8 +6,14 @@
     "properties": {
       "selector": {
         "type": "object",
-        "description": "Text-anchored node selector using exact text and AST navigation. 🎯 WORKFLOW: Start by omitting ancestor_node_type to explore all available targeting options, then use retarget_staged to quickly try different selectors from the exploration results without retyping content.",
         "properties": {
+          "position": {
+            "type": "string",
+            "enum": [
+              "before", "after", "replace", "around"
+            ],
+            "description": "Location to place content 🤔 CHOOSING THE RIGHT POSITION:\n• before/after: Adding new content alongside existing code\n• replace: Changing existing content to something completely different. To remove selected code entirely, omit content (\"replace with nothing\"). \n• around: 🔄 ATOMIC TRANSFORMATION - When you need to surround existing code with new structure while preserving the original (e.g., adding error handling, conditionals, or blocks that require matching braces)"
+          },
           "anchor_text": {
             "type": "string",
             "description": "Exact short unique snippet to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '\"key\":', '# Heading'. Can be the same or different from your original anchor_text.",

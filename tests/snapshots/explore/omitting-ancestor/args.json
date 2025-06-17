@@ -1,8 +1,8 @@
 {
   "tool": "stage_operation",
   "arguments": {
-    "operation": "replace",
     "selector": {
+      "position": "replace",
       "anchor_text": "to_ascii"
     }
   }
