@@ -1,8 +1,8 @@
 {
   "tool": "stage_operation",
   "arguments": {
-    "operation": "wrap",
     "selector": {
+      "position": "around",
       "anchor_text": "target_function",
       "ancestor_node_type": "function_item"
     },

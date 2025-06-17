@@ -5,11 +5,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tree_sitter::{Node, Tree};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Position {
+    Before,
+    After,
+    Replace,
+    Around,
+}
+
 /// Text-anchored node selector using content as anchor points and AST structure for navigation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeSelector {
+    /// Where to place the content
+    pub position: Option<Position>,
+
     /// Exact text to find in the source code as an anchor point
     pub anchor_text: String,
+
     /// AST node type to walk up to from the anchor point (optional - when omitted, returns exploration data)
     pub ancestor_node_type: Option<String>,
 }
@@ -18,29 +31,18 @@ impl NodeSelector {
     pub fn new_from_value(args: &Value) -> Result<Self> {
         let selector_obj = args
             .get("selector")
-            .ok_or_else(|| anyhow!("selector is required"))?
-            .as_object()
-            .ok_or_else(|| anyhow!("selector must be an object"))?;
+            .ok_or_else(|| anyhow!("selector is required"))?;
 
-        if let Some(anchor_text) = selector_obj.get("anchor_text").and_then(|v| v.as_str()) {
-            let ancestor_node_type = selector_obj
-                .get("ancestor_node_type")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            return Ok(NodeSelector {
-                anchor_text: anchor_text.to_string(),
-                ancestor_node_type,
-            });
-        }
-
-        Err(anyhow!(
-            "Invalid selector: must specify:\n\
-             • Text-anchored: {{\"anchor_text\": \"exact text\"}}\n\
-             • With targeting: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node_type\"}}\n\
+        serde_json::from_value(selector_obj.clone()).map_err(|e| 
+            anyhow!(
+                "{e}\n\nselector must specify:\n\
+             • Explore mode: {{\"anchor_text\": \"exact text\" }}\n\
+             • With targeting: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node type\", \"position\": POSITION}}\n\
+             where POSITION is one of \"before\", \"after\", \"replace\", or \"around\"\n\
              \n\
              💡 Omit ancestor_node_type to explore available options around your anchor text."
-        ))
+            )
+        )
     }
 
     /// Find a node using text-anchored selection

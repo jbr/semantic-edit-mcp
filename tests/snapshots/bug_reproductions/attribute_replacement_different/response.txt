@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
      println!("Regular function");
@@ -20,20 +20,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "async_test",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "async_test",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/bug_reproductions/attribute_replacement_different/input.rs",
-    language_name: "rust",
+    "content": "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}"
+  },
+  "file_path": "tests/snapshots/bug_reproductions/attribute_replacement_different/input.rs",
+  "language_name": "rust"
 }
 
 

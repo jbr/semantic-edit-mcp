@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  pub fn main() {
@@ -14,20 +14,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "hello",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "hello",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/rust/formatting/input.rs",
-    language_name: "rust",
+    "content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}"
+  },
+  "file_path": "tests/snapshots/rust/formatting/input.rs",
+  "language_name": "rust"
 }
 
 

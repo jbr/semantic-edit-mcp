@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
      println!("Existing function");
@@ -15,20 +15,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "existing_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "existing_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/basic_operations/insert_after_function/input.rs",
-    language_name: "rust",
+    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}"
+  },
+  "file_path": "tests/snapshots/basic_operations/insert_after_function/input.rs",
+  "language_name": "rust"
 }
 
 

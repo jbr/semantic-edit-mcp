@@ -1,4 +1,4 @@
-🔍 **WRAP PREVIEW**
+STAGED: Insert around
 
 ===DIFF===
  # Important Notice
@@ -13,27 +13,24 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Wrap {
-        target: NodeSelector {
-            anchor_text: "critical message",
-            ancestor_node_type: Some(
-                "paragraph",
-            ),
-        },
-        wrapper_template: Some(
-            "**{{content}}**",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "around",
+      "anchor_text": "critical message",
+      "ancestor_node_type": "paragraph"
     },
-    file_path: "tests/snapshots/markdown/wrap_text_with_emphasis/input.md",
-    language_name: "markdown",
+    "content": "**{{content}}**"
+  },
+  "file_path": "tests/snapshots/markdown/wrap_text_with_emphasis/input.md",
+  "language_name": "markdown"
 }
 
 
 ==========COMMIT==========
 
 
-Wrap operation result:
+Insert around operation result:
 Successfully wrapped paragraph node
 
 ===DIFF===

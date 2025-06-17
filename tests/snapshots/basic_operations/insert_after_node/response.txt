@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
  pub fn second_function() {
@@ -13,20 +13,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "second_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "\n// This comment is inserted after the second function\n",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "second_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/basic_operations/insert_after_node/input.rs",
-    language_name: "rust",
+    "content": "\n// This comment is inserted after the second function\n"
+  },
+  "file_path": "tests/snapshots/basic_operations/insert_after_node/input.rs",
+  "language_name": "rust"
 }
 
 

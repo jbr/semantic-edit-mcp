@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
  #[main]
@@ -19,20 +19,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "var",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "pub fn main() { todo!() }",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "var",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/explore/multiple-anchor-single-target/input.rs",
-    language_name: "rust",
+    "content": "pub fn main() { todo!() }"
+  },
+  "file_path": "tests/snapshots/explore/multiple-anchor-single-target/input.rs",
+  "language_name": "rust"
 }
 
 

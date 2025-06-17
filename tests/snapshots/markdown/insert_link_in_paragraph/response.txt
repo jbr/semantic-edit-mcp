@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
 
@@ -14,20 +14,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "official documentation",
-            ancestor_node_type: Some(
-                "paragraph",
-            ),
-        },
-        content: Some(
-            "\nAdditional resources:\n- [API Reference](https://api.example.com)\n- [GitHub Repository](https://github.com/example/project)",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "official documentation",
+      "ancestor_node_type": "paragraph"
     },
-    file_path: "tests/snapshots/markdown/insert_link_in_paragraph/input.md",
-    language_name: "markdown",
+    "content": "\nAdditional resources:\n- [API Reference](https://api.example.com)\n- [GitHub Repository](https://github.com/example/project)"
+  },
+  "file_path": "tests/snapshots/markdown/insert_link_in_paragraph/input.md",
+  "language_name": "markdown"
 }
 
 

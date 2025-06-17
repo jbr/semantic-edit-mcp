@@ -4,20 +4,17 @@ anchor_text "NonexistentStruct" not found in file
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "NonexistentStruct",
-            ancestor_node_type: Some(
-                "struct_item",
-            ),
-        },
-        content: Some(
-            "\n// This should fail",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "NonexistentStruct",
+      "ancestor_node_type": "struct_item"
     },
-    file_path: "tests/snapshots/error_cases/struct_not_found/input.rs",
-    language_name: "rust",
+    "content": "\n// This should fail"
+  },
+  "file_path": "tests/snapshots/error_cases/struct_not_found/input.rs",
+  "language_name": "rust"
 }
 
 

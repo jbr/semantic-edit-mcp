@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
 
@@ -16,20 +16,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "- Write documentation",
-            ancestor_node_type: Some(
-                "list_item",
-            ),
-        },
-        content: Some(
-            "- Add comprehensive tests",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "- Write documentation",
+      "ancestor_node_type": "list_item"
     },
-    file_path: "tests/snapshots/markdown/insert_list_item/input.md",
-    language_name: "markdown",
+    "content": "- Add comprehensive tests"
+  },
+  "file_path": "tests/snapshots/markdown/insert_list_item/input.md",
+  "language_name": "markdown"
 }
 
 

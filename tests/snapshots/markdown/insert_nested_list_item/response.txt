@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
  - Core functionality
@@ -14,20 +14,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "Database",
-            ancestor_node_type: Some(
-                "list_item",
-            ),
-        },
-        content: Some(
-            "  - Session management\n",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "Database",
+      "ancestor_node_type": "list_item"
     },
-    file_path: "tests/snapshots/markdown/insert_nested_list_item/input.md",
-    language_name: "markdown",
+    "content": "  - Session management\n"
+  },
+  "file_path": "tests/snapshots/markdown/insert_nested_list_item/input.md",
+  "language_name": "markdown"
 }
 
 

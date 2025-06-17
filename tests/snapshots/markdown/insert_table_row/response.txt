@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
  | Option | Default | Description |
@@ -13,20 +13,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "Enable debug",
-            ancestor_node_type: Some(
-                "pipe_table_row",
-            ),
-        },
-        content: Some(
-            "\n| timeout | 30000 | Request timeout in ms |",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "Enable debug",
+      "ancestor_node_type": "pipe_table_row"
     },
-    file_path: "tests/snapshots/markdown/insert_table_row/input.md",
-    language_name: "markdown",
+    "content": "\n| timeout | 30000 | Request timeout in ms |"
+  },
+  "file_path": "tests/snapshots/markdown/insert_table_row/input.md",
+  "language_name": "markdown"
 }
 
 

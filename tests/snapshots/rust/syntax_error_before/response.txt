@@ -13,20 +13,17 @@ Suggestion: Pause and show your human collaborator this context:
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "main",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "fn main() {}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "main",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/rust/syntax_error_before/input.rs",
-    language_name: "rust",
+    "content": "fn main() {}"
+  },
+  "file_path": "tests/snapshots/rust/syntax_error_before/input.rs",
+  "language_name": "rust"
 }
 
 

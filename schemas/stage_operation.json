@@ -1,20 +1,9 @@
 {
   "name": "stage_operation",
-  "description": "Stage an operation for later execution and preview what it would do. 💡 TIP: Use read_documentation first to see available AST node types for your language!",
+  "description": "Stage an operation for execution and preview what it would do. 💡 TIP: Use read_documentation first to see available AST node types for your language!",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "operation": {
-        "type": "string",
-        "description": "Type of operation to stage",
-        "enum": [
-          "replace",
-          "remove",
-          "insert_before",
-          "insert_after",
-          "wrap"
-        ]
-      },
       "file_path": {
         "type": "string",
         "description": "Path to the source file. Language support: Rust, JSON, Markdown"
@@ -23,9 +12,16 @@
         "type": "object",
         "description": "Text-anchored node selector using exact text and AST navigation. 🎯 BEST PRACTICE: Start by omitting ancestor_node_type to explore all available targeting options, then use the suggested selector from the rich exploration results.",
         "properties": {
+          "position": {
+            "type": "string",
+            "enum": [
+              "before", "after", "replace", "around"
+            ],
+            "description": "Location to place content 🤔 CHOOSING THE RIGHT POSITION:\n• before/after: Adding new content alongside existing code\n• replace: Changing existing content to something completely different. To remove selected code entirely, omit content (\"replace with nothing\"). \n• around: 🔄 ATOMIC TRANSFORMATION - When you need to surround existing code with new structure while preserving the original (e.g., adding error handling, conditionals, or blocks that require matching braces)"
+          },
           "anchor_text": {
             "type": "string",
-            "description": "Exact short unique snippet to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '\"key\":', '# Heading'. Avoid large text blocks."
+            "description": "Exact short unique snippet to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '\"key\":', '# Heading'. Avoid large text blocks and whitespace."
           },
           "ancestor_node_type": {
             "type": "string",
@@ -51,7 +47,7 @@
       },
       "content": {
         "type": "string",
-        "description": "Content to insert. For wrap operation: use {{content}} as a placeholder that will be replaced with the exact string representation of the targeted AST node. The wrapped template replaces the original node entirely. Example: 'Some({{content}})' wraps a value with Some(), 'dbg!({{content}})' wraps an expression with debug macro."
+        "description": "Content to insert. For \"around\" position, use `{{content}}` as a placeholder for the original code. 🎯 \"around\" use cases: Use around when you need atomic transformations that can't be done with multiple inserts (due to syntax requirements). Examples: error handling (Result<{{content}}>), conditionals (if cond { {{content}} }), async blocks (async { {{content}} }), or any structure requiring matching braces/brackets.\n\nOmit this content when using \"position\": \"replace\" in order to perform a delete."
       },
       "language": {
         "type": "string",
@@ -64,15 +60,19 @@
       }
     },
     "required": [
-      "operation",
       "file_path",
       "selector"
     ],
     "additionalProperties": false,
+    "operationGuidance": {
+      "insert_before/insert_after": "Adding new content: imports, functions, struct fields, JSON properties",
+      "replace": "Changing existing content: updating function bodies, changing values, modifying entire structures",
+      "remove": "Deleting code: unused functions, deprecated fields, temporary debugging code",
+      "wrap": "Atomic transformations requiring matching syntax: error handling, conditionals, async blocks, Option/Result wrapping, any structure that would be invalid if inserted piece by piece"
+    },
     "examples": [
       {
         "description": "Step 1: Explore available node types (discovery mode)",
-        "operation": "replace",
         "file_path": "src/main.rs",
         "selector": {
           "anchor_text": "fn hello"
@@ -81,19 +81,9 @@
       },
       {
         "description": "Step 2: Use discovered node type for precise targeting",
-        "operation": "replace",
         "file_path": "src/main.rs",
         "selector": {
-          "anchor_text": "fn hello",
-          "ancestor_node_type": "function_item"
-        },
-        "content": "fn hello() { println!(\"Hello, world!\"); }"
-      },
-      {
-        "description": "Replace a function",
-        "operation": "replace",
-        "file_path": "src/main.rs",
-        "selector": {
+          "position": "replace",
           "anchor_text": "fn hello",
           "ancestor_node_type": "function_item"
         },
@@ -101,56 +91,65 @@
       },
       {
         "description": "Remove a function",
-        "operation": "remove",
         "file_path": "src/main.rs",
         "selector": {
+          "position": "replace",
           "anchor_text": "fn unused_function",
           "ancestor_node_type": "function_item"
         }
       },
       {
         "description": "Insert after a use statement",
-        "operation": "insert_after",
         "file_path": "src/main.rs",
         "selector": {
+          "position": "after",
           "anchor_text": "use std::collections::HashMap;",
           "ancestor_node_type": "use_declaration"
         },
         "content": "use std::fs;"
       },
       {
-        "description": "Wrap an expression with debug macro",
-        "operation": "wrap",
+        "description": "Add error handling around function call",
         "file_path": "src/main.rs",
         "selector": {
-          "anchor_text": "calculate_result()",
+          "position": "around",
+          "anchor_text": "parse_config()",
           "ancestor_node_type": "call_expression"
         },
-        "content": "dbg!({{content}})"
+        "content": "match {{content}} {\n    Ok(config) => config,\n    Err(e) => return Err(format!(\"Config error: {}\", e))\n}"
+      },
+      {
+        "description": "Add conditional execution around statement",
+        "file_path": "src/main.rs",
+        "selector": {
+          "position": "around",
+          "anchor_text": "expensive_operation();",
+          "ancestor_node_type": "expression_statement"
+        },
+        "content": "if feature_enabled {\n    {{content}}\n}"
+      },
+      {
+        "description": "Add async context around synchronous code",
+        "file_path": "src/main.rs",
+        "selector": {
+          "position": "around",
+          "anchor_text": "process_data(input)",
+          "ancestor_node_type": "call_expression"
+        },
+        "content": "tokio::spawn(async move {\n    {{content}}.await\n})"
       },
       {
         "description": "Wrap a value with Some()",
-        "operation": "wrap",
         "file_path": "src/main.rs",
         "selector": {
+          "position": "around",
           "anchor_text": "42",
           "ancestor_node_type": "integer_literal"
         },
         "content": "Some({{content}})"
       },
       {
-        "description": "Wrap with conditional",
-        "operation": "wrap",
-        "file_path": "src/main.rs",
-        "selector": {
-          "anchor_text": "expensive_operation();",
-          "ancestor_node_type": "expression_statement"
-        },
-        "content": "if should_run {\n    {{content}}\n}"
-      },
-      {
         "description": "JSON field discovery",
-        "operation": "replace",
         "file_path": "config.json",
         "selector": {
           "anchor_text": "\"database\""
@@ -159,7 +158,6 @@
       },
       {
         "description": "Markdown heading discovery",
-        "operation": "replace",
         "file_path": "README.md",
         "selector": {
           "anchor_text": "## Installation"

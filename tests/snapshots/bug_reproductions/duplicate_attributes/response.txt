@@ -1,4 +1,4 @@
-🔍 **REPLACEMENT PREVIEW**
+STAGED: Replace
 
 ===DIFF===
 
@@ -14,20 +14,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "async_test",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "#[tokio::test]\nasync fn async_test() {\n    // Modified async test with debug\n    println!(\"Debug output\");\n    assert!(true);\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "async_test",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/bug_reproductions/duplicate_attributes/input.rs",
-    language_name: "rust",
+    "content": "#[tokio::test]\nasync fn async_test() {\n    // Modified async test with debug\n    println!(\"Debug output\");\n    assert!(true);\n}"
+  },
+  "file_path": "tests/snapshots/bug_reproductions/duplicate_attributes/input.rs",
+  "language_name": "rust"
 }
 
 

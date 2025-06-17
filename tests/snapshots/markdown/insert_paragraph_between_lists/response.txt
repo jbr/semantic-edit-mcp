@@ -1,4 +1,4 @@
-🔍 **INSERTION PREVIEW**
+STAGED: Insert after
 
 ===DIFF===
  - API routes
@@ -17,20 +17,17 @@
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: InsertAfter {
-        target: NodeSelector {
-            anchor_text: "Authentication",
-            ancestor_node_type: Some(
-                "list_item",
-            ),
-        },
-        content: Some(
-            "## Frontend Components\n\nNow moving to the frontend:\n\n",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "Authentication",
+      "ancestor_node_type": "list_item"
     },
-    file_path: "tests/snapshots/markdown/insert_paragraph_between_lists/input.md",
-    language_name: "markdown",
+    "content": "## Frontend Components\n\nNow moving to the frontend:\n\n"
+  },
+  "file_path": "tests/snapshots/markdown/insert_paragraph_between_lists/input.md",
+  "language_name": "markdown"
 }
 
 

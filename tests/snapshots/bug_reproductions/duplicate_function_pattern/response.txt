@@ -29,20 +29,17 @@ Suggestion: Try a different change.
 ==========STAGED==========
 
 
-StagedOperation {
-    operation: Replace {
-        target: NodeSelector {
-            anchor_text: "helper_function",
-            ancestor_node_type: Some(
-                "function_item",
-            ),
-        },
-        content: Some(
-            "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}",
-        ),
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "helper_function",
+      "ancestor_node_type": "function_item"
     },
-    file_path: "tests/snapshots/bug_reproductions/duplicate_function_pattern/input.rs",
-    language_name: "rust",
+    "content": "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}"
+  },
+  "file_path": "tests/snapshots/bug_reproductions/duplicate_function_pattern/input.rs",
+  "language_name": "rust"
 }
 
 

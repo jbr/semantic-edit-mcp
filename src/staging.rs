@@ -8,7 +8,7 @@ use crate::{
 use std::sync::{Arc, Mutex};
 
 /// Represents a staged operation that can be previewed and committed
-#[derive(Debug, Clone, fieldwork::Fieldwork)]
+#[derive(Debug, Clone, fieldwork::Fieldwork, serde::Serialize)]
 #[fieldwork(get, set, get_mut, with)]
 pub struct StagedOperation {
     pub(crate) operation: EditOperation,
@@ -17,7 +17,6 @@ pub struct StagedOperation {
 }
 
 impl StagedOperation {
-
     pub fn retarget(&mut self, target: NodeSelector) {
         *self.operation_mut().target_selector_mut() = target;
     }
