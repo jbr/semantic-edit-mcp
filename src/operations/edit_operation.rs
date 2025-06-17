@@ -211,6 +211,16 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
         }
     }
+
+    pub(crate) fn target_selector_mut(&mut self) -> &mut NodeSelector {
+        match self {
+            EditOperation::Replace { target, .. } => target,
+            EditOperation::InsertBefore { target, .. } => target,
+            EditOperation::InsertAfter { target, .. } => target,
+            EditOperation::Wrap { target, .. } => target,
+            EditOperation::Delete { target } => target,
+        }
+    }
 }
 
 fn generate_diff(source_code: &str, new_content: &str) -> String {
