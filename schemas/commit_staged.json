@@ -1,17 +1,21 @@
 {
+  "name": "commit_staged",
+  "description": "Execute the currently staged operation",
+  "inputSchema": {
     "type": "object",
     "properties": {
-        "acknowledge": {
-            "type": "boolean",
-            "description": "Confirm that you want to execute the staged operation",
-            "default": true
-        }
+      "acknowledge": {
+        "type": "boolean",
+        "description": "Confirm that you want to execute the staged operation",
+        "default": true
+      }
     },
     "additionalProperties": false,
     "examples": [
-        {
-            "description": "Commit the currently staged operation",
-            "acknowledge": true
-        }
+      {
+        "description": "Commit the currently staged operation",
+        "acknowledge": true
+      }
     ]
+  }
 }

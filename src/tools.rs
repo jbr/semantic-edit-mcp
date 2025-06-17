@@ -2,8 +2,8 @@ use crate::languages::LanguageRegistry;
 use crate::operations::{EditOperation, NodeSelector};
 use crate::server::{Tool, ToolCallParams};
 use crate::staging::{StagedOperation, StagingStore};
-use anyhow::{Result, anyhow};
-use serde_json::{Value, json};
+use anyhow::{anyhow, Result};
+use serde_json::{json, Value};
 
 pub struct ToolRegistry {
     language_registry: LanguageRegistry,
@@ -41,25 +41,10 @@ impl ExecutionResult {
 impl ToolRegistry {
     pub fn new() -> Result<Self> {
         let tools = vec![
-            Tool {
-                name: "read_documentation",
-                description: "🔑 ESSENTIAL: Get all available AST node types for semantic editing. Use this FIRST to discover which ancestor_node_type values are valid for your language (e.g., 'identifier', 'function_item', 'number', 'string'). Required for effective use of stage_operation.",
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/read_documentation.json"
-                ))?,
-            },
-            Tool {
-                name: "stage_operation",
-                description: "Stage an operation for later execution and preview what it would do. 💡 TIP: Use read_documentation first to see available AST node types for your language!",
-                input_schema: serde_json::from_str(include_str!(
-                    "../schemas/stage_operation.json"
-                ))?,
-            },
-            Tool {
-                name: "commit_staged",
-                description: "Execute the currently staged operation",
-                input_schema: serde_json::from_str(include_str!("../schemas/commit_staged.json"))?,
-            },
+            serde_json::from_str(include_str!("../schemas/read_documentation.json"))?,
+            serde_json::from_str(include_str!("../schemas/stage_operation.json"))?,
+            serde_json::from_str(include_str!("../schemas/retarget_staged.json"))?,
+            serde_json::from_str(include_str!("../schemas/commit_staged.json"))?,
         ];
 
         Ok(Self {
@@ -81,14 +66,15 @@ impl ToolRegistry {
         let args = tool_call.arguments.as_ref().unwrap_or(&empty_args);
 
         match tool_call.name.as_str() {
-            "read_documentation" => self.handle_read_documentation(args),
-            "stage_operation" => self.handle_stage_operation(args, staging_store).await,
-            "commit_staged" => self.handle_commit_staged(staging_store).await,
+            "read_documentation" => self.read_documentation(args),
+            "stage_operation" => self.stage_operation(args, staging_store).await,
+            "retarget_staged" => self.handle_retarget_staged(args, staging_store).await,
+            "commit_staged" => self.commit_staged(staging_store).await,
             tool_call => Err(anyhow!("tool {tool_call} not recognized")),
         }
     }
 
-    fn handle_read_documentation(&self, args: &Value) -> Result<ExecutionResult> {
+    fn read_documentation(&self, args: &Value) -> Result<ExecutionResult> {
         let language = args
             .get("language")
             .and_then(|v| v.as_str())
@@ -99,7 +85,7 @@ impl ToolRegistry {
         ))
     }
 
-    async fn handle_stage_operation(
+    async fn stage_operation(
         &self,
         args: &Value,
         staging_store: &StagingStore,
@@ -125,14 +111,17 @@ impl ToolRegistry {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let selector = NodeSelector::new_from_value(args)?;
+        let target = NodeSelector::new_from_value(args)?;
 
         let operation = match operation_type {
-            "replace" => self.create_replace_operation(selector, content),
-            "remove" => self.create_remove_operation(selector),
-            "insert_before" => self.create_insert_before_operation(selector, content),
-            "insert_after" => self.create_insert_after_operation(selector, content),
-            "wrap" => self.create_wrap_operation(selector, content),
+            "replace" => Ok(EditOperation::Replace { target, content }),
+            "remove" => Ok(EditOperation::Delete { target }),
+            "insert_before" => Ok(EditOperation::InsertBefore { target, content }),
+            "insert_after" => Ok(EditOperation::InsertAfter { target, content }),
+            "wrap" => Ok(EditOperation::Wrap {
+                target,
+                wrapper_template: content,
+            }),
             _ => Err(anyhow!("Unknown operation type: {}", operation_type)),
         }?;
 
@@ -153,61 +142,34 @@ impl ToolRegistry {
         Ok(ExecutionResult::ChangeStaged(message, staged_operation))
     }
 
-    pub async fn handle_commit_staged(
-        &self,
-        staging_store: &StagingStore,
-    ) -> Result<ExecutionResult> {
+    pub async fn commit_staged(&self, staging_store: &StagingStore) -> Result<ExecutionResult> {
         staging_store
             .take_staged_operation()
             .ok_or_else(|| anyhow!("No operation is currently staged"))?
             .commit(&self.language_registry)
     }
 
-    fn create_remove_operation(&self, selector: NodeSelector) -> Result<EditOperation> {
-        Ok(EditOperation::Delete { target: selector })
-    }
-
-    fn create_replace_operation(
+    async fn handle_retarget_staged(
         &self,
-        selector: NodeSelector,
-        content: Option<String>,
-    ) -> Result<EditOperation> {
-        Ok(EditOperation::Replace {
-            target: selector,
-            content,
-        })
-    }
+        args: &Value,
+        staging_store: &StagingStore,
+    ) -> std::result::Result<ExecutionResult, anyhow::Error> {
+        let selector = NodeSelector::new_from_value(args)?;
+        let staged = staging_store
+            .modify_staged_operation(|op| op.retarget(selector))
+            .ok_or_else(|| anyhow!("no operation staged"))?;
+        let language = self
+            .language_registry
+            .get_language(staged.language_name())
+            .ok_or_else(|| anyhow!("language not recognized"))?;
 
-    fn create_insert_before_operation(
-        &self,
-        selector: NodeSelector,
-        content: Option<String>,
-    ) -> Result<EditOperation> {
-        Ok(EditOperation::InsertBefore {
-            target: selector,
-            content,
-        })
-    }
+        let ExecutionResult::ResponseOnly(message) =
+            staged.operation.apply(language, &staged.file_path, true)?
+        else {
+            return Err(anyhow!("unexpected change from preview"));
+        };
 
-    fn create_insert_after_operation(
-        &self,
-        selector: NodeSelector,
-        content: Option<String>,
-    ) -> Result<EditOperation> {
-        Ok(EditOperation::InsertAfter {
-            target: selector,
-            content,
-        })
-    }
-
-    fn create_wrap_operation(
-        &self,
-        selector: NodeSelector,
-        content: Option<String>,
-    ) -> Result<EditOperation> {
-        Ok(EditOperation::Wrap {
-            target: selector,
-            wrapper_template: content,
-        })
+        staging_store.stage(staged.clone());
+        Ok(ExecutionResult::ChangeStaged(message, staged))
     }
 }

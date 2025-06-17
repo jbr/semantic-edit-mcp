@@ -1,6 +1,10 @@
 use anyhow::Result;
 
-use crate::{languages::LanguageRegistry, operations::EditOperation, tools::ExecutionResult};
+use crate::{
+    languages::LanguageRegistry,
+    operations::{EditOperation, NodeSelector},
+    tools::ExecutionResult,
+};
 use std::sync::{Arc, Mutex};
 
 /// Represents a staged operation that can be previewed and committed
@@ -13,6 +17,11 @@ pub struct StagedOperation {
 }
 
 impl StagedOperation {
+
+    pub fn retarget(&mut self, target: NodeSelector) {
+        *self.operation_mut().target_selector_mut() = target;
+    }
+
     pub fn commit(self, language_registry: &LanguageRegistry) -> Result<ExecutionResult> {
         let StagedOperation {
             operation,
@@ -59,10 +68,14 @@ impl StagingStore {
         guard.take()
     }
 
-    /// Check if there's a staged operation
-    pub fn has_staged_operation(&self) -> bool {
-        let guard = self.staged_operation.lock().unwrap();
-        guard.is_some()
+    pub fn modify_staged_operation(
+        &self,
+        fun: impl FnOnce(&mut StagedOperation),
+    ) -> Option<StagedOperation> {
+        if let Some(op) = &mut *self.staged_operation.lock().unwrap() {
+            fun(op);
+        }
+        self.get_staged_operation()
     }
 }
 
