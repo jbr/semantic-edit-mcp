@@ -195,7 +195,7 @@ impl NodeSelector {
         }
 
         exploration_report.push_str("**Next Steps**:\n");
-        exploration_report.push_str("1. Use the read_documentation tool to learn the full set of node types for this language if you have not yet done so\n");
+        exploration_report.push_str("1. Use the open_file tool to see the ast structure of this document if you have not yet done so\n");
         exploration_report.push_str(&format!("2. If one of the above ancestor types looks like the correct syntax node, use it with `{}` to stage an edit operation.\n", &self.anchor_text));
         exploration_report.push_str("3. Review the diff\n");
         exploration_report.push_str(
@@ -372,7 +372,7 @@ fn format_no_ancestor_error(
         // Found anchor text but no valid ancestors
         let mut message = format!(
             "Error: anchor_text {anchor_text:?} appears {total_anchors} time(s) but no instances have ancestor {ancestor_node_type:?}
-Suggestion: use the read_documentation tool if you have not yet done so for this language
+Suggestion: use the open_file tool if you have not yet done so for this file
 "
         );
 
@@ -444,7 +444,7 @@ fn format_ambiguous_error(
     message.push_str(
         "Suggestions: 
 -> Use more specific anchor text to distinguish between matches
--> use the read_documentation tool if you have not yet done so",
+-> use the open_file tool if you have not yet done so",
     );
     message
 }

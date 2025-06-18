@@ -1,0 +1,38 @@
+{
+  "name": "open_file",
+  "description": "Open a file for semantic editing",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "file_path": {
+        "type": "string",
+        "description": "Path to the source file. Language support: Rust, JSON, Markdown"
+      },
+      "diff_since": {
+        "type": "string",
+        "description": "Unique identifier returned when viewing a file. Provide this to see changes since a known version"
+      },
+      "language": {
+        "type": "string",
+        "description": "Optional language hint. If not provided, language will be detected from file extension.",
+        "enum": [
+          "rust",
+          "json",
+          "markdown"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "examples": [
+      {
+        "description": "Open a rust file for edits",
+        "file_path": "src/lib.rs"
+      },
+      {
+        "description": "Open a json file with a custom extension",
+        "file_path": "config/actually-json.config",
+        "language": "json"
+      }
+    ]
+  }
+}

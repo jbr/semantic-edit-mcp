@@ -1,6 +1,3 @@
 {
-  "tool": "read_documentation",
-  "arguments": {
-    "language": "json"
-  }
+  "tool": "open_file"
 }

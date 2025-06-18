@@ -1,1 +1,21 @@
+Separator: dF99z8E522
+Path: tests/snapshots/basic_operations/get_documentation/input.json
 Node types you can use for json: _value, array, document, object, pair, string, comment, escape_sequence, false, null, number, string_content, true
+dF99z8E522 file contents dF99z8E522
+
+{
+    "name": "test-package",
+    "version": "1.0.0",
+    "description": "A test package",
+    "dependencies": {
+        "lodash": "^4.17.21"
+    },
+    "scripts": {
+        "test": "jest",
+        "build": "webpack"
+    }
+}
+
+
+dF99z8E522 syntax dF99z8E522
+ (document (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (object (pair key: (string (string_content)) value: (string (string_content))))) (pair key: (string (string_content)) value: (object (pair key: (string (string_content)) value: (string (string_content))) (pair key: (string (string_content)) value: (string (string_content)))))))

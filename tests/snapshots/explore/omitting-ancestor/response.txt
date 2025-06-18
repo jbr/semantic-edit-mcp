@@ -57,7 +57,7 @@
       -> SOURCE: `#[main]\npub fn main() {\n    match std::env::var("x") {\n        Ok(var) => {\n            println!("{}", var.to_ascii_uppercase());\n        }\n\...`
 
 **Next Steps**:
-1. Use the read_documentation tool to learn the full set of node types for this language if you have not yet done so
+1. Use the open_file tool to see the ast structure of this document if you have not yet done so
 2. If one of the above ancestor types looks like the correct syntax node, use it with `to_ascii` to stage an edit operation.
 3. Review the diff
 4. Commit the edit to disk if it looks good, otherwise stage a different edit
@@ -143,7 +143,7 @@
       -> SOURCE: `#[main]\npub fn main() {\n    match std::env::var("x") {\n        Ok(var) => {\n            println!("{}", var.to_ascii_uppercase());\n        }\n\...`
 
 **Next Steps**:
-1. Use the read_documentation tool to learn the full set of node types for this language if you have not yet done so
+1. Use the open_file tool to see the ast structure of this document if you have not yet done so
 2. If one of the above ancestor types looks like the correct syntax node, use it with `to_ascii` to stage an edit operation.
 3. Review the diff
 4. Commit the edit to disk if it looks good, otherwise stage a different edit

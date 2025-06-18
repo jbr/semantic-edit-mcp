@@ -9,7 +9,7 @@ pub mod utils;
 mod semantic_grouping_tests;
 
 use anyhow::{anyhow, Result};
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, fmt::Display, path::Path};
 use tree_sitter::{Language, Parser, Query};
 
 use crate::languages::traits::{LanguageEditor, NodeTypeInfo};
@@ -31,12 +31,29 @@ pub struct LanguageCommon {
     editor: Box<dyn LanguageEditor>,
     validation_query: Option<Query>,
 }
+impl Display for LanguageCommon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)
+    }
+}
 
 impl LanguageCommon {
     pub fn tree_sitter_parser(&self) -> Result<Parser> {
         let mut parser = Parser::new();
         parser.set_language(self.tree_sitter_language())?;
         Ok(parser)
+    }
+
+    pub fn docs(&self) -> String {
+        let node_types = self.node_types();
+        let name = self.name();
+        let named_types = node_types
+            .iter()
+            .filter(|nt| nt.named)
+            .map(|nt| &*nt.node_type)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("Node types you can use for {name}: {named_types}")
     }
 }
 
