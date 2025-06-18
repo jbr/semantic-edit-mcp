@@ -33,6 +33,8 @@ tree-sitter-md = "0.3.2"
 diffy = "0.4.2"
 fieldwork = "0.3.0"
 jsonformat = "2.1.0"
+fastrand = "2.3.0"
+lru = "0.14.0"
 
 # Additional tree-sitter grammars to add
 # tree-sitter-typescript = "0.23"

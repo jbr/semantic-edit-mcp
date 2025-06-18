@@ -6,7 +6,7 @@ pub fn other() {\n    let my_var = "var";\n}
 
 Suggestions: 
 -> Use more specific anchor text to distinguish between matches
--> use the read_documentation tool if you have not yet done so
+-> use the open_file tool if you have not yet done so
 
 
 ==========STAGED==========
@@ -37,4 +37,4 @@ pub fn other() {\n    let my_var = "var";\n}
 
 Suggestions: 
 -> Use more specific anchor text to distinguish between matches
--> use the read_documentation tool if you have not yet done so
+-> use the open_file tool if you have not yet done so
