@@ -1,0 +1,11 @@
+{
+  "tool": "stage_operation",
+  "arguments": {
+    "selector": {
+      "position": "after",
+      "anchor_text": "import asyncio",
+      "ancestor_node_type": "import_statement"
+    },
+    "content": "import logging"
+  }
+}

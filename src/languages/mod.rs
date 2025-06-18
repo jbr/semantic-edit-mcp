@@ -1,6 +1,7 @@
 pub mod javascript;
 pub mod json;
 pub mod markdown;
+pub mod python;
 pub mod rust;
 pub mod semantic_grouping;
 #[cfg(test)]
@@ -74,6 +75,7 @@ impl LanguageRegistry {
         registry.register_language(typescript::language()?);
         registry.register_language(tsx::language()?);
         registry.register_language(javascript::language()?);
+        registry.register_language(python::language()?);
 
         Ok(registry)
     }
