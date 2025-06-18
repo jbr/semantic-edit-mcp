@@ -6,7 +6,7 @@
     "properties": {
       "file_path": {
         "type": "string",
-        "description": "Path to the source file. Language support: Rust, JSON, Markdown, TOML"
+        "description": "Path to the source file."
       },
       "diff_since": {
         "type": "string",
@@ -19,7 +19,10 @@
           "rust",
           "json",
           "markdown",
-          "toml"
+          "toml",
+          "javascript",
+          "typescript",
+          "tsx"
         ]
       }
     },

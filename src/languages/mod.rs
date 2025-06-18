@@ -1,13 +1,15 @@
+pub mod javascript;
 pub mod json;
 pub mod markdown;
 pub mod rust;
 pub mod semantic_grouping;
-pub mod toml;
-pub mod traits;
-pub mod utils;
-
 #[cfg(test)]
 mod semantic_grouping_tests;
+pub mod toml;
+pub mod traits;
+pub mod tsx;
+pub mod typescript;
+pub mod utils;
 
 use anyhow::{anyhow, Result};
 use std::{collections::HashMap, fmt::Display, path::Path};
@@ -69,6 +71,9 @@ impl LanguageRegistry {
         registry.register_language(markdown::language()?);
         registry.register_language(rust::language()?);
         registry.register_language(toml::language()?);
+        registry.register_language(typescript::language()?);
+        registry.register_language(tsx::language()?);
+        registry.register_language(javascript::language()?);
 
         Ok(registry)
     }
