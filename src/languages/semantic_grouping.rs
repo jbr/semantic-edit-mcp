@@ -39,18 +39,8 @@ impl GroupingRule {
         self
     }
 
-    pub fn with_following_types(mut self, types: Vec<impl Into<String>>) -> Self {
-        self.following_node_types = types.into_iter().map(|t| t.into()).collect();
-        self
-    }
-
     pub fn with_max_gap_nodes(mut self, max_gap: usize) -> Self {
         self.max_gap_nodes = max_gap;
-        self
-    }
-
-    pub fn allow_non_consecutive(mut self) -> Self {
-        self.require_consecutive = false;
         self
     }
 }
@@ -363,17 +353,15 @@ mod tests {
     fn test_grouping_rule_builder() {
         let rule = GroupingRule::new("function_item")
             .with_preceding_types(vec!["attribute_item", "line_comment"])
-            .with_following_types(vec!["block_comment"])
-            .with_max_gap_nodes(2)
-            .allow_non_consecutive();
+            .with_max_gap_nodes(2);
 
         assert_eq!(rule.target_node_type, "function_item");
         assert_eq!(
             rule.preceding_node_types,
             vec!["attribute_item", "line_comment"]
         );
-        assert_eq!(rule.following_node_types, vec!["block_comment"]);
+        //        assert_eq!(rule.following_node_types, vec!["block_comment"]);
         assert_eq!(rule.max_gap_nodes, 2);
-        assert!(!rule.require_consecutive);
+        //        assert!(!rule.require_consecutive);
     }
 }

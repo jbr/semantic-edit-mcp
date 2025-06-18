@@ -34,25 +34,6 @@ pub struct SnapshotResult {
     pub response_matches: bool,
     pub output_matches: bool,
 }
-impl SnapshotResult {
-    fn populate_response_matches(&mut self) {
-        self.response_matches = self
-            .expected_response
-            .as_deref()
-            .is_some_and(|expected| expected.trim() == self.actual_response.trim());
-    }
-
-    fn populate_output_matches(&mut self) {
-        self.output_matches = match (
-            self.actual_output.as_deref(),
-            self.expected_output.as_deref(),
-        ) {
-            (Some(actual), Some(expected)) => actual.trim() == expected.trim(),
-            (None, None) => true,
-            _ => false,
-        };
-    }
-}
 
 #[derive(Debug)]
 struct SnapshotExecutionResult {
