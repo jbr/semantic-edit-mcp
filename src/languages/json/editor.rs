@@ -1,8 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use crate::languages::{traits::LanguageEditor, utils::collect_errors};
+use crate::languages::traits::LanguageEditor;
 use crate::operations::EditResult;
-use crate::parser::get_node_text;
 use anyhow::{anyhow, Result};
 use jsonformat::Indentation;
 use ropey::Rope;
@@ -105,7 +104,7 @@ impl LanguageEditor for JsonEditor {
         rope.remove(start_char..end_char);
         rope.insert(start_char, new_content);
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message: format!("Successfully replaced {} node", node.kind()),
             new_content: rope.to_string(),
         })
@@ -131,7 +130,7 @@ impl LanguageEditor for JsonEditor {
 
         rope.insert(start_char, &content);
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message: format!("Successfully inserted content before {} node", node.kind()),
             new_content: rope.to_string(),
         })
@@ -153,7 +152,7 @@ impl LanguageEditor for JsonEditor {
             rope.insert_char(end_char, ',');
         }
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message: format!("Successfully inserted content after {} node", node.kind()),
             new_content: rope.to_string(),
         })
@@ -166,7 +165,7 @@ impl LanguageEditor for JsonEditor {
         source_code: &str,
         wrapper_template: &str,
     ) -> Result<EditResult> {
-        let node_text = get_node_text(&node, source_code);
+        let node_text = &source_code[node.byte_range()];
 
         if !wrapper_template.contains("{{content}}") {
             return Err(anyhow!(
@@ -185,7 +184,7 @@ impl LanguageEditor for JsonEditor {
         rope.remove(start_char..end_char);
         rope.insert(start_char, &wrapped_content);
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message: format!("Successfully wrapped {} node", node.kind()),
             new_content: rope.to_string(),
         })
@@ -212,7 +211,7 @@ impl LanguageEditor for JsonEditor {
 
         rope.remove(final_start..final_end);
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message: format!("Successfully deleted {} node", node.kind()),
             new_content: rope.to_string(),
         })

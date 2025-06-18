@@ -39,20 +39,20 @@ impl GroupingRule {
         self
     }
 
-    pub fn with_following_types(mut self, types: Vec<impl Into<String>>) -> Self {
-        self.following_node_types = types.into_iter().map(|t| t.into()).collect();
-        self
-    }
+    // pub fn with_following_types(mut self, types: Vec<impl Into<String>>) -> Self {
+    //     self.following_node_types = types.into_iter().map(|t| t.into()).collect();
+    //     self
+    // }
 
     pub fn with_max_gap_nodes(mut self, max_gap: usize) -> Self {
         self.max_gap_nodes = max_gap;
         self
     }
 
-    pub fn allow_non_consecutive(mut self) -> Self {
-        self.require_consecutive = false;
-        self
-    }
+    // pub fn allow_non_consecutive(mut self) -> Self {
+    //     self.require_consecutive = false;
+    //     self
+    // }
 }
 
 /// A semantic group representing a logical unit of related AST nodes
@@ -264,11 +264,11 @@ pub trait SemanticGrouping {
         matches!(node.kind(), "whitespace" | "newline" | "\n" | " " | "\t")
     }
 
-    /// Validate that content between two nodes only contains allowed gap content
-    fn validate_gap_content(&self, source_code: &str, start_byte: usize, end_byte: usize) -> bool {
-        let gap_content = &source_code[start_byte..end_byte];
-        gap_content.trim().is_empty() // Only whitespace is allowed
-    }
+    // /// Validate that content between two nodes only contains allowed gap content
+    // fn validate_gap_content(&self, source_code: &str, start_byte: usize, end_byte: usize) -> bool {
+    //     let gap_content = &source_code[start_byte..end_byte];
+    //     gap_content.trim().is_empty() // Only whitespace is allowed
+    // }
 }
 
 /// Helper trait to add semantic grouping capabilities to existing language implementations

@@ -146,7 +146,7 @@ impl LanguageEditor for RustEditor {
 
         let message = format!("Successfully replaced {} node", node.kind());
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message,
             new_content: rope.to_string(),
         })
@@ -170,7 +170,7 @@ impl LanguageEditor for RustEditor {
 
         let message = format!("Successfully inserted content before {} node", node.kind());
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message,
             new_content: rope.to_string(),
         })
@@ -194,7 +194,7 @@ impl LanguageEditor for RustEditor {
 
         let message = format!("Successfully inserted content after {} node", node.kind());
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message,
             new_content: rope.to_string(),
         })
@@ -238,7 +238,7 @@ impl LanguageEditor for RustEditor {
             format!("Successfully wrapped {} node", node.kind())
         };
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message,
             new_content: rope.to_string(),
         })
@@ -265,7 +265,7 @@ impl LanguageEditor for RustEditor {
             format!("Successfully deleted {} node", node.kind())
         };
 
-        Ok(EditResult::Success {
+        Ok(EditResult {
             message,
             new_content: rope.to_string(),
         })

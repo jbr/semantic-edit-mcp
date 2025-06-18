@@ -21,14 +21,7 @@ pub fn parse_node_types_json(json_content: &str) -> Result<Vec<NodeTypeInfo>> {
 
         let named = obj.get("named").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        // Extract field names from the fields object
-        let fields = if let Some(fields_obj) = obj.get("fields").and_then(|v| v.as_object()) {
-            fields_obj.keys().cloned().collect()
-        } else {
-            Vec::new()
-        };
-
-        result.push(NodeTypeInfo::new(node_type, named, fields));
+        result.push(NodeTypeInfo::new(node_type, named));
     }
 
     Ok(result)

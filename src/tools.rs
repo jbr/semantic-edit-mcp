@@ -31,7 +31,10 @@ impl ExecutionResult {
     pub(crate) async fn write(self) -> Result<String> {
         match self {
             ExecutionResult::ResponseOnly(response) => Ok(response),
-            Self::ChangeStaged(response, _) => Ok(response),
+            Self::ChangeStaged(response, staged_operation) => {
+                let _ = staged_operation;
+                Ok(response)
+            }
             ExecutionResult::Change {
                 response,
                 output,
