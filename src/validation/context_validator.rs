@@ -5,51 +5,26 @@ use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 pub struct ContextValidator;
 
 #[derive(Debug)]
-pub struct ValidationResult {
+pub struct ValidationResult<'tree, 'source> {
     pub is_valid: bool,
-    pub violations: Vec<ContextViolation>,
-    pub can_auto_correct: bool,
+    pub violations: Vec<ContextViolation<'tree>>,
+    pub source_code: &'source str,
 }
 
 #[derive(Debug)]
-pub struct ContextViolation {
-    pub violation_type: String, // "function.in.struct.fields", etc.
-    pub node_type: String,      // "function_item", "struct_item", etc.
-    pub location: String,       // "line:column"
-    pub message: String,        // Human-readable error
-    pub suggestion: ViolationSuggestion,
-}
-
-#[derive(Debug)]
-pub struct ViolationSuggestion {
-    pub message: String,
-    pub auto_correctable: bool,
-    pub corrected_operation: Option<CorrectedOperation>,
-}
-
-#[derive(Debug)]
-pub struct CorrectedOperation {
-    pub operation: OperationType,
-    pub explanation: String,
-}
-
-#[derive(Debug)]
-pub enum OperationType {
-    InsertAfter,
-    InsertBefore,
-    InsertAfterStruct,
-    InsertInModule,
-    Replace,
-    Wrap,
+pub struct ContextViolation<'tree> {
+    pub node: Node<'tree>,
+    pub message: String, // Human-readable error
+    pub suggestion: &'static str,
 }
 
 impl ContextValidator {
     /// Validate if content can be safely inserted at the target location
-    pub fn validate_tree(
-        tree: &Tree,
+    pub fn validate_tree<'tree, 'source>(
+        tree: &'tree Tree,
         query: &Query,
-        source_code: &str,
-    ) -> Result<ValidationResult> {
+        source_code: &'source str,
+    ) -> Result<ValidationResult<'tree, 'source>> {
         // Run validation queries against the temporary tree
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(query, tree.root_node(), source_code.as_bytes());
@@ -65,19 +40,9 @@ impl ContextValidator {
                     // Only process "invalid" captures
                     if violation_type.starts_with("invalid.") {
                         violations.push(ContextViolation {
-                            violation_type: violation_type.clone(),
-                            node_type: node.kind().to_string(),
-                            location: format!(
-                                "{}:{}",
-                                node.start_position().row + 1,
-                                node.start_position().column + 1
-                            ),
+                            node,
                             message: Self::get_violation_message(&violation_type),
-                            suggestion: Self::get_violation_suggestion(
-                                &violation_type,
-                                node,
-                                source_code,
-                            ),
+                            suggestion: Self::get_violation_suggestion(&violation_type),
                         });
                     }
                 }
@@ -86,7 +51,7 @@ impl ContextValidator {
 
         Ok(ValidationResult {
             is_valid: violations.is_empty(),
-            can_auto_correct: violations.iter().any(|v| v.suggestion.auto_correctable),
+            source_code,
             violations,
         })
     }
@@ -139,50 +104,22 @@ impl ContextValidator {
         }
     }
 
-    fn get_violation_suggestion(
-        violation_type: &str,
-        _node: Node,
-        _source_code: &str,
-    ) -> ViolationSuggestion {
+    fn get_violation_suggestion(violation_type: &str) -> &'static str {
         match violation_type {
             "invalid.function.in.struct.fields" | "invalid.function.in.enum.variants" => {
-                ViolationSuggestion {
-                    message: "Place the function after the type definition".to_string(),
-                    auto_correctable: true,
-                    corrected_operation: Some(CorrectedOperation {
-                        operation: OperationType::InsertAfterStruct,
-                        explanation: "Moving function to after struct/enum definition".to_string(),
-                    }),
-                }
+                "Place the function after the type definition"
             }
             "invalid.type.in.function.body"
             | "invalid.impl.in.function.body"
-            | "invalid.trait.in.function.body" => ViolationSuggestion {
-                message: "Move this to module level".to_string(),
-                auto_correctable: true,
-                corrected_operation: Some(CorrectedOperation {
-                    operation: OperationType::InsertInModule,
-                    explanation: "Moving definition to module level".to_string(),
-                }),
-            },
-            "invalid.use.in.item.body" => ViolationSuggestion {
-                message: "Move use declarations to the top of the file".to_string(),
-                auto_correctable: true,
-                corrected_operation: Some(CorrectedOperation {
-                    operation: OperationType::InsertInModule,
-                    explanation: "Moving use declaration to module level".to_string(),
-                }),
-            },
-            _ => ViolationSuggestion {
-                message: "Consider placing this construct in an appropriate context".to_string(),
-                auto_correctable: false,
-                corrected_operation: None,
-            },
+            | "invalid.trait.in.function.body" => "Move this to module level",
+
+            "invalid.use.in.item.body" => "Move use declarations to the top of the file",
+            _ => "Consider placing this construct in an appropriate context",
         }
     }
 }
 
-impl ValidationResult {
+impl ValidationResult<'_, '_> {
     pub fn format_errors(&self) -> String {
         if self.is_valid {
             return "✅ All validations passed".to_string();
@@ -192,25 +129,11 @@ impl ValidationResult {
         response.push_str("❌ Invalid placement detected:\n\n");
 
         for violation in &self.violations {
-            response.push_str(&format!(
-                "• {} at {}: {}\n",
-                violation.node_type, violation.location, violation.message
-            ));
-
-            if violation.suggestion.auto_correctable {
-                if let Some(correction) = &violation.suggestion.corrected_operation {
-                    response.push_str(&format!(
-                        "  💡 Auto-correction available: Use {:?} operation instead.\n",
-                        correction.operation
-                    ));
-                    response.push_str(&format!("     {}\n", correction.explanation));
-                }
-            } else {
-                response.push_str(&format!(
-                    "  💡 Suggestion: {}\n",
-                    violation.suggestion.message
-                ));
-            }
+            response.push_str(&format!("• {}:\n", violation.message));
+            let parent = violation.node.parent().unwrap_or(violation.node);
+            response.push_str(&self.source_code[parent.byte_range()]);
+            response.push_str("\n\n");
+            response.push_str(&format!("  💡 Suggestion: {}\n", violation.suggestion));
         }
 
         response

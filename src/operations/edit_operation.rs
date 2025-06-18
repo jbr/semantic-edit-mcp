@@ -7,7 +7,7 @@ use crate::tools::ExecutionResult;
 use crate::validation::ContextValidator;
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Parser, Tree};
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct EditOperation {
@@ -16,28 +16,9 @@ pub struct EditOperation {
 }
 
 #[derive(Debug)]
-pub enum EditResult {
-    Success {
-        message: String,
-        new_content: String,
-    },
-    Error(String),
-}
-
-impl EditResult {
-    pub(crate) fn set_message(&mut self, new_message: String) {
-        match self {
-            EditResult::Success { message, .. } => *message = new_message,
-            EditResult::Error(message) => *message = new_message,
-        }
-    }
-
-    pub(crate) fn message(&self) -> &str {
-        match self {
-            EditResult::Success { message, .. } => message,
-            EditResult::Error(message) => message,
-        }
-    }
+pub struct EditResult {
+    pub message: String,
+    pub new_content: String,
 }
 
 macro_rules! maybe_early_return {
@@ -106,9 +87,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             &tree
         )?);
 
-        if let EditResult::Success { new_content, .. } = &mut edit_result {
-            *new_content = language.editor().format_code(new_content)?;
-        }
+        edit_result.new_content = language.editor().format_code(&edit_result.new_content)?;
 
         // Format response
         if preview_only {
@@ -118,40 +97,18 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
                 .map(ExecutionResult::ResponseOnly);
         }
 
-        match edit_result {
-            EditResult::Success {
-                message,
-                new_content,
-                ..
-            } => {
-                let diff = generate_diff(&source_code, &new_content);
+        let diff = generate_diff(&source_code, &edit_result.new_content);
 
-                let response = format!(
-                    "{} operation result:\n{message}\n\n{diff}",
-                    self.operation_name(),
-                );
-                Ok(ExecutionResult::Change {
-                    response,
-                    output: new_content,
-                    output_path: file_path.to_string(),
-                })
-            }
-
-            EditResult::Error(message) => Ok(ExecutionResult::ResponseOnly(message)),
-        }
-    }
-
-    /// Apply the edit operation to source code
-    fn apply_inner<'tree>(
-        &self,
-        target_node: Node<'tree>,
-        tree: &Tree,
-        source_code: &str,
-        language: &LanguageCommon,
-    ) -> Result<EditResult> {
-        let editor = language.editor();
-        let edit_result = editor.apply_operation(target_node, tree, self, source_code)?;
-        Ok(edit_result)
+        let response = format!(
+            "{} operation result:\n{}\n\n{diff}",
+            edit_result.message,
+            self.operation_name(),
+        );
+        Ok(ExecutionResult::Change {
+            response,
+            output: edit_result.new_content,
+            output_path: file_path.to_string(),
+        })
     }
 
     /// Generate contextual preview showing changes using diff format
@@ -160,16 +117,13 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         result: &EditResult,
         source_code: &str,
     ) -> Result<String> {
-        if let EditResult::Success { new_content, .. } = &result {
-            let mut preview = String::new();
+        let new_content = &result.new_content;
+        let mut preview = String::new();
 
-            preview.push_str(&format!("STAGED: {}\n\n", self.operation_name()));
-            preview.push_str(&generate_diff(source_code, new_content));
+        preview.push_str(&format!("STAGED: {}\n\n", self.operation_name()));
+        preview.push_str(&generate_diff(source_code, new_content));
 
-            Ok(preview)
-        } else {
-            Ok("🔍 **PREVIEW**: Operation did not produce new content".to_string())
-        }
+        Ok(preview)
     }
 
     pub(crate) fn target_selector_mut(&mut self) -> &mut NodeSelector {
@@ -242,10 +196,7 @@ fn validate(
     source_code: &str,
     tree: &Tree,
 ) -> Result<Option<String>> {
-    let EditResult::Success { new_content, .. } = &edit_result else {
-        return Ok(None);
-    };
-
+    let new_content = &edit_result.new_content;
     let old_tree = if language.name() == "markdown" {
         // workaround for a segfault in markdown
         None

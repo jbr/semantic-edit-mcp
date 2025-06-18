@@ -250,14 +250,6 @@ impl Ancestor {
     }
 }
 
-/// Find all byte positions where the anchor text appears
-fn find_text_positions(anchor_text: &str, source_code: &str) -> Vec<usize> {
-    source_code
-        .match_indices(anchor_text)
-        .map(|(index, _)| index)
-        .collect()
-}
-
 /// Find the tree-sitter node at a specific byte position
 fn find_node_at_byte_position<'a>(
     tree: &'a Tree,

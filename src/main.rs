@@ -1,7 +1,6 @@
 mod handlers;
 mod languages;
 mod operations;
-mod parser;
 mod server;
 mod server_impl;
 mod staging;
