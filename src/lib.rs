@@ -1,3 +1,5 @@
+#![deny(dead_code)]
+
 pub mod handlers;
 pub mod languages;
 pub mod operations;
