@@ -1,0 +1,42 @@
+STAGED: Insert after
+
+===DIFF===
+ """
+
+ import asyncio
++import logging
+ import json
+ from typing import Dict, List, Optional
+
+
+
+==========STAGED==========
+
+
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "import asyncio",
+      "ancestor_node_type": "import_statement"
+    },
+    "content": "import logging"
+  },
+  "file_path": "tests/snapshots/python/insert_after_import/input.py",
+  "language_name": "python"
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after import_statement node
+
+===DIFF===
+ """
+
+ import asyncio
++import logging
+ import json
+ from typing import Dict, List, Optional

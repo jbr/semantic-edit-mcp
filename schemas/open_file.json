@@ -22,7 +22,8 @@
           "toml",
           "javascript",
           "typescript",
-          "tsx"
+          "tsx",
+          "python"
         ]
       }
     },
