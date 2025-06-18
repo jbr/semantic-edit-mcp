@@ -6,7 +6,7 @@
     "properties": {
       "file_path": {
         "type": "string",
-        "description": "Path to the source file. Language support: Rust, JSON, Markdown, TOML"
+        "description": "Path to the source file."
       },
       "selector": {
         "type": "object",
@@ -15,7 +15,10 @@
           "position": {
             "type": "string",
             "enum": [
-              "before", "after", "replace", "around"
+              "before",
+              "after",
+              "replace",
+              "around"
             ],
             "description": "Location to place content 🤔 CHOOSING THE RIGHT POSITION:\n• before/after: Adding new content alongside existing code\n• replace: Changing existing content to something completely different. To remove selected code entirely, omit content (\"replace with nothing\"). \n• around: 🔄 ATOMIC TRANSFORMATION - When you need to surround existing code with new structure while preserving the original (e.g., adding error handling, conditionals, or blocks that require matching braces)"
           },
@@ -56,7 +59,10 @@
           "rust",
           "json",
           "markdown",
-          "toml"
+          "toml",
+          "javascript",
+          "typescript",
+          "tsx"
         ]
       }
     },
