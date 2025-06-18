@@ -77,7 +77,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
         // Apply operation
         let editor = language.editor();
-        let mut edit_result = editor.apply_operation(target_node, &tree, &self, &source_code)?;
+        let mut edit_result = editor.apply_operation(target_node, &tree, self, &source_code)?;
 
         maybe_early_return!(validate(
             &edit_result,
@@ -101,8 +101,8 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
         let response = format!(
             "{} operation result:\n{}\n\n{diff}",
-            edit_result.message,
             self.operation_name(),
+            edit_result.message,
         );
         Ok(ExecutionResult::Change {
             response,

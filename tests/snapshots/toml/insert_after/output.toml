@@ -1,0 +1,18 @@
+[package]
+name = "semantic-edit-mcp"
+version = "0.1.2"
+authors = ["Jacob Rothstein <hi@jbr.me>", "Anthropic Claude Sonnet 4"]
+edition = "2021"
+description = "MCP server for semantic code editing with tree-sitter"
+readme = "README.md"
+repository = "https://github.com/jbr/semantic-edit-mcp"
+documentation = "https://docs.rs/semantic-edit-mcp"
+license = "MIT OR Apache-2.0"
+keywords = ["mcp", "tree-sitter", "semantic-editing", "code-editing"]
+categories = ["development-tools", "text-processing"]
+
+[dependencies]
+# MCP server basics
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "*"

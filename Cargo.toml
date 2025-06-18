@@ -37,6 +37,8 @@ fastrand = "2.3.0"
 lru = "0.14.0"
 prettify-markdown = "0.2.0"
 prettify = "0.3.0"
+tree-sitter-toml-ng = "0.7.0"
+taplo = "0.14.0"
 
 # Additional tree-sitter grammars to add
 # tree-sitter-typescript = "0.23"
