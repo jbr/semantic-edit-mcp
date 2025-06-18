@@ -1,0 +1,37 @@
+STAGED: Insert after
+
+===DIFF===
+ # MCP server basics
+ clap = { version = "4.5", features = ["derive"] }
+ serde = { version = "1.0", features = ["derive"] }
++serde_json = "*"
+
+
+==========STAGED==========
+
+
+{
+  "operation": {
+    "target": {
+      "position": "after",
+      "anchor_text": "serde",
+      "ancestor_node_type": "table"
+    },
+    "content": "serde_json = \"*\""
+  },
+  "file_path": "tests/snapshots/toml/insert_after/input.toml",
+  "language_name": "toml"
+}
+
+
+==========COMMIT==========
+
+
+Insert after operation result:
+Successfully inserted content after table node
+
+===DIFF===
+ # MCP server basics
+ clap = { version = "4.5", features = ["derive"] }
+ serde = { version = "1.0", features = ["derive"] }
++serde_json = "*"

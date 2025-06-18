@@ -2,6 +2,7 @@ pub mod json;
 pub mod markdown;
 pub mod rust;
 pub mod semantic_grouping;
+pub mod toml;
 pub mod traits;
 pub mod utils;
 
@@ -67,6 +68,7 @@ impl LanguageRegistry {
         registry.register_language(json::language()?);
         registry.register_language(markdown::language()?);
         registry.register_language(rust::language()?);
+        registry.register_language(toml::language()?);
 
         Ok(registry)
     }

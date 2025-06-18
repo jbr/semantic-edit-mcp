@@ -1,0 +1,11 @@
+{
+  "tool": "stage_operation",
+  "arguments": {
+    "selector": {
+      "position": "after",
+      "anchor_text": "serde",
+      "ancestor_node_type": "table"
+    },
+    "content": "serde_json = \"*\""
+  }
+}

@@ -225,9 +225,9 @@ impl MarkdownEditor {
 
 impl LanguageEditor for MarkdownEditor {
     fn format_code(&self, source: &str) -> Result<String> {
-        Ok(prettify::print(
-            prettify_markdown::format_markdown(source).map_err(|e| anyhow!("{e}"))?,
-        ))
+        Ok(source.to_string()) // prettify::print(
+                               //     prettify_markdown::format_markdown(source).map_err(|e| anyhow!("{e}"))?,
+                               // ))
     }
 
     fn replace<'tree>(
