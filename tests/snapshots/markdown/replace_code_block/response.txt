@@ -1,5 +1,7 @@
 STAGED: Replace
 
+Edit efficiency: 66%
+
 ===DIFF===
 
  ## Example Usage
@@ -44,6 +46,8 @@ STAGED: Replace
 
 Replace operation result:
 Successfully replaced fenced_code_block node
+
+Edit efficiency: 66%
 
 ===DIFF===
 

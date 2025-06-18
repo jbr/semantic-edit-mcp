@@ -6,7 +6,7 @@ use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
 use crate::validation::ContextValidator;
 use anyhow::{anyhow, Result};
-use diffy::{DiffOptions, PatchFormatter};
+use diffy::{DiffOptions, Line, PatchFormatter};
 use tree_sitter::{Parser, Tree};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -97,7 +97,11 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
                 .map(ExecutionResult::ResponseOnly);
         }
 
-        let diff = generate_diff(&source_code, &edit_result.new_content);
+        let diff = generate_diff(
+            &source_code,
+            &edit_result.new_content,
+            self.content.as_deref(),
+        );
 
         let response = format!(
             "{} operation result:\n{}\n\n{diff}",
@@ -121,7 +125,11 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         let mut preview = String::new();
 
         preview.push_str(&format!("STAGED: {}\n\n", self.operation_name()));
-        preview.push_str(&generate_diff(source_code, new_content));
+        preview.push_str(&generate_diff(
+            source_code,
+            new_content,
+            self.content.as_deref(),
+        ));
 
         Ok(preview)
     }
@@ -131,15 +139,45 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 }
 
-fn generate_diff(source_code: &str, new_content: &str) -> String {
-    let patch = DiffOptions::new().create_patch(source_code, new_content);
+fn changed_lines(patch: &diffy::Patch<'_, str>, total_original_lines: usize) -> usize {
+    let mut changed_line_numbers = BTreeSet::new();
+
+    for hunk in patch.hunks() {
+        // old_range().range() returns a std::ops::Range<usize> that's properly 0-indexed
+        for line_num in hunk.old_range().range() {
+            if line_num < total_original_lines {
+                changed_line_numbers.insert(line_num);
+            }
+        }
+    }
+    changed_line_numbers.len()
+}
+
+fn generate_diff(source_code: &str, new_content: &str, content_patch: Option<&str>) -> String {
+    let diff_patch = DiffOptions::new().create_patch(source_code, new_content);
     let formatter = PatchFormatter::new().missing_newline_message(false);
 
     // Get the diff string and clean it up for AI consumption
-    let diff_output = formatter.fmt_patch(&patch).to_string();
+    let diff_output = formatter.fmt_patch(&diff_patch).to_string();
     let lines: Vec<&str> = diff_output.lines().collect();
-    let mut cleaned_diff = String::from("===DIFF===\n");
+    let mut cleaned_diff = String::new();
 
+    if let Some(content_patch) = content_patch {
+        let lines = content_patch.lines().count();
+        if lines > 10 {
+            let changed_lines = changed_lines(&diff_patch, lines);
+
+            let changed_fraction = (changed_lines * 100) / lines;
+
+            cleaned_diff.push_str(&format!("Edit efficiency: {changed_fraction}%\n",));
+            if changed_fraction < 30 {
+                cleaned_diff.push_str("💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration\n");
+            };
+            cleaned_diff.push('\n');
+        }
+    }
+
+    cleaned_diff.push_str("===DIFF===\n");
     for line in lines {
         // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
         if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@")
@@ -209,7 +247,7 @@ fn validate(
         .ok_or_else(|| anyhow!("unable to parse tree"))?;
 
     if let Some(errors) = validate_tree(language, &new_tree, new_content) {
-        let diff = generate_diff(source_code, new_content);
+        let diff = generate_diff(source_code, new_content, None);
         return Ok(Some(format!(
             "This edit would result in invalid syntax, but the file is still in a valid state. \
 No change was performed.
