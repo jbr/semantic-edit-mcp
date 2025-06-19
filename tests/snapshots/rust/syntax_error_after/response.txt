@@ -1,6 +1,50 @@
-error: expected one of `!`, `.`, `::`, `;`, `?`, `{`, `}`, or an operator, found `is`
- --> <stdin>:2:6
-  |
-2 | this is not valid rust
-  |      ^^ expected one of 8 possible tokens
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
 
+===SYNTAX ERRORS===
+   1   ⎸fn main() {
+   2 ->⎸this is not valid rust
+   3   ⎸}
+
+
+===DIFF===
+ fn main() {
+-    println!("started out ok!");
++this is not valid rust
+ }
+
+
+==========STAGED==========
+
+
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "main",
+      "ancestor_node_type": "function_item"
+    },
+    "content": "fn main() {\nthis is not valid rust\n}"
+  },
+  "file_path": "tests/snapshots/rust/syntax_error_after/input.rs",
+  "language_name": "rust"
+}
+
+
+==========COMMIT==========
+
+
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERRORS===
+   1   ⎸fn main() {
+   2 ->⎸this is not valid rust
+   3   ⎸}
+
+
+===DIFF===
+ fn main() {
+-    println!("started out ok!");
++this is not valid rust
+ }

@@ -29,28 +29,18 @@ pub fn parse_node_types_json(json_content: &str) -> Result<Vec<NodeTypeInfo>> {
 
 pub fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
     let mut errors = vec![];
-    let mut cursor = tree.root_node().walk();
-    collect_errors_with_cursor(&mut cursor, &mut errors);
+    collect_errors_recursive(tree.root_node(), &mut errors);
     errors
 }
 
-fn collect_errors_with_cursor<'tree>(
-    cursor: &mut TreeCursor<'tree>,
-    errors: &mut Vec<Node<'tree>>,
-) {
-    loop {
-        let node = cursor.node();
-        if node.kind() == "ERROR" {
-            errors.push(node);
-        }
+fn collect_errors_recursive<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
+    // Check if this node is an error
+    if node.is_error() || node.kind() == "ERROR" {
+        errors.push(node);
+    }
 
-        if cursor.goto_first_child() {
-            collect_errors_with_cursor(cursor, errors);
-            cursor.goto_parent();
-        }
-
-        if !cursor.goto_next_sibling() {
-            break;
-        }
+    // Recursively check all children
+    for child in node.children(&mut node.walk()) {
+        collect_errors_recursive(child, errors);
     }
 }
