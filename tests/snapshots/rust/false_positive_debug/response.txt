@@ -1,0 +1,45 @@
+STAGED: Replace
+
+===DIFF===
+ pub fn validate_email(email: &str) -> Result<(), String> {
+     if !email.contains('@') {
+-        return Err("Invalid email format".to_string());
++        return Err("Invalid email format: missing @ symbol".to_string());
+     }
+     Ok(())
+-}
++}
+
+
+==========STAGED==========
+
+
+{
+  "operation": {
+    "target": {
+      "position": "replace",
+      "anchor_text": "\"Invalid email format\"",
+      "ancestor_node_type": "string_literal"
+    },
+    "content": "\"Invalid email format: missing @ symbol\""
+  },
+  "file_path": "tests/snapshots/rust/false_positive_debug/input.rs",
+  "language_name": "rust"
+}
+
+
+==========COMMIT==========
+
+
+Replace operation result:
+Successfully replaced string_literal node
+
+===DIFF===
+ pub fn validate_email(email: &str) -> Result<(), String> {
+     if !email.contains('@') {
+-        return Err("Invalid email format".to_string());
++        return Err("Invalid email format: missing @ symbol".to_string());
+     }
+     Ok(())
+-}
++}

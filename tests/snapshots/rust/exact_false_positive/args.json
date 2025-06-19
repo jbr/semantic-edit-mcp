@@ -1,0 +1,11 @@
+{
+  "tool": "stage_operation",
+  "arguments": {
+    "selector": {
+      "position": "replace",
+      "anchor_text": "\"Invalid email format\"",
+      "ancestor_node_type": "string_literal"
+    },
+    "content": "\"Invalid email format: missing @ symbol\""
+  }
+}

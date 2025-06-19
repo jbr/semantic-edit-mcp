@@ -79,13 +79,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         let editor = language.editor();
         let mut edit_result = editor.apply_operation(target_node, &tree, self, &source_code)?;
 
-        maybe_early_return!(validate(
-            &edit_result,
-            &mut parser,
-            language,
-            &source_code,
-            &tree
-        )?);
+        maybe_early_return!(validate(&edit_result, &mut parser, language, &source_code)?);
 
         edit_result.new_content = language.editor().format_code(&edit_result.new_content)?;
 
@@ -232,18 +226,11 @@ fn validate(
     parser: &mut Parser,
     language: &LanguageCommon,
     source_code: &str,
-    tree: &Tree,
 ) -> Result<Option<String>> {
     let new_content = &edit_result.new_content;
-    let old_tree = if language.name() == "markdown" {
-        // workaround for a segfault in markdown
-        None
-    } else {
-        Some(tree)
-    };
 
     let new_tree = parser
-        .parse(new_content, old_tree)
+        .parse(new_content, None) // we're not incremental parsing yet
         .ok_or_else(|| anyhow!("unable to parse tree"))?;
 
     if let Some(errors) = validate_tree(language, &new_tree, new_content) {

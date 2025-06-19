@@ -1,14 +1,4 @@
-This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
-Suggestion: Try a different change.
-
-===SYNTAX ERRORS===
-  21   ⎸    }
-  22   ⎸}
-  23   ⎸
-  24 ->⎸#[inline]
-  25   ⎸#[must_use]
-  26   ⎸pub fn helper_function() -> String {
-
+STAGED: Replace
 
 ===DIFF===
      }
@@ -46,17 +36,8 @@ Suggestion: Try a different change.
 ==========COMMIT==========
 
 
-This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
-Suggestion: Try a different change.
-
-===SYNTAX ERRORS===
-  21   ⎸    }
-  22   ⎸}
-  23   ⎸
-  24 ->⎸#[inline]
-  25   ⎸#[must_use]
-  26   ⎸pub fn helper_function() -> String {
-
+Replace operation result:
+Successfully replaced function_item node
 
 ===DIFF===
      }
