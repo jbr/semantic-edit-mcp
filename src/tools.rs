@@ -1,3 +1,5 @@
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -5,9 +7,9 @@ use crate::languages::LanguageRegistry;
 use crate::operations::{EditOperation, NodeSelector};
 use crate::server::{Tool, ToolCallParams};
 use crate::staging::{StagedOperation, StagingStore};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use lru::LruCache;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
 pub struct ToolRegistry {
@@ -202,7 +204,7 @@ impl ToolRegistry {
             }
         }
 
-        let separator = find_separator_for_content(&contents);
+        let separator = hash_content(&contents);
 
         let mut parser = language.tree_sitter_parser()?;
         let tree = parser
@@ -231,13 +233,9 @@ To fetch changed content for this file, use {{\"tool\": \"read_file\", \"file_pa
     }
 }
 
-fn find_separator_for_content(content: &str) -> String {
-    loop {
-        let separator = std::iter::repeat_with(fastrand::alphanumeric)
-            .take(10)
-            .collect::<String>();
-        if !content.contains(&separator) {
-            return separator;
-        }
-    }
+fn hash_content(content: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    let hash = hasher.finish();
+    format!("{:010x}", hash % 0x10000000000) // 10 hex chars
 }
