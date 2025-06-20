@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use diffy::{DiffOptions, PatchFormatter};
 use semantic_edit_mcp::staging::StagingStore;
 use serde_json::Value;
@@ -298,6 +298,27 @@ impl SnapshotRunner {
             }
         }
 
+        // Handle file_paths array - convert relative paths to test directory paths
+        if let Some(args_obj) = tool_args.as_object_mut() {
+            if let Some(file_paths_value) = args_obj.get("file_paths").cloned() {
+                if let Some(file_paths_array) = file_paths_value.as_array() {
+                    let test_dir = test.args_path.parent().unwrap();
+                    let updated_paths: Vec<Value> = file_paths_array
+                        .iter()
+                        .map(|path_value| {
+                            if let Some(path_str) = path_value.as_str() {
+                                let full_path = test_dir.join(path_str);
+                                Value::String(full_path.to_string_lossy().to_string())
+                            } else {
+                                path_value.clone()
+                            }
+                        })
+                        .collect();
+                    args_obj.insert("file_paths".to_string(), Value::Array(updated_paths));
+                }
+            }
+        }
+
         // Create tool call params
         let tool_call = ToolCallParams {
             name: tool_name.to_string(),
@@ -440,7 +461,10 @@ impl SnapshotRunner {
                     "To target just this test, run `TEST_FILTER={} cargo test`",
                     result.test.name
                 );
-                println!("To update snapshot for just this test, run `UPDATE_SNAPSHOTS=1 TEST_FILTER={} cargo test`", result.test.name);
+                println!(
+                    "To update snapshot for just this test, run `UPDATE_SNAPSHOTS=1 TEST_FILTER={} cargo test`",
+                    result.test.name
+                );
                 if let Some(error) = &result.error {
                     println!("Error:\n{error}");
                 } else {
