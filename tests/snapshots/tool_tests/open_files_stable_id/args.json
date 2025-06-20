@@ -1,5 +1,5 @@
 {
-  "tool": "open_file",
+  "tool": "open_files",
   "arguments": {
     "file_paths": [
       "test_file.rs"
