@@ -82,7 +82,8 @@ impl<'a> OpenFile<'a> {
         for (content, file_path) in contents {
             let language = self
                 .language_registry
-                .get_language_with_hint(file_path, self.language_hint.as_deref())?;
+                .get_language_with_hint(file_path, self.language_hint.as_deref())
+                .ok();
 
             let file_response =
                 self.generate_file_response(file_path, &content, &separator, language)?;
@@ -146,7 +147,7 @@ impl<'a> OpenFile<'a> {
 
         Ok(format!(
             "New identifier: {new_identifier}\n\nTo fetch changed content for this file,\
- use {{\"tool\": \"open_file\", \"file_path\": \"{file_path}\", \"diff_since\": \"{new_identifier}\"}}\n\n {}",
+ use {{\"tool\": \"open_files\", \"file_path\": \"{file_path}\", \"diff_since\": \"{new_identifier}\"}}\n\n {}",
             formatter.fmt_patch(&patch)
         ))
     }
@@ -156,24 +157,32 @@ impl<'a> OpenFile<'a> {
         file_path: &str,
         contents: &str,
         separator: &str,
-        language: &LanguageCommon,
+        language: Option<&LanguageCommon>,
     ) -> Result<String> {
-        let mut parser = language.tree_sitter_parser()?;
-        let tree = parser
-            .parse(contents, None)
-            .ok_or_else(|| anyhow!("could not parse {file_path} as {}", language.name()))?;
+        let eq = "=".repeat(10);
+        let (syntax_section, docs_section) = if let Some(language) = language {
+            let mut parser = language.tree_sitter_parser()?;
+            let tree = parser
+                .parse(contents, None)
+                .ok_or_else(|| anyhow!("could not parse {file_path} as {}", language.name()))?;
 
-        let language_docs = language.docs();
-        let tree_str = tree.root_node().to_sexp();
+            let language_docs = language.docs();
+            let tree_str = tree.root_node().to_sexp();
+            (
+                format!("{eq}{separator} {file_path} SYNTAX {separator}{eq}\n{tree_str}\n"),
+                language_docs,
+            )
+        } else {
+            ("".into(), "This file format is not recognized. You will need to specify a language in order to operate on it".into())
+        };
 
         Ok(format!(
             "{eq}{separator} {file_path} META {separator}{eq}\n\
-             {language_docs}\n\n\
-             To fetch changed content for this file, use {{\"tool\": \"open_file\", \"file_path\":\
+             {docs_section}\n\
+             To fetch changed content for this file, use {{\"tool\": \"open_files\", \"file_path\":\
              \"{file_path}\", \"diff_since\": \"{separator}\"}}\n\
-             \n\
              {eq}{separator} {file_path} CONTENTS {separator}{eq}\n{contents}\n\
-             {eq}{separator} {file_path} SYNTAX {separator}{eq}\n{tree_str}\n\
+             {syntax_section}\
              {eq}{separator} {file_path} END {separator}{eq}",
             eq = "=".repeat(10),
         ))

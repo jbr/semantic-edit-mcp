@@ -1,5 +1,5 @@
 {
-  "tool": "open_file",
+  "tool": "open_files",
   "arguments": {
     "file_paths": ["file1.rs", "file2.json"],
     "diff_since": "some_hash"

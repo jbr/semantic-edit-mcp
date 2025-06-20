@@ -56,7 +56,7 @@ impl ToolRegistry {
             serde_json::from_str(include_str!("../schemas/stage_operation.json"))?,
             serde_json::from_str(include_str!("../schemas/retarget_staged.json"))?,
             serde_json::from_str(include_str!("../schemas/commit_staged.json"))?,
-            serde_json::from_str(include_str!("../schemas/open_file.json"))?,
+            serde_json::from_str(include_str!("../schemas/open_files.json"))?,
         ];
 
         Ok(Self {
@@ -82,7 +82,7 @@ impl ToolRegistry {
             "stage_operation" => self.stage_operation(args, staging_store).await,
             "retarget_staged" => self.handle_retarget_staged(args, staging_store).await,
             "commit_staged" => self.commit_staged(staging_store).await,
-            "open_file" => self.open_file(args).await,
+            "open_files" => self.open_files(args).await,
             tool_call => Err(anyhow!("Tool {tool_call} not recognized")),
         }
     }
@@ -140,7 +140,7 @@ impl ToolRegistry {
         &self,
         args: &Value,
         staging_store: &StagingStore,
-    ) -> std::result::Result<ExecutionResult, anyhow::Error> {
+    ) -> Result<ExecutionResult> {
         let selector = NodeSelector::new_from_value(args)?;
         let staged = staging_store
             .modify_staged_operation(|op| op.retarget(selector))
@@ -160,7 +160,7 @@ impl ToolRegistry {
         Ok(ExecutionResult::ChangeStaged(message, staged))
     }
 
-    async fn open_file(&self, args: &Value) -> std::result::Result<ExecutionResult, anyhow::Error> {
+    async fn open_files(&self, args: &Value) -> Result<ExecutionResult> {
         OpenFile::new(args, &self.cache, &self.language_registry)?
             .execute()
             .await

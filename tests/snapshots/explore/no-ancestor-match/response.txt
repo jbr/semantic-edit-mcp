@@ -1,5 +1,5 @@
 Error: anchor_text "var" appears 3 time(s) but no instances have ancestor "enum_item"
-Suggestion: use the open_file tool if you have not yet done so for this file
+Suggestion: use the open_files tool if you have not yet done so for this file
 
 - Occurence 1: `std::env::var`
    Available ancestors: identifier, scoped_identifier, call_expression, match_expression, expression_statement, block, function_item, source_file
@@ -30,7 +30,7 @@ Suggestion: use the open_file tool if you have not yet done so for this file
 
 
 Error: anchor_text "var" appears 3 time(s) but no instances have ancestor "enum_item"
-Suggestion: use the open_file tool if you have not yet done so for this file
+Suggestion: use the open_files tool if you have not yet done so for this file
 
 - Occurence 1: `std::env::var`
    Available ancestors: identifier, scoped_identifier, call_expression, match_expression, expression_statement, block, function_item, source_file

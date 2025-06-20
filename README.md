@@ -49,7 +49,7 @@ The server communicates via JSON-RPC over stdin/stdout and provides the followin
 
 ### File Inspection & Multi-File Operations (1 tool)
 
-#### `open_file`
+#### `open_files`
 
 Inspect one or more files with full AST analysis and content viewing.
 

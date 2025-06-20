@@ -1,6 +1,6 @@
 {
   "name": "stage_operation",
-  "description": "Stage an operation for execution and preview what it would do. 💡 TIP: Use open_file first to see ast structure and code!",
+  "description": "Stage an operation for execution and preview what it would do. 💡 TIP: Use open_files first to see ast structure and code!",
   "inputSchema": {
     "type": "object",
     "properties": {
