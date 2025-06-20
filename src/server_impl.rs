@@ -3,7 +3,7 @@ use crate::server::{McpMessage, McpRequest, McpResponse, Tool, ToolCallParams};
 use crate::staging::StagingStore;
 use crate::tools::ToolRegistry;
 use anyhow::Result;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub struct SemanticEditServer {

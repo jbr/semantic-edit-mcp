@@ -6,7 +6,7 @@ use crate::operations::selector::NodeSelector;
 use crate::tools::ExecutionResult;
 use crate::validation::ContextValidator;
 use anyhow::{anyhow, Result};
-use diffy::{DiffOptions, Line, PatchFormatter};
+use diffy::{DiffOptions, PatchFormatter};
 use tree_sitter::{Parser, Tree};
 
 #[derive(Debug, Clone, serde::Serialize)]

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use semantic_edit_mcp::staging::StagingStore;
 use serde_json::Value;
