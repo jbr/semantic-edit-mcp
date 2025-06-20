@@ -33,7 +33,7 @@ impl NodeSelector {
             .get("selector")
             .ok_or_else(|| anyhow!("selector is required"))?;
 
-        serde_json::from_value(selector_obj.clone()).map_err(|e| 
+        serde_json::from_value(selector_obj.clone()).map_err(|e|
             anyhow!(
                 "{e}\n\nselector must specify:\n\
              • Explore mode: {{\"anchor_text\": \"exact text\" }}\n\

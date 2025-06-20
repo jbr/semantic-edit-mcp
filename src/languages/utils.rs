@@ -1,7 +1,7 @@
 use crate::languages::traits::NodeTypeInfo;
 use anyhow::{anyhow, Result};
 use serde_json::Value;
-use tree_sitter::{Node, Tree, TreeCursor};
+use tree_sitter::{Node, Tree};
 
 /// Parse node-types.json file from tree-sitter
 pub fn parse_node_types_json(json_content: &str) -> Result<Vec<NodeTypeInfo>> {
