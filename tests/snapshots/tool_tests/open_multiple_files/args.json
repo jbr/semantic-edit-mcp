@@ -2,7 +2,8 @@
   "tool": "open_file",
   "arguments": {
     "file_paths": [
-      "test_file.rs"
+      "file1.rs",
+      "file2.json"
     ]
   }
 }
