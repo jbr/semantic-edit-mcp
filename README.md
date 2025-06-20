@@ -47,8 +47,42 @@ semantic-edit-mcp serve
 
 The server communicates via JSON-RPC over stdin/stdout and provides the following tools:
 
-## Available Tools (16 Total)
+### File Inspection & Multi-File Operations (1 tool)
 
+#### `open_file`
+
+Inspect one or more files with full AST analysis and content viewing.
+
+**Single file:**
+```json
+{
+  "file_paths": ["src/main.rs"]
+}
+```
+
+**Multiple files:**
+```json
+{
+  "file_paths": ["src/main.rs", "config.json", "README.md"]
+}
+```
+
+**With language override:**
+```json
+{
+  "file_paths": ["config.local", "config.prod"],
+  "language": "json"
+}
+```
+
+Features:
+- **Content-based versioning**: Stable identifiers for tracking file changes
+- **Language detection**: Automatic parsing with correct AST for each file type
+- **Multi-file support**: Open related files in a single operation
+- **Language hints**: Override detection for files with non-standard extensions
+- **Diff tracking**: Track changes with `diff_since` parameter (single files only)
+
+## Available Tools (17 Total)
 ### Core Multi-Language Editing Tools (4 tools)
 
 All editing tools support full validation and work across supported languages:
