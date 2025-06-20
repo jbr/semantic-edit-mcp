@@ -1,0 +1,2 @@
+// Dummy file
+fn test() {}
