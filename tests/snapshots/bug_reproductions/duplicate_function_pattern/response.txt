@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -14,28 +15,7 @@ STAGED: Replace
  }
 
  pub fn regular_function() {
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "helper_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "#[inline]\n#[must_use]\npub fn helper_function() -> String {\n    // Updated implementation with same attributes\n    \"updated implementation\".to_string()\n}"
-  },
-  "file_path": "tests/snapshots/bug_reproductions/duplicate_function_pattern/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced function_item node
 

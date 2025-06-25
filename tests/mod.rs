@@ -3,17 +3,16 @@ mod snapshot_runner;
 use snapshot_runner::SnapshotRunner;
 use std::env;
 
-#[tokio::test]
-async fn run_snapshot_tests() {
+#[test]
+fn run_snapshot_tests() {
     let update_mode = env::var("UPDATE_SNAPSHOTS").is_ok() || env::var("UPDATE_SNAPSHOT").is_ok();
     let test_filter = env::var("TEST_FILTER").ok();
 
-    let runner =
+    let mut runner =
         SnapshotRunner::new(update_mode, test_filter).expect("Failed to create snapshot runner");
 
     let results = runner
         .run_all_tests()
-        .await
         .expect("Failed to run snapshot tests");
 
     runner.print_summary(&results);
@@ -28,4 +27,9 @@ async fn run_snapshot_tests() {
             panic!("❌ {failed_count} snapshot test(s) failed");
         }
     }
+}
+
+#[test]
+fn test() {
+    semantic_edit_mcp::tools::Tools::schema();
 }

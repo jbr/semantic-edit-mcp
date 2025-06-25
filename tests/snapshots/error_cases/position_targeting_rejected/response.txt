@@ -1,8 +1,0 @@
-missing field `anchor_text`
-
-selector must specify:
-• Explore mode: {"anchor_text": "exact text" }
-• With targeting: {"anchor_text": "exact text", "ancestor_node_type": "node type", "position": POSITION}
-where POSITION is one of "before", "after", "replace", or "around"
-
-💡 Omit ancestor_node_type to explore available options around your anchor text.

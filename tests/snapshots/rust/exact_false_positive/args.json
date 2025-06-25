@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "\"Invalid email format\"",
-      "ancestor_node_type": "string_literal"
+[
+  {
+    "arguments": {
+      "content": "\"Invalid email format: missing @ symbol\"",
+      "selector": {
+        "ancestor_node_type": "string_literal",
+        "anchor_text": "\"Invalid email format\"",
+        "position": "replace"
+      }
     },
-    "content": "\"Invalid email format: missing @ symbol\""
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

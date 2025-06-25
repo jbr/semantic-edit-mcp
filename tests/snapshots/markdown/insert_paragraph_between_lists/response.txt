@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -12,28 +13,7 @@ STAGED: Insert after
  - Frontend components
  - User interface
  - State management
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "Authentication",
-      "ancestor_node_type": "list_item"
-    },
-    "content": "## Frontend Components\n\nNow moving to the frontend:\n\n"
-  },
-  "file_path": "tests/snapshots/markdown/insert_paragraph_between_lists/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after list_item node
 

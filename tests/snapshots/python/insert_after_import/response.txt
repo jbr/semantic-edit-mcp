@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Insert after
  import json
  from typing import Dict, List, Optional
 
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "import asyncio",
-      "ancestor_node_type": "import_statement"
-    },
-    "content": "import logging"
-  },
-  "file_path": "tests/snapshots/python/insert_after_import/input.py",
-  "language_name": "python"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after import_statement node
 
@@ -40,3 +20,4 @@ Successfully inserted content after import_statement node
 +import logging
  import json
  from typing import Dict, List, Optional
+

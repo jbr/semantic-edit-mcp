@@ -1,15 +1,26 @@
 use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 
 use super::selector::Position::{After, Around, Before, Replace};
-use crate::languages::LanguageCommon;
 use crate::operations::selector::NodeSelector;
-use crate::tools::ExecutionResult;
 use crate::validation::ContextValidator;
+use crate::{languages::LanguageCommon, state::StagedOperation};
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use tree_sitter::{Parser, Tree};
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug)]
+pub enum ExecutionResult {
+    ResponseOnly(String),
+    ChangeStaged(String, StagedOperation),
+    Change {
+        response: String,
+        output: String,
+        output_path: PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EditOperation {
     pub(crate) target: NodeSelector,
     pub(crate) content: Option<String>,
@@ -51,14 +62,18 @@ impl EditOperation {
     pub fn apply(
         &self,
         language: &LanguageCommon,
-        file_path: &str,
+        file_path: &Path,
         preview_only: bool,
     ) -> Result<ExecutionResult> {
         let source_code = std::fs::read_to_string(file_path)?;
         let mut parser = language.tree_sitter_parser()?;
-        let tree = parser
-            .parse(&source_code, None)
-            .ok_or_else(|| anyhow!("Unable to parse {file_path} as {}", language.name()))?;
+        let tree = parser.parse(&source_code, None).ok_or_else(|| {
+            anyhow!(
+                "Unable to parse {} as {}",
+                file_path.display(),
+                language.name()
+            )
+        })?;
 
         maybe_early_return!(
             validate_tree(language, &tree, &source_code).map(|errors| format!(
@@ -105,7 +120,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         Ok(ExecutionResult::Change {
             response,
             output: edit_result.new_content,
-            output_path: file_path.to_string(),
+            output_path: file_path.to_path_buf(),
         })
     }
 

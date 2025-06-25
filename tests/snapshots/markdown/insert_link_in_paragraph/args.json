@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "official documentation",
-      "ancestor_node_type": "paragraph"
+[
+  {
+    "arguments": {
+      "content": "\nAdditional resources:\n- [API Reference](https://api.example.com)\n- [GitHub Repository](https://github.com/example/project)",
+      "selector": {
+        "ancestor_node_type": "paragraph",
+        "anchor_text": "official documentation",
+        "position": "after"
+      }
     },
-    "content": "\nAdditional resources:\n- [API Reference](https://api.example.com)\n- [GitHub Repository](https://github.com/example/project)"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "async_test",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "async_test",
+        "position": "replace"
+      }
     },
-    "content": "#[test]\nfn async_test() {\n    // Changed from #[tokio::test] async fn to #[test] fn\n    // Should replace the attribute, not duplicate\n    println!(\"Now a regular test\");\n    assert!(true);\n}"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

@@ -1,4 +1,4 @@
-use super::{utils::parse_node_types_json, LanguageCommon};
+use super::{utils::parse_node_types_json, LanguageCommon, LanguageName};
 use crate::languages::traits::LanguageEditor;
 use anyhow::Result;
 
@@ -8,7 +8,7 @@ pub fn language() -> Result<LanguageCommon> {
     let editor = Box::new(TypescriptEditor::new());
 
     Ok(LanguageCommon {
-        name: "typescript",
+        name: LanguageName::Typescript,
         file_extensions: &["ts"],
         language,
         node_types,

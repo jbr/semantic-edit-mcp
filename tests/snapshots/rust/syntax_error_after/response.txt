@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
 Suggestion: Try a different change.
 
@@ -12,28 +13,7 @@ Suggestion: Try a different change.
 -    println!("started out ok!");
 +this is not valid rust
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "main",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "fn main() {\nthis is not valid rust\n}"
-  },
-  "file_path": "tests/snapshots/rust/syntax_error_after/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
 Suggestion: Try a different change.
 

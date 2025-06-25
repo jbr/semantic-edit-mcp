@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -10,28 +11,7 @@ STAGED: Insert after
 +    print(f"Hello, {name}!")
 +```
  That's the basic example.
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "println",
-      "ancestor_node_type": "fenced_code_block"
-    },
-    "content": "```python\ndef greet(name):\n    print(f\"Hello, {name}!\")\n```"
-  },
-  "file_path": "tests/snapshots/markdown/insert_code_block/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after fenced_code_block node
 

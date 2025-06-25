@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "console",
-      "ancestor_node_type": "fenced_code_block"
+[
+  {
+    "arguments": {
+      "content": "```typescript\ninterface User {\n  name: string;\n  email: string;\n}\n\nconst user: User = {\n  name: \"Alice\",\n  email: \"alice@example.com\"\n};\nconsole.log(user);\n```",
+      "selector": {
+        "ancestor_node_type": "fenced_code_block",
+        "anchor_text": "console",
+        "position": "replace"
+      }
     },
-    "content": "```typescript\ninterface User {\n  name: string;\n  email: string;\n}\n\nconst user: User = {\n  name: \"Alice\",\n  email: \"alice@example.com\"\n};\nconsole.log(user);\n```"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

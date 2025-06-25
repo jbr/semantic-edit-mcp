@@ -9,7 +9,7 @@ use super::{
     utils::parse_node_types_json,
     LanguageCommon,
 };
-use crate::operations::EditResult;
+use crate::{languages::LanguageName, operations::EditResult};
 use anyhow::{anyhow, Result};
 use ropey::Rope;
 use tree_sitter::{Node, Tree};
@@ -28,7 +28,7 @@ pub fn language() -> Result<LanguageCommon> {
         validation_query,
         node_types,
         editor,
-        name: "rust",
+        name: LanguageName::Rust,
         file_extensions: &["rs"],
     })
 }

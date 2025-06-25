@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert around
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Insert around
 +**This is a critical message that users need to pay attention to immediately.
 +**
  Please read the documentation carefully.
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "around",
-      "anchor_text": "critical message",
-      "ancestor_node_type": "paragraph"
-    },
-    "content": "**{{content}}**"
-  },
-  "file_path": "tests/snapshots/markdown/wrap_text_with_emphasis/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert around operation result:
 Successfully wrapped paragraph node
 

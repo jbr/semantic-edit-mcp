@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 Edit efficiency: 66%
@@ -22,28 +23,7 @@ Edit efficiency: 66%
  ```
 -
  This example needs updating.
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "console",
-      "ancestor_node_type": "fenced_code_block"
-    },
-    "content": "```typescript\ninterface User {\n  name: string;\n  email: string;\n}\n\nconst user: User = {\n  name: \"Alice\",\n  email: \"alice@example.com\"\n};\nconsole.log(user);\n```"
-  },
-  "file_path": "tests/snapshots/markdown/replace_code_block/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced fenced_code_block node
 

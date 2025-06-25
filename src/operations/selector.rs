@@ -1,11 +1,12 @@
-use std::{collections::HashSet, ops::Range};
+use std::ops::Range;
 
 use anyhow::{anyhow, Result};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tree_sitter::{Node, Tree};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum Position {
     Before,
@@ -15,15 +16,20 @@ pub enum Position {
 }
 
 /// Text-anchored node selector using content as anchor points and AST structure for navigation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeSelector {
-    /// Where to place the content
+    /// Location to place content 🤔 CHOOSING THE RIGHT POSITION:
+    /// • before/after: Adding new content alongside existing code
+    /// • replace: Changing existing content to something completely different. To remove selected code entirely, omit content ("replace with nothing").
+    /// • around: 🔄 ATOMIC TRANSFORMATION - When you need to surround existing code with new structure while preserving the original (e.g., adding error handling, conditionals, or blocks that require matching braces)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
 
-    /// Exact text to find in the source code as an anchor point
+    /// Exact short unique snippet to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '"key":', '# Heading'. Avoid large text blocks and whitespace.
     pub anchor_text: String,
 
-    /// AST node type to walk up to from the anchor point (optional - when omitted, returns exploration data)
+    /// AST node type to target from the anchor point. ✨ DISCOVERY TIP: Omit this parameter first to see all available options with context and examples. The exploration mode shows exactly what each node type would target.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ancestor_node_type: Option<String>,
 }
 
@@ -392,12 +398,19 @@ Suggestion: use the open_files tool if you have not yet done so for this file
             }
         }
 
-        let all_ancestors = anchor_info
+        let mut bk_tree = bk_tree::BKTree::new(bk_tree::metrics::Levenshtein);
+        for ancestor in anchor_info
             .iter()
             .flat_map(|info| info.ancestor_chain.iter().map(|x| x.kind.clone()))
-            .collect();
+        {
+            bk_tree.add(ancestor);
+        }
 
-        if let Some(suggestion) = suggest_ancestor_type(all_ancestors, ancestor_node_type) {
+        if let Some(suggestion) = bk_tree
+            .find(ancestor_node_type, 2)
+            .map(|(_distance, s)| &**s)
+            .next()
+        {
             message.push_str(&format!(
                 "\nSuggestion: Try ancestor_node_type {suggestion:?} instead"
             ));
@@ -488,51 +501,4 @@ fn get_context_around_position(
     } else {
         None
     }
-}
-
-/// Suggest a similar ancestor type based on fuzzy matching
-fn suggest_ancestor_type(available: HashSet<String>, target: &str) -> Option<String> {
-    let target_lower = target.to_lowercase();
-
-    // Look for exact substring matches first
-    for ancestor_kind in &available {
-        if ancestor_kind.to_lowercase().contains(&target_lower) {
-            return Some(ancestor_kind.clone());
-        }
-    }
-
-    // Look for similar length matches
-    for ancestor_kind in &available {
-        if levenshtein_distance(&target_lower, &ancestor_kind.to_lowercase()) <= 2 {
-            return Some(ancestor_kind.clone());
-        }
-    }
-
-    None
-}
-
-/// Simple Levenshtein distance calculation
-fn levenshtein_distance(a: &str, b: &str) -> usize {
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let mut dp = vec![vec![0; b_chars.len() + 1]; a_chars.len() + 1];
-
-    for i in 0..=a_chars.len() {
-        dp[i][0] = i;
-    }
-    for j in 0..=b_chars.len() {
-        dp[0][j] = j;
-    }
-
-    for i in 1..=a_chars.len() {
-        for j in 1..=b_chars.len() {
-            if a_chars[i - 1] == b_chars[j - 1] {
-                dp[i][j] = dp[i - 1][j - 1];
-            } else {
-                dp[i][j] = 1 + dp[i - 1][j].min(dp[i][j - 1]).min(dp[i - 1][j - 1]);
-            }
-        }
-    }
-
-    dp[a_chars.len()][b_chars.len()]
 }

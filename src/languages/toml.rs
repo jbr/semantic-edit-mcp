@@ -1,5 +1,5 @@
 use super::{utils::parse_node_types_json, LanguageCommon};
-use crate::languages::traits::LanguageEditor;
+use crate::languages::{traits::LanguageEditor, LanguageName};
 use anyhow::Result;
 use std::ops::Range;
 use taplo::rowan::{TextRange, TextSize};
@@ -11,7 +11,7 @@ pub fn language() -> Result<LanguageCommon> {
     let editor = Box::new(TomlEditor::new());
 
     Ok(LanguageCommon {
-        name: "toml",
+        name: LanguageName::Toml,
         file_extensions: &["toml"],
         language,
         node_types,

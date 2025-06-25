@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Replace
    "description": "A test package",
    "dependencies": {
      "lodash": "^4.17.21"
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "1.0.0",
-      "ancestor_node_type": "string"
-    },
-    "content": "\"2.0.0\""
-  },
-  "file_path": "tests/snapshots/json/replace_property/input.json",
-  "language_name": "json"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced string node
 

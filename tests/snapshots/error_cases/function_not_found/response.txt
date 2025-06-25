@@ -1,24 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 anchor_text "nonexistent_function" not found in file
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "nonexistent_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "// This should fail"
-  },
-  "file_path": "tests/snapshots/error_cases/function_not_found/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 anchor_text "nonexistent_function" not found in file

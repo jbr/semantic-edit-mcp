@@ -1,9 +1,17 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "to_ascii"
-    }
+[
+  {
+    "arguments": {
+      "selector": {
+        "anchor_text": "to_ascii",
+        "position": "replace"
+      }
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

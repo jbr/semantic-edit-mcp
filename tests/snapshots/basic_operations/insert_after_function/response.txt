@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -10,28 +11,7 @@ STAGED: Insert after
 
  pub struct TestStruct {
      value: i32,
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "existing_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}"
-  },
-  "file_path": "tests/snapshots/basic_operations/insert_after_function/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after function_item node
 

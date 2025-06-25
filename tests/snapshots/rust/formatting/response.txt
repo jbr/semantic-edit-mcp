@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -9,28 +10,7 @@ STAGED: Replace
 +        println!("false");
 +    }
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "hello",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}"
-  },
-  "file_path": "tests/snapshots/rust/formatting/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced function_item node
 

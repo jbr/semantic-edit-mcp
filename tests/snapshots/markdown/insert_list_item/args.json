@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "- Write documentation",
-      "ancestor_node_type": "list_item"
+[
+  {
+    "arguments": {
+      "content": "- Add comprehensive tests",
+      "selector": {
+        "ancestor_node_type": "list_item",
+        "anchor_text": "- Write documentation",
+        "position": "after"
+      }
     },
-    "content": "- Add comprehensive tests"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

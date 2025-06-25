@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Insert after
  | port   | 3000    | Server port |
 
  These are the current options.
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "Enable debug",
-      "ancestor_node_type": "pipe_table_row"
-    },
-    "content": "\n| timeout | 30000 | Request timeout in ms |"
-  },
-  "file_path": "tests/snapshots/markdown/insert_table_row/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after pipe_table_row node
 

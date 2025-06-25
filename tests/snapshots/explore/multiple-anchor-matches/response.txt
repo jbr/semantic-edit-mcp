@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 anchor_text `var` with ancestor_node_type `function_item` matches 2 nodes
 Occurrences:
 pub fn main() {\n    match std::env::var("x") ...
@@ -7,28 +8,7 @@ pub fn other() {\n    let my_var = "var";\n}
 Suggestions: 
 -> Use more specific anchor text to distinguish between matches
 -> use the open_files tool if you have not yet done so
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "var",
-      "ancestor_node_type": "function_item"
-    },
-    "content": null
-  },
-  "file_path": "tests/snapshots/explore/multiple-anchor-matches/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 anchor_text `var` with ancestor_node_type `function_item` matches 2 nodes
 Occurrences:
 pub fn main() {\n    match std::env::var("x") ...

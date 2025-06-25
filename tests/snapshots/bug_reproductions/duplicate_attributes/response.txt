@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -9,28 +10,7 @@ STAGED: Replace
 +    println!("Debug output");
      assert!(true);
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "async_test",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "#[tokio::test]\nasync fn async_test() {\n    // Modified async test with debug\n    println!(\"Debug output\");\n    assert!(true);\n}"
-  },
-  "file_path": "tests/snapshots/bug_reproductions/duplicate_attributes/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced function_item node
 

@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "println",
-      "ancestor_node_type": "fenced_code_block"
+[
+  {
+    "arguments": {
+      "content": "```python\ndef greet(name):\n    print(f\"Hello, {name}!\")\n```",
+      "selector": {
+        "ancestor_node_type": "fenced_code_block",
+        "anchor_text": "println",
+        "position": "after"
+      }
     },
-    "content": "```python\ndef greet(name):\n    print(f\"Hello, {name}!\")\n```"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

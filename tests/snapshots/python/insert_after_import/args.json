@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "import asyncio",
-      "ancestor_node_type": "import_statement"
+[
+  {
+    "arguments": {
+      "content": "import logging",
+      "selector": {
+        "ancestor_node_type": "import_statement",
+        "anchor_text": "import asyncio",
+        "position": "after"
+      }
     },
-    "content": "import logging"
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

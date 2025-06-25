@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 Syntax error found prior to edit, not attempting.
 Suggestion: Pause and show your human collaborator this context:
 
@@ -8,28 +9,7 @@ Suggestion: Pause and show your human collaborator this context:
    4 ->⎸    this is not valid rust
    5   ⎸}
 
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "main",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "fn main() {}"
-  },
-  "file_path": "tests/snapshots/rust/syntax_error_before/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Syntax error found prior to edit, not attempting.
 Suggestion: Pause and show your human collaborator this context:
 
@@ -39,3 +19,4 @@ Suggestion: Pause and show your human collaborator this context:
    3   ⎸fn main() {
    4 ->⎸    this is not valid rust
    5   ⎸}
+

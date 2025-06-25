@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "main",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "fn main() {\nthis is not valid rust\n}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "main",
+        "position": "replace"
+      }
     },
-    "content": "fn main() {\nthis is not valid rust\n}"
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

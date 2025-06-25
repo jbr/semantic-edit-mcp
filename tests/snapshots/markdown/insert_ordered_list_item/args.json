@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "Download",
-      "ancestor_node_type": "list_item"
+[
+  {
+    "arguments": {
+      "content": "4. Configure settings",
+      "selector": {
+        "ancestor_node_type": "list_item",
+        "anchor_text": "Download",
+        "position": "after"
+      }
     },
-    "content": "4. Configure settings"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]
