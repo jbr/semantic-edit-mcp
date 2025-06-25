@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 🔍 **Exploration Mode**: Found anchor_text "to_ascii" at 1 location(s)
 
 **1. Location 5:32**
@@ -62,28 +63,7 @@
 3. Review the diff
 4. Commit the edit to disk if it looks good, otherwise stage a different edit
 
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "to_ascii",
-      "ancestor_node_type": null
-    },
-    "content": null
-  },
-  "file_path": "tests/snapshots/explore/omitting-ancestor/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 🔍 **Exploration Mode**: Found anchor_text "to_ascii" at 1 location(s)
 
 **1. Location 5:32**
@@ -147,3 +127,4 @@
 2. If one of the above ancestor types looks like the correct syntax node, use it with `to_ascii` to stage an edit operation.
 3. Review the diff
 4. Commit the edit to disk if it looks good, otherwise stage a different edit
+

@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "nonexistent_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "// This should fail",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "nonexistent_function",
+        "position": "replace"
+      }
     },
-    "content": "// This should fail"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

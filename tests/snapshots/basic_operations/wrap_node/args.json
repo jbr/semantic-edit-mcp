@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "around",
-      "anchor_text": "target_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "#[cfg(test)]\n{{content}}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "target_function",
+        "position": "around"
+      }
     },
-    "content": "#[cfg(test)]\n{{content}}"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

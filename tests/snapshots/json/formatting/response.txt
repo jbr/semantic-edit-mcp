@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -19,28 +20,7 @@ STAGED: Insert after
 +    },
 +    "second": "key"
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "webpack",
-      "ancestor_node_type": "object"
-    },
-    "content": "\"nested\": {\"object\": [1,2,3,4,5]}, \"second\": \"key\""
-  },
-  "file_path": "tests/snapshots/json/formatting/input.json",
-  "language_name": "json"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after object node
 

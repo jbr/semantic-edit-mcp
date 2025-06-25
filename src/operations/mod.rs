@@ -7,5 +7,5 @@ pub mod edit_operation;
 pub mod selector;
 
 // Re-export main types for convenience
-pub use edit_operation::{EditOperation, EditResult};
+pub use edit_operation::{EditOperation, EditResult, ExecutionResult};
 pub use selector::NodeSelector;

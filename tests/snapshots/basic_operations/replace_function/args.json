@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "old_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "old_function",
+        "position": "replace"
+      }
     },
-    "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

@@ -1,10 +1,18 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "var",
-      "ancestor_node_type": "function_item"
-    }
+[
+  {
+    "arguments": {
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "var",
+        "position": "replace"
+      }
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

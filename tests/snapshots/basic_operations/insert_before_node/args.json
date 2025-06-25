@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "before",
-      "anchor_text": "target_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "// This comment is inserted before the target function\n",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "target_function",
+        "position": "before"
+      }
     },
-    "content": "// This comment is inserted before the target function\n"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

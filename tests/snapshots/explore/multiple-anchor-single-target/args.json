@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "var",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "pub fn main() { todo!() }",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "var",
+        "position": "replace"
+      }
     },
-    "content": "pub fn main() { todo!() }"
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

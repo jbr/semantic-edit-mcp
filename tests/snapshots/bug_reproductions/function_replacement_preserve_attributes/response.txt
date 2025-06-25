@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -19,28 +20,7 @@ STAGED: Replace
  }
 
  pub fn simple_function() {
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "old_process",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "pub fn old_process(input: &str) -> String {\n    // Updated implementation without providing attributes\n    // Should preserve existing #[deprecated] and #[allow] attributes\n    format!(\"New processing: {}\", input.to_uppercase())\n}"
-  },
-  "file_path": "tests/snapshots/bug_reproductions/function_replacement_preserve_attributes/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced function_item node
 

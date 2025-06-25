@@ -1,24 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 anchor_text "NonexistentStruct" not found in file
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "NonexistentStruct",
-      "ancestor_node_type": "struct_item"
-    },
-    "content": "\n// This should fail"
-  },
-  "file_path": "tests/snapshots/error_cases/struct_not_found/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 anchor_text "NonexistentStruct" not found in file

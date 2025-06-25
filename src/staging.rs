@@ -1,19 +1,21 @@
 use anyhow::Result;
 
 use crate::{
-    languages::LanguageRegistry,
-    operations::{EditOperation, NodeSelector},
-    tools::ExecutionResult,
+    languages::{LanguageName, LanguageRegistry},
+    operations::{EditOperation, ExecutionResult, NodeSelector},
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 /// Represents a staged operation that can be previewed and committed
 #[derive(Debug, Clone, fieldwork::Fieldwork, serde::Serialize)]
 #[fieldwork(get, set, get_mut, with)]
 pub struct StagedOperation {
     pub(crate) operation: EditOperation,
-    pub(crate) file_path: String,
-    pub(crate) language_name: &'static str,
+    pub(crate) file_path: PathBuf,
+    pub(crate) language_name: LanguageName,
 }
 
 impl StagedOperation {

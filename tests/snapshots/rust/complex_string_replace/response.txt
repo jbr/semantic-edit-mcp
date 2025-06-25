@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -9,28 +10,7 @@ STAGED: Replace
          }
          Ok(())
      }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "\"Invalid email format\"",
-      "ancestor_node_type": "string_literal"
-    },
-    "content": "\"Invalid email format: missing @ symbol\""
-  },
-  "file_path": "tests/snapshots/rust/complex_string_replace/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced string_literal node
 

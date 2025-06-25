@@ -13,6 +13,8 @@ pub mod typescript;
 pub mod utils;
 
 use anyhow::{anyhow, Result};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display, path::Path};
 use tree_sitter::{Language, Parser, Query};
 
@@ -20,14 +22,15 @@ use crate::languages::traits::{LanguageEditor, NodeTypeInfo};
 
 /// Registry to manage all supported languages
 pub struct LanguageRegistry {
-    languages: HashMap<&'static str, LanguageCommon>,
-    extensions: HashMap<&'static str, &'static str>,
+    languages: HashMap<LanguageName, LanguageCommon>,
+    extensions: HashMap<&'static str, LanguageName>,
 }
 
 #[derive(fieldwork::Fieldwork)]
 #[fieldwork(get)]
 pub struct LanguageCommon {
-    name: &'static str,
+    #[fieldwork(get(copy))]
+    name: LanguageName,
     file_extensions: &'static [&'static str],
     #[fieldwork(rename = tree_sitter_language)]
     language: Language,
@@ -37,7 +40,7 @@ pub struct LanguageCommon {
 }
 impl Display for LanguageCommon {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name)
+        f.write_str(self.name.as_str())
     }
 }
 
@@ -58,6 +61,41 @@ impl LanguageCommon {
             .collect::<Vec<_>>()
             .join(", ");
         format!("Node types you can use for {name}: {named_types}")
+    }
+}
+
+#[derive(
+    Serialize, Deserialize, Debug, JsonSchema, Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Copy,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum LanguageName {
+    Rust,
+    Json,
+    Markdown,
+    Toml,
+    Javascript,
+    Typescript,
+    Tsx,
+    Python,
+}
+impl LanguageName {
+    fn as_str(&self) -> &str {
+        match self {
+            LanguageName::Rust => "rust",
+            LanguageName::Json => "json",
+            LanguageName::Markdown => "markdown",
+            LanguageName::Toml => "toml",
+            LanguageName::Javascript => "javascript",
+            LanguageName::Typescript => "typescript",
+            LanguageName::Tsx => "tsx",
+            LanguageName::Python => "python",
+        }
+    }
+}
+
+impl Display for LanguageName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -88,14 +126,14 @@ impl LanguageRegistry {
         self.languages.insert(name, language);
     }
 
-    pub fn get_language(&self, name: &str) -> Option<&LanguageCommon> {
-        self.languages.get(name)
+    pub fn get_language(&self, name: LanguageName) -> Option<&LanguageCommon> {
+        self.languages.get(&name)
     }
 
     pub fn get_language_with_hint(
         &self,
-        file_path: &str,
-        language_hint: Option<&str>,
+        file_path: &Path,
+        language_hint: Option<LanguageName>,
     ) -> Result<&LanguageCommon> {
         let language_name = language_hint
             .or_else(|| self.detect_language_from_path(file_path))
@@ -106,8 +144,8 @@ impl LanguageRegistry {
             .ok_or_else(|| anyhow!("Unsupported language {language_name}"))
     }
 
-    pub fn detect_language_from_path(&self, file_path: &str) -> Option<&'static str> {
-        let extension = Path::new(file_path).extension()?.to_str()?;
+    pub fn detect_language_from_path(&self, file_path: &Path) -> Option<LanguageName> {
+        let extension = file_path.extension()?.to_str()?;
         self.extensions.get(extension).copied()
     }
 }

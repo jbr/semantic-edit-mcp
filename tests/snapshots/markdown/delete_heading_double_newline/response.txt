@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -5,28 +6,7 @@ STAGED: Replace
 
 
  Next paragraph should have proper spacing after deletion.
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "to Delete",
-      "ancestor_node_type": "atx_heading"
-    },
-    "content": ""
-  },
-  "file_path": "tests/snapshots/markdown/delete_heading_double_newline/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced atx_heading node
 

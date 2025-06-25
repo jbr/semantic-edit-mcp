@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert around
 
 ===DIFF===
@@ -5,28 +6,7 @@ STAGED: Insert around
  // Test file for wrap node
  pub fn target_function() {
      println!("This function will be wrapped");
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "around",
-      "anchor_text": "target_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "#[cfg(test)]\n{{content}}"
-  },
-  "file_path": "tests/snapshots/basic_operations/wrap_node/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert around operation result:
 Successfully wrapped function_item group (2 total elements)
 

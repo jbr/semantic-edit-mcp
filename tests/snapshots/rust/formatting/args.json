@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "hello",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "hello",
+        "position": "replace"
+      }
     },
-    "content": "pub fn main() { if true { println!(\"this code was reformatted\"); } else { println!(\"false\"); }}"
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

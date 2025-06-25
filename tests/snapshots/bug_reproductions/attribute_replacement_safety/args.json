@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "original_async_test",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "original_async_test",
+        "position": "replace"
+      }
     },
-    "content": "#[tokio::test]\nasync fn updated_async_test() {\n    println!(\"Updated test that should not duplicate attributes\");\n    assert!(true);\n}"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

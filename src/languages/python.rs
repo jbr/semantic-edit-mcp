@@ -1,6 +1,6 @@
 use super::{utils::parse_node_types_json, LanguageCommon};
 use crate::{
-    languages::traits::LanguageEditor,
+    languages::{traits::LanguageEditor, LanguageName},
     operations::{
         selector::Position::{After, Around, Before, Replace},
         EditOperation,
@@ -15,7 +15,7 @@ pub fn language() -> Result<LanguageCommon> {
     let editor = Box::new(PythonEditor::new());
 
     Ok(LanguageCommon {
-        name: "python",
+        name: LanguageName::Python,
         file_extensions: &["py", "pyi"],
         language,
         node_types,

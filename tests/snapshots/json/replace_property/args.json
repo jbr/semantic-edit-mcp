@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "1.0.0",
-      "ancestor_node_type": "string"
+[
+  {
+    "arguments": {
+      "content": "\"2.0.0\"",
+      "selector": {
+        "ancestor_node_type": "string",
+        "anchor_text": "1.0.0",
+        "position": "replace"
+      }
     },
-    "content": "\"2.0.0\""
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

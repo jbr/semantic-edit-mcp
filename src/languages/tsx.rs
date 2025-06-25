@@ -1,5 +1,5 @@
 use super::{utils::parse_node_types_json, LanguageCommon};
-use crate::languages::traits::LanguageEditor;
+use crate::languages::{traits::LanguageEditor, LanguageName};
 use anyhow::Result;
 
 pub fn language() -> Result<LanguageCommon> {
@@ -8,7 +8,7 @@ pub fn language() -> Result<LanguageCommon> {
     let editor = Box::new(TypescriptEditor::new());
 
     Ok(LanguageCommon {
-        name: "tsx",
+        name: LanguageName::Tsx,
         file_extensions: &["tsx"],
         language,
         node_types,

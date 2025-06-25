@@ -1,8 +1,10 @@
-{
-  "tool": "open_files",
-  "arguments": {
-    "file_paths": [
-      "test_file.rs"
-    ]
+[
+  {
+    "arguments": {
+      "file_paths": [
+        "test_file.rs"
+      ]
+    },
+    "name": "open_files"
   }
-}
+]

@@ -1,22 +1,21 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
-use semantic_edit_mcp::staging::StagingStore;
-use serde_json::Value;
+use semantic_edit_mcp::state::SemanticEditTools;
+use semantic_edit_mcp::tools::Tools;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use semantic_edit_mcp::server::ToolCallParams;
-use semantic_edit_mcp::tools::{ExecutionResult, ToolRegistry};
-
 pub struct SnapshotRunner {
     update_mode: bool,
-    registry: ToolRegistry,
+    state: SemanticEditTools,
     test_filter: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SnapshotTest {
     pub name: String,
+    pub base_path: PathBuf,
     pub input_path: Option<PathBuf>,
     pub args_path: PathBuf,
     pub response_path: PathBuf,
@@ -41,14 +40,82 @@ struct SnapshotExecutionResult {
     output: Option<String>,
 }
 
+struct ArgsDotJson;
+
+impl ArgsDotJson {
+    fn to_tools(args: Value, input_path: Option<&Path>, args_path: &Path) -> Result<Vec<Tools>> {
+        let mut tool_calls = match args {
+            Value::Array(a) => a,
+            o @ Value::Object(_) => vec![o],
+            _ => panic!(),
+        };
+        //        let mut tool_calls = vec![];
+
+        // for args in arg_array {
+        //     tool_calls.push(json!({
+        //         "name": tool_name.to_string(),
+        //         "arguments": tool_args,
+        //     }));
+        // }
+
+        if let Some("stage_operation") = tool_calls.last().unwrap().get("name").unwrap().as_str() {
+            tool_calls
+                .push(json!({"name": "commit_staged", "arguments": { "acknowledge": true } }));
+        }
+        // if let Some(Tools::StageOperation { arguments: _ }) = tool_calls.last() {
+        //     tool_calls.push(Tools::CommitStaged {
+        //         arguments: CommitStaged { acknowledge: true },
+        //     });
+        // }
+
+        if std::env::var("REWRITE_ARGS_JSON").is_ok() {
+            std::fs::write(args_path, serde_json::to_string_pretty(&tool_calls)?)?;
+        }
+
+        for tool in &mut tool_calls {
+            if tool.get("name").unwrap().as_str().unwrap() == "stage_operation" {
+                if let Some(input_path) = &input_path {
+                    tool.get_mut("arguments")
+                        .unwrap()
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(
+                            "file_path".to_string(),
+                            Value::String(
+                                input_path
+                                    .file_name()
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .to_string(),
+                            ),
+                        );
+                }
+            }
+        }
+
+        tool_calls
+            .into_iter()
+            .map(serde_json::from_value)
+            .collect::<Result<_, _>>()
+            .map_err(Error::from)
+    }
+}
+
 impl SnapshotRunner {
     pub fn new(update_mode: bool, test_filter: Option<String>) -> Result<Self> {
-        let registry = ToolRegistry::new()?;
+        let state = SemanticEditTools::new(None)?;
         Ok(Self {
             update_mode,
-            registry,
+            state,
             test_filter,
         })
+    }
+
+    fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
+        self.state = SemanticEditTools::new(None)?;
+        self.state.set_default_session_id("test");
+        self.state.set_context(None, base_path)?;
+        Ok(())
     }
 
     /// Discover all snapshot tests in the tests/snapshots directory
@@ -135,6 +202,7 @@ impl SnapshotRunner {
                         args_path,
                         response_path,
                         output_path,
+                        base_path: path,
                     });
                 } else {
                     // Recurse into subdirectories
@@ -147,8 +215,8 @@ impl SnapshotRunner {
     }
 
     /// Run a single snapshot test
-    pub async fn run_test(&self, test: SnapshotTest) -> SnapshotResult {
-        let result = match self.execute_test(&test).await {
+    pub fn run_test(&mut self, test: SnapshotTest) -> SnapshotResult {
+        let result = match self.execute_test(&test) {
             Ok(result) => result,
             Err(e) => {
                 return SnapshotResult {
@@ -164,13 +232,13 @@ impl SnapshotRunner {
             }
         };
         if self.update_mode {
-            self.update_snapshot(result, test).await
+            self.update_snapshot(result, test)
         } else {
-            self.compare_snapshot(result, test).await
+            self.compare_snapshot(result, test)
         }
     }
 
-    async fn update_snapshot(
+    fn update_snapshot(
         &self,
         result: SnapshotExecutionResult,
         test: SnapshotTest,
@@ -187,8 +255,7 @@ impl SnapshotRunner {
             output_matches: true,
         };
         // Write the actual response as the new expected response
-        if let Err(e) = tokio::fs::write(&result.test.response_path, &result.actual_response).await
-        {
+        if let Err(e) = std::fs::write(&result.test.response_path, &result.actual_response) {
             result.error = Some(format!("Failed to write expected output: {e}"));
             return result;
         }
@@ -199,14 +266,14 @@ impl SnapshotRunner {
                 result.error = Some("output without input is unexpected".to_string());
                 return result;
             };
-            if let Err(e) = tokio::fs::write(&output_path, &output).await {
+            if let Err(e) = std::fs::write(output_path, output) {
                 result.error = Some(format!("Failed to write expected output: {e}"));
                 return result;
             }
         } else if let Some(output_path) = &result.test.output_path {
             if let Ok(true) = output_path.try_exists() {
                 // If there is no expected output but the file exists, delete the file
-                if let Err(e) = tokio::fs::remove_file(&output_path).await {
+                if let Err(e) = std::fs::remove_file(output_path) {
                     result.error =
                         Some(format!("No output expected, but was unable to delete: {e}"));
                     return result;
@@ -217,7 +284,7 @@ impl SnapshotRunner {
         result
     }
 
-    async fn compare_snapshot(
+    fn compare_snapshot(
         &self,
         result: SnapshotExecutionResult,
         test: SnapshotTest,
@@ -235,8 +302,8 @@ impl SnapshotRunner {
         };
 
         // Compare with expected output
-        result.expected_response = Some(
-            match tokio::fs::read_to_string(&result.test.response_path).await {
+        result.expected_response =
+            Some(match std::fs::read_to_string(&result.test.response_path) {
                 Ok(content) => content,
                 Err(_) => {
                     result.error = Some(
@@ -244,11 +311,10 @@ impl SnapshotRunner {
                     );
                     return result;
                 }
-            },
-        );
+            });
 
         result.expected_output = if let Some(output_path) = &result.test.output_path {
-            tokio::fs::read_to_string(&output_path).await.ok()
+            std::fs::read_to_string(output_path).ok()
         } else {
             None
         };
@@ -272,115 +338,47 @@ impl SnapshotRunner {
 
     /// Execute a single test and return the tool output
     #[allow(unused_assignments)]
-    async fn execute_test(&self, test: &SnapshotTest) -> Result<SnapshotExecutionResult> {
+    fn execute_test(&mut self, test: &SnapshotTest) -> Result<SnapshotExecutionResult> {
+        self.reset_state(test.base_path.clone())?;
+
         // Read the arguments
         let args_content = fs::read_to_string(&test.args_path)?;
-        let args: Value = serde_json::from_str(&args_content)?;
-
-        // Extract tool name and arguments
-        let tool_name = args
-            .get("tool")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Test args must specify 'tool' field"))?;
-
-        let mut tool_args = args
-            .get("arguments")
-            .cloned()
-            .unwrap_or(serde_json::json!({}));
-
-        if let Some(input_path) = &test.input_path {
-            // Update file_path in arguments to point to temp file
-            if let Some(args_obj) = tool_args.as_object_mut() {
-                args_obj.insert(
-                    "file_path".to_string(),
-                    Value::String(input_path.to_string_lossy().to_string()),
-                );
-            }
-        }
-
-        // Handle file_paths array - convert relative paths to test directory paths
-        if let Some(args_obj) = tool_args.as_object_mut() {
-            if let Some(file_paths_value) = args_obj.get("file_paths").cloned() {
-                if let Some(file_paths_array) = file_paths_value.as_array() {
-                    let test_dir = test.args_path.parent().unwrap();
-                    let updated_paths: Vec<Value> = file_paths_array
-                        .iter()
-                        .map(|path_value| {
-                            if let Some(path_str) = path_value.as_str() {
-                                let full_path = test_dir.join(path_str);
-                                Value::String(full_path.to_string_lossy().to_string())
-                            } else {
-                                path_value.clone()
-                            }
-                        })
-                        .collect();
-                    args_obj.insert("file_paths".to_string(), Value::Array(updated_paths));
-                }
-            }
-        }
-
-        // Create tool call params
-        let tool_call = ToolCallParams {
-            name: tool_name.to_string(),
-            arguments: Some(tool_args),
-        };
-        let staging_store = StagingStore::new();
+        let tool_calls = ArgsDotJson::to_tools(
+            serde_json::from_str(&args_content)?,
+            test.input_path.as_deref(),
+            &test.args_path,
+        )?;
 
         let mut snapshot_execution_result = SnapshotExecutionResult {
             response: String::new(),
             output: None,
         };
-        let mut execution_result = self.registry.execute_tool(&tool_call, &staging_store).await;
-        loop {
-            // Execute the tool - capture both success and error outputs
-            match execution_result {
-                Ok(ExecutionResult::ChangeStaged(stage_response, staged_operation)) => {
-                    snapshot_execution_result.response.push_str(&stage_response);
-                    snapshot_execution_result
-                        .response
-                        .push_str("\n\n\n==========STAGED==========\n\n\n");
-                    snapshot_execution_result
-                        .response
-                        .push_str(&serde_json::to_string_pretty(&staged_operation).unwrap());
-                    snapshot_execution_result
-                        .response
-                        .push_str("\n\n\n==========COMMIT==========\n\n\n");
-                    execution_result = self.registry.commit_staged(&staging_store).await;
-                    continue;
-                }
-                Ok(ExecutionResult::Change {
-                    response: change_response,
-                    output,
-                    ..
-                }) => {
-                    snapshot_execution_result
-                        .response
-                        .push_str(&change_response);
-                    snapshot_execution_result.output = Some(output);
-                    break;
-                }
-                Ok(ExecutionResult::ResponseOnly(new_response)) => {
-                    snapshot_execution_result.response.push_str(&new_response);
-                    break;
-                }
-                Err(e) => {
-                    // For snapshot testing, we want to capture error messages too
-                    // Strip any "Tool execution failed: " prefix to get the actual error
-                    let error_msg = e.to_string();
-                    if let Some(actual_error) = error_msg.strip_prefix("Tool execution failed: ") {
-                        snapshot_execution_result.response.push_str(actual_error);
-                    } else {
-                        snapshot_execution_result.response.push_str(&error_msg);
-                    }
-                    break;
-                }
+
+        for tool in tool_calls {
+            snapshot_execution_result
+                .response
+                .push_str("=== snapshot test tool call: ");
+            snapshot_execution_result.response.push_str(tool.name());
+            snapshot_execution_result.response.push_str(" ===\n");
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.state.set_commit_fn(Some(Box::new(move |_, content| {
+                tx.send(content).unwrap();
+            })));
+
+            match tool.execute(&mut self.state) {
+                Ok(response) => snapshot_execution_result.response.push_str(&response),
+                Err(err) => snapshot_execution_result
+                    .response
+                    .push_str(&err.to_string()),
             }
+            snapshot_execution_result.response.push_str("\n");
+            snapshot_execution_result.output = rx.try_recv().ok();
         }
         Ok(snapshot_execution_result)
     }
 
     /// Run all discovered tests (filtered if TEST_FILTER is set)
-    pub async fn run_all_tests(&self) -> Result<Vec<SnapshotResult>> {
+    pub fn run_all_tests(&mut self) -> Result<Vec<SnapshotResult>> {
         let all_tests = self.discover_tests()?;
         let tests = self.filter_tests(all_tests);
         assert_ne!(tests.len(), 0);
@@ -393,7 +391,7 @@ impl SnapshotRunner {
         let mut results = Vec::new();
 
         for test in tests {
-            let result = self.run_test(test).await;
+            let result = self.run_test(test);
             results.push(result);
         }
 

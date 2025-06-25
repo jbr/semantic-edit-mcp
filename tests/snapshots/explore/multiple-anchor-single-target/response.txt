@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Replace
 
 ===DIFF===
@@ -14,28 +15,7 @@ STAGED: Replace
 -    }
 +    todo!()
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "replace",
-      "anchor_text": "var",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "pub fn main() { todo!() }"
-  },
-  "file_path": "tests/snapshots/explore/multiple-anchor-single-target/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Replace operation result:
 Successfully replaced function_item node
 

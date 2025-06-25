@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert before
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Insert before
  pub fn target_function() {
      println!("This function will have content inserted before it");
  }
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "before",
-      "anchor_text": "target_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "// This comment is inserted before the target function\n"
-  },
-  "file_path": "tests/snapshots/basic_operations/insert_before_node/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert before operation result:
 Successfully inserted content before function_item node
 

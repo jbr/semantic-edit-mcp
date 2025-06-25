@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "replace",
-      "anchor_text": "Placeholder",
-      "ancestor_node_type": "atx_heading"
+[
+  {
+    "arguments": {
+      "content": "",
+      "selector": {
+        "ancestor_node_type": "atx_heading",
+        "anchor_text": "Placeholder",
+        "position": "replace"
+      }
     },
-    "content": ""
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

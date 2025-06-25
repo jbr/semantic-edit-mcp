@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "second_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "\n// This comment is inserted after the second function\n",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "second_function",
+        "position": "after"
+      }
     },
-    "content": "\n// This comment is inserted after the second function\n"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

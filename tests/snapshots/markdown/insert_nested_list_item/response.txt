@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -9,28 +10,7 @@ STAGED: Insert after
  - User interface
    - Dashboard
  - Testing
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "Database",
-      "ancestor_node_type": "list_item"
-    },
-    "content": "  - Session management\n"
-  },
-  "file_path": "tests/snapshots/markdown/insert_nested_list_item/input.md",
-  "language_name": "markdown"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after list_item node
 

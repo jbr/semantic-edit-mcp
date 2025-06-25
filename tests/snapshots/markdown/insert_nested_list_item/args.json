@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "Database",
-      "ancestor_node_type": "list_item"
+[
+  {
+    "arguments": {
+      "content": "  - Session management\n",
+      "selector": {
+        "ancestor_node_type": "list_item",
+        "anchor_text": "Database",
+        "position": "after"
+      }
     },
-    "content": "  - Session management\n"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

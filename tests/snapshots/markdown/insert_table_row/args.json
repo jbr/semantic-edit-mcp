@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "Enable debug",
-      "ancestor_node_type": "pipe_table_row"
+[
+  {
+    "arguments": {
+      "content": "\n| timeout | 30000 | Request timeout in ms |",
+      "selector": {
+        "ancestor_node_type": "pipe_table_row",
+        "anchor_text": "Enable debug",
+        "position": "after"
+      }
     },
-    "content": "\n| timeout | 30000 | Request timeout in ms |"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

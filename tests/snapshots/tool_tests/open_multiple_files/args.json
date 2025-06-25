@@ -1,10 +1,12 @@
-{
-  "tool": "open_files",
-  "arguments": {
-    "file_paths": [
-      "file1.rs",
-      "file2.json",
-      "test.file"
-    ]
+[
+  {
+    "arguments": {
+      "file_paths": [
+        "file1.rs",
+        "file2.json",
+        "test.file"
+      ]
+    },
+    "name": "open_files"
   }
-}
+]

@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "serde",
-      "ancestor_node_type": "table"
+[
+  {
+    "arguments": {
+      "content": "serde_json = \"*\"",
+      "selector": {
+        "ancestor_node_type": "table",
+        "anchor_text": "serde",
+        "position": "after"
+      }
     },
-    "content": "serde_json = \"*\""
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

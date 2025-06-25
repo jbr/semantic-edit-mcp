@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "existing_function",
-      "ancestor_node_type": "function_item"
+[
+  {
+    "arguments": {
+      "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
+      "selector": {
+        "ancestor_node_type": "function_item",
+        "anchor_text": "existing_function",
+        "position": "after"
+      }
     },
-    "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

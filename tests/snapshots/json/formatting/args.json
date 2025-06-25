@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "webpack",
-      "ancestor_node_type": "object"
+[
+  {
+    "arguments": {
+      "content": "\"nested\": {\"object\": [1,2,3,4,5]}, \"second\": \"key\"",
+      "selector": {
+        "ancestor_node_type": "object",
+        "anchor_text": "webpack",
+        "position": "after"
+      }
     },
-    "content": "\"nested\": {\"object\": [1,2,3,4,5]}, \"second\": \"key\""
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
   }
-}
+]

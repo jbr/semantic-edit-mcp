@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "around",
-      "anchor_text": "critical message",
-      "ancestor_node_type": "paragraph"
+[
+  {
+    "arguments": {
+      "content": "**{{content}}**",
+      "selector": {
+        "ancestor_node_type": "paragraph",
+        "anchor_text": "critical message",
+        "position": "around"
+      }
     },
-    "content": "**{{content}}**"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

@@ -1,3 +1,4 @@
+=== snapshot test tool call: stage_operation ===
 STAGED: Insert after
 
 ===DIFF===
@@ -8,28 +9,7 @@ STAGED: Insert after
 
  pub fn third_function() {
      println!("Third function");
-
-
-==========STAGED==========
-
-
-{
-  "operation": {
-    "target": {
-      "position": "after",
-      "anchor_text": "second_function",
-      "ancestor_node_type": "function_item"
-    },
-    "content": "\n// This comment is inserted after the second function\n"
-  },
-  "file_path": "tests/snapshots/basic_operations/insert_after_node/input.rs",
-  "language_name": "rust"
-}
-
-
-==========COMMIT==========
-
-
+=== snapshot test tool call: commit_staged ===
 Insert after operation result:
 Successfully inserted content after function_item node
 

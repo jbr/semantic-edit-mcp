@@ -1,11 +1,19 @@
-{
-  "tool": "stage_operation",
-  "arguments": {
-    "selector": {
-      "position": "after",
-      "anchor_text": "NonexistentStruct",
-      "ancestor_node_type": "struct_item"
+[
+  {
+    "arguments": {
+      "content": "\n// This should fail",
+      "selector": {
+        "ancestor_node_type": "struct_item",
+        "anchor_text": "NonexistentStruct",
+        "position": "after"
+      }
     },
-    "content": "\n// This should fail"
-    }
-}
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]
