@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use semantic_edit_mcp::state::SemanticEditTools;
 use semantic_edit_mcp::tools::Tools;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -43,37 +43,15 @@ struct SnapshotExecutionResult {
 struct ArgsDotJson;
 
 impl ArgsDotJson {
-    fn to_tools(args: Value, input_path: Option<&Path>, args_path: &Path) -> Result<Vec<Tools>> {
+    fn to_tools(args: Value, input_path: Option<&Path>, _args_path: &Path) -> Result<Vec<Tools>> {
         let mut tool_calls = match args {
             Value::Array(a) => a,
             o @ Value::Object(_) => vec![o],
             _ => panic!(),
         };
-        //        let mut tool_calls = vec![];
-
-        // for args in arg_array {
-        //     tool_calls.push(json!({
-        //         "name": tool_name.to_string(),
-        //         "arguments": tool_args,
-        //     }));
-        // }
-
-        if let Some("stage_operation") = tool_calls.last().unwrap().get("name").unwrap().as_str() {
-            tool_calls
-                .push(json!({"name": "commit_staged", "arguments": { "acknowledge": true } }));
-        }
-        // if let Some(Tools::StageOperation { arguments: _ }) = tool_calls.last() {
-        //     tool_calls.push(Tools::CommitStaged {
-        //         arguments: CommitStaged { acknowledge: true },
-        //     });
-        // }
-
-        if std::env::var("REWRITE_ARGS_JSON").is_ok() {
-            std::fs::write(args_path, serde_json::to_string_pretty(&tool_calls)?)?;
-        }
 
         for tool in &mut tool_calls {
-            if tool.get("name").unwrap().as_str().unwrap() == "stage_operation" {
+            if tool["name"] == "stage_operation" {
                 if let Some(input_path) = &input_path {
                     tool.get_mut("arguments")
                         .unwrap()
@@ -371,7 +349,7 @@ impl SnapshotRunner {
                     .response
                     .push_str(&err.to_string()),
             }
-            snapshot_execution_result.response.push_str("\n");
+            snapshot_execution_result.response.push('\n');
             snapshot_execution_result.output = rx.try_recv().ok();
         }
         Ok(snapshot_execution_result)

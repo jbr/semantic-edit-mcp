@@ -1,4 +1,0 @@
-=== snapshot test tool call: stage_operation ===
-anchor_text "NonexistentStruct" not found in file
-=== snapshot test tool call: commit_staged ===
-anchor_text "NonexistentStruct" not found in file

@@ -1,2 +1,0 @@
-=== snapshot test tool call: open_files ===
-diff_since is not supported when opening multiple files. Please open files individually to use diff tracking, or omit diff_since to open all files fresh.

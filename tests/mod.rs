@@ -1,5 +1,6 @@
 mod snapshot_runner;
 
+use semantic_edit_mcp::tools::Tools;
 use snapshot_runner::SnapshotRunner;
 use std::env;
 
@@ -31,9 +32,5 @@ fn run_snapshot_tests() {
 
 #[test]
 fn tools_doesnt_panic() {
-    println!(
-        "{}",
-        serde_json::to_string(&semantic_edit_mcp::tools::Tools::schema()).unwrap()
-    );
-    panic!()
+    Tools::schema();
 }

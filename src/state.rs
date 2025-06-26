@@ -3,11 +3,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
+use fieldwork::Fieldwork;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 
+use crate::editor::EditPosition;
 use crate::languages::{LanguageName, LanguageRegistry};
-use crate::operations::{EditOperation, Selector};
+use crate::selector::Selector;
 use crate::session::SessionStore;
 
 // Explanation for the presence of session_id that is currently unused: The intent was initially to
@@ -28,17 +30,19 @@ pub struct SemanticEditSessionData {
 }
 
 /// Represents a staged operation that can be previewed and committed
-#[derive(Debug, Clone, fieldwork::Fieldwork, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Fieldwork, Serialize, Deserialize)]
 #[fieldwork(get, set, get_mut, with)]
 pub struct StagedOperation {
-    pub operation: EditOperation,
+    pub selector: Selector,
+    pub content: String,
     pub file_path: PathBuf,
     pub language_name: LanguageName,
+    pub edit_position: Option<EditPosition>,
 }
 
 impl StagedOperation {
     pub fn retarget(&mut self, selector: Selector) {
-        self.operation.retarget(selector);
+        self.selector = selector;
     }
 }
 
@@ -95,11 +99,11 @@ impl SemanticEditTools {
     pub fn stage_operation(
         &self,
         session_id: Option<&str>,
-        staged_operation: StagedOperation,
+        staged_operation: Option<StagedOperation>,
     ) -> Result<()> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
         self.session_store.update(session_id, |data| {
-            data.staged_operation = Some(staged_operation);
+            data.staged_operation = staged_operation;
         })
     }
 

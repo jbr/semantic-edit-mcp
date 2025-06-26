@@ -1,4 +1,3 @@
-use anyhow::Result;
 use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
 /// Tree-sitter based context validator for semantic code editing
@@ -24,7 +23,7 @@ impl ContextValidator {
         tree: &'tree Tree,
         query: &Query,
         source_code: &'source str,
-    ) -> Result<ValidationResult<'tree, 'source>> {
+    ) -> ValidationResult<'tree, 'source> {
         // Run validation queries against the temporary tree
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(query, tree.root_node(), source_code.as_bytes());
@@ -49,11 +48,11 @@ impl ContextValidator {
             }
         }
 
-        Ok(ValidationResult {
+        ValidationResult {
             is_valid: violations.is_empty(),
             source_code,
             violations,
-        })
+        }
     }
 
     fn extract_violation_type(capture_index: u32, query: &Query) -> Option<String> {
