@@ -1,11 +1,11 @@
 use super::{utils::parse_node_types_json, LanguageCommon, LanguageName};
-use crate::languages::traits::LanguageEditor;
+use crate::languages::traits::DefaultEditor;
 use anyhow::Result;
 
 pub fn language() -> Result<LanguageCommon> {
     let language = tree_sitter_javascript::LANGUAGE.into();
     let node_types = parse_node_types_json(tree_sitter_javascript::NODE_TYPES)?;
-    let editor = Box::new(JavascriptEditor::new());
+    let editor = Box::new(DefaultEditor::new());
 
     Ok(LanguageCommon {
         name: LanguageName::Javascript,
@@ -16,19 +16,3 @@ pub fn language() -> Result<LanguageCommon> {
         validation_query: None,
     })
 }
-
-pub struct JavascriptEditor;
-
-impl Default for JavascriptEditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl JavascriptEditor {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl LanguageEditor for JavascriptEditor {}

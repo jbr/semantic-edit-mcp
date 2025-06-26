@@ -3,9 +3,6 @@ pub mod json;
 pub mod markdown;
 pub mod python;
 pub mod rust;
-pub mod semantic_grouping;
-#[cfg(test)]
-mod semantic_grouping_tests;
 pub mod toml;
 pub mod traits;
 pub mod tsx;
@@ -21,6 +18,7 @@ use tree_sitter::{Language, Parser, Query};
 use crate::languages::traits::{LanguageEditor, NodeTypeInfo};
 
 /// Registry to manage all supported languages
+#[derive(Debug)]
 pub struct LanguageRegistry {
     languages: HashMap<LanguageName, LanguageCommon>,
     extensions: HashMap<&'static str, LanguageName>,
@@ -37,6 +35,18 @@ pub struct LanguageCommon {
     node_types: Vec<NodeTypeInfo>,
     editor: Box<dyn LanguageEditor>,
     validation_query: Option<Query>,
+}
+
+impl std::fmt::Debug for LanguageCommon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LanguageCommon")
+            .field("name", &self.name)
+            .field("file_extensions", &self.file_extensions)
+            .field("language", &self.language)
+            .field("node_types", &self.node_types)
+            .field("validation_query", &self.validation_query)
+            .finish()
+    }
 }
 impl Display for LanguageCommon {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

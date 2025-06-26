@@ -1,504 +1,412 @@
-use std::ops::Range;
-
-use anyhow::{anyhow, Result};
+// Simplified text-based selector system
+use anyhow::Result;
+use ropey::Rope;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tree_sitter::{Node, Tree};
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum Position {
-    Before,
-    After,
-    Replace,
-    Around,
-}
-
-/// Text-anchored node selector using content as anchor points and AST structure for navigation
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct NodeSelector {
-    /// Location to place content 🤔 CHOOSING THE RIGHT POSITION:
-    /// • before/after: Adding new content alongside existing code
-    /// • replace: Changing existing content to something completely different. To remove selected code entirely, omit content ("replace with nothing").
-    /// • around: 🔄 ATOMIC TRANSFORMATION - When you need to surround existing code with new structure while preserving the original (e.g., adding error handling, conditionals, or blocks that require matching braces)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub position: Option<Position>,
+#[serde(tag = "operation")]
+pub enum Selector {
+    #[serde(rename = "insert")]
+    Insert {
+        /// A unique exact snippet to position an insertion relative to
+        anchor: String,
+        /// Where in relation to that snippet to position the content
+        position: InsertPosition,
+    },
+    #[serde(rename = "replace")]
+    Replace {
+        /// A complete exact text snippet to fully replace with the new content
+        /// Important: This is mutually exclusive with the `from`/`to` pair.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        exact: Option<String>,
 
-    /// Exact short unique snippet to find in the source code as an anchor point. 💡 Keep it short but unique! Examples: 'fn main', 'struct User', '"key":', '# Heading'. Avoid large text blocks and whitespace.
-    pub anchor_text: String,
+        /// The beginning of a text range to replace with the new content
+        /// Important: This is mutually exclusive with `exact`, and requires `to`
+        #[serde(skip_serializing_if = "Option::is_none")]
+        from: Option<String>,
 
-    /// AST node type to target from the anchor point. ✨ DISCOVERY TIP: Omit this parameter first to see all available options with context and examples. The exploration mode shows exactly what each node type would target.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ancestor_node_type: Option<String>,
+        /// The end of a text range to replace with the new content
+        /// Important: This is mutually exclusive with `exact`, and requires `from`
+        #[serde(skip_serializing_if = "Option::is_none")]
+        to: Option<String>,
+    },
 }
 
-impl NodeSelector {
-    pub fn new_from_value(args: &Value) -> Result<Self> {
-        let selector_obj = args
-            .get("selector")
-            .ok_or_else(|| anyhow!("selector is required"))?;
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum InsertPosition {
+    #[serde(rename = "before")]
+    Before,
+    #[serde(rename = "after")]
+    After,
+}
 
-        serde_json::from_value(selector_obj.clone()).map_err(|e|
-            anyhow!(
-                "{e}\n\nselector must specify:\n\
-             • Explore mode: {{\"anchor_text\": \"exact text\" }}\n\
-             • With targeting: {{\"anchor_text\": \"exact text\", \"ancestor_node_type\": \"node type\", \"position\": POSITION}}\n\
-             where POSITION is one of \"before\", \"after\", \"replace\", or \"around\"\n\
-             \n\
-             💡 Omit ancestor_node_type to explore available options around your anchor text."
-            )
-        )
-    }
-
-    /// Find a node using text-anchored selection
-    pub fn find_node<'a>(&self, tree: &'a Tree, source_code: &str) -> Result<Node<'a>, String> {
-        // Text Search: Find all exact matches of anchor_text
-        let anchor_positions = source_code
-            .match_indices(&self.anchor_text)
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-
-        if anchor_positions.is_empty() {
-            return Err(format!(
-                "anchor_text {:?} not found in file",
-                self.anchor_text
-            ));
-        }
-
-        // Check if this is exploration mode (no ancestor_node_type specified)
-        if self.ancestor_node_type.is_none() {
-            return Err(self.explore_around_anchors(tree, source_code, &anchor_positions));
-        }
-
-        // Specific targeting mode - find exact ancestor type
-        let ancestor_node_type = self.ancestor_node_type.as_ref().unwrap();
-
-        // Convert positions to nodes and walk up to find ancestors
-        let mut valid_targets = Vec::new();
-        let mut anchor_info = Vec::new();
-
-        for &byte_pos in &anchor_positions {
-            // Convert byte position to tree-sitter node
-            if let Some(anchor_node) =
-                find_node_at_byte_position(tree, byte_pos, self.anchor_text.len())
-            {
-                // Walk up to find the desired ancestor type
-                if let Some(target_node) = find_ancestor_of_type(&anchor_node, ancestor_node_type) {
-                    valid_targets.push(target_node);
-
-                    // Get context for error reporting
-                    let ancestor_chain = get_ancestor_chain(&anchor_node, source_code);
-                    anchor_info.push(AnchorInfo {
-                        target_node: Some(target_node),
-                        anchor_node,
-                        ancestor_chain,
-                        found_target: true,
-                    });
-                } else {
-                    // Record info about failed ancestor search
-                    let ancestor_chain = get_ancestor_chain(&anchor_node, source_code);
-                    anchor_info.push(AnchorInfo {
-                        target_node: None,
-                        anchor_node,
-                        ancestor_chain,
-                        found_target: false,
-                    });
+impl Selector {
+    /// Validate that the selector is properly formed
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Selector::Insert { anchor, .. } => {
+                if anchor.trim().is_empty() {
+                    return Err("Insert anchor cannot be empty".to_string());
                 }
+                Ok(())
             }
-        }
-
-        valid_targets.dedup();
-        anchor_info
-            .dedup_by_key(|anchor_info| anchor_info.target_node.unwrap_or(anchor_info.anchor_node));
-
-        // Uniqueness Validation
-        match valid_targets.len() {
-            0 => {
-                // No valid targets found - provide detailed error
-                Err(format_no_ancestor_error(
-                    &self.anchor_text,
-                    ancestor_node_type,
-                    &anchor_info,
-                    source_code,
-                ))
-            }
-            1 => {
-                // Perfect! Exactly one valid target
-                Ok(valid_targets[0])
-            }
-            _ => {
-                // Multiple valid targets - ambiguous selector
-                Err(format_ambiguous_error(
-                    &self.anchor_text,
-                    ancestor_node_type,
-                    &anchor_info,
-                    source_code,
-                ))
-            }
-        }
-    }
-
-    /// Find node with enhanced error messages and suggestions
-    pub fn find_node_with_suggestions<'a>(
-        &self,
-        tree: &'a Tree,
-        source_code: &str,
-    ) -> Result<Node<'a>, String> {
-        self.find_node(tree, source_code)
-    }
-
-    /// Exploration mode: return information about available targeting options
-    fn explore_around_anchors(
-        &self,
-        tree: &Tree,
-        source_code: &str,
-        anchor_positions: &[usize],
-    ) -> String {
-        let mut exploration_report = String::new();
-        exploration_report.push_str(&format!(
-            "🔍 **Exploration Mode**: Found anchor_text {:?} at {} location(s)\n\n",
-            self.anchor_text,
-            anchor_positions.len()
-        ));
-
-        // Collect information about each anchor location
-        for (i, &byte_pos) in anchor_positions.iter().enumerate() {
-            let (line, column) = byte_position_to_line_column(source_code, byte_pos);
-            exploration_report.push_str(&format!("**{}. Location {}:{}**\n", i + 1, line, column));
-
-            if let Some(anchor_node) =
-                find_node_at_byte_position(tree, byte_pos, self.anchor_text.len())
-            {
-                // Get context around this position
-                if let Some(context) =
-                    get_context_around_position(&anchor_node, source_code, &self.anchor_text, 50)
-                {
-                    exploration_report.push_str(&format!("   Context: `{context}`\n"));
-                }
-
-                // Show current focus node and its position in hierarchy
-                exploration_report.push_str(&format!("   Focus node: `{}`\n", anchor_node.kind()));
-
-                // Show available ancestor types
-                let ancestor_chain = get_ancestor_chain(&anchor_node, source_code);
-                if !ancestor_chain.is_empty() {
-                    exploration_report.push_str("   Available ancestor_node_type options:\n");
-                    for (j, ancestor) in ancestor_chain.iter().enumerate() {
-                        exploration_report.push_str(&ancestor.to_string());
-
-                        // Show selector example for the first few options
-                        if j < 3 {
-                            exploration_report.push_str(&format!(
-                                "      -> EXAMPLE SELECTOR: {{\"anchor_text\": \"{}\", \"ancestor_node_type\": \"{}\"}}\n",
-                                self.anchor_text, ancestor.kind
-                            ));
+            Selector::Replace { exact, from, to } => {
+                match (exact.as_ref(), from.as_ref()) {
+                    (Some(_), None) => {
+                        // Exact replacement
+                        if to.is_some() {
+                            return Err(
+                                "Cannot specify 'to' when using 'exact' replacement".to_string()
+                            );
                         }
+                        Ok(())
                     }
+                    (None, Some(_)) => {
+                        // Range replacement (to is optional)
+                        Ok(())
+                    }
+                    (Some(_), Some(_)) => Err(
+                        "Cannot specify both 'exact' and 'from' - use one or the other".to_string(),
+                    ),
+                    (None, None) => Err(
+                        "Must specify either 'exact' or 'from' for replace operation".to_string(),
+                    ),
                 }
             }
-            exploration_report.push('\n');
         }
-
-        exploration_report.push_str("**Next Steps**:\n");
-        exploration_report.push_str("1. Use the open_files tool to see the ast structure of this document if you have not yet done so\n");
-        exploration_report.push_str(&format!("2. If one of the above ancestor types looks like the correct syntax node, use it with `{}` to stage an edit operation.\n", &self.anchor_text));
-        exploration_report.push_str("3. Review the diff\n");
-        exploration_report.push_str(
-            "4. Commit the edit to disk if it looks good, otherwise stage a different edit\n",
-        );
-
-        // Return exploration results as an error (this prevents actual editing)
-        exploration_report
     }
-}
 
-/// Information about an anchor point found in the text
-#[derive(Debug)]
-struct AnchorInfo<'tree> {
-    ancestor_chain: Vec<Ancestor>,
-    found_target: bool,
-    target_node: Option<Node<'tree>>,
-    anchor_node: Node<'tree>,
+    /// Find all possible text ranges for this selector
+    pub fn find_text_ranges(&self, source_code: &str) -> Result<Vec<TextRange>, String> {
+        log::trace!("top of find_text_ranges for {self:?}");
+
+        self.validate()?;
+        log::trace!("validated");
+
+        match self {
+            Selector::Insert { anchor, position } => {
+                find_insert_positions(anchor, *position, source_code)
+                    .map(|positions| positions.into_iter().map(TextRange::Insert).collect())
+            }
+            Selector::Replace { exact, from, to } => {
+                if let Some(exact_text) = exact {
+                    find_exact_matches(exact_text, source_code)
+                        .map(|ranges| ranges.into_iter().map(TextRange::Replace).collect())
+                } else if let Some(from_text) = from {
+                    find_range_matches(from_text, to.as_deref(), source_code)
+                        .map(|ranges| ranges.into_iter().map(TextRange::Replace).collect())
+                } else {
+                    // This should be caught by validate(), but just in case
+                    Err("Invalid replace operation".to_string())
+                }
+            }
+        }
+    }
+
+    pub fn operation_name(&self) -> &str {
+        match self {
+            Selector::Insert { .. } => "Insert",
+            Selector::Replace { .. } => "Replace",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-struct Ancestor {
-    kind: String,
-    ast: String,
-    source: String,
+pub enum TextRange {
+    Insert(InsertTextPosition),
+    Replace(ReplaceTextPosition),
 }
 
-impl std::fmt::Display for Ancestor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Ancestor { kind, ast, source } = self;
-        write!(
-            f,
-            "\n   • `{kind}`\n      -> AST: {ast}\n      -> SOURCE: `{source}`\n"
-        )
+#[derive(Debug, Clone)]
+pub struct InsertTextPosition {
+    pub byte_offset: usize,
+    pub anchor: String,
+    pub position: InsertPosition,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplaceTextPosition {
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub matched_text: String,
+    pub replace_type: ReplaceType,
+}
+
+#[derive(Debug, Clone)]
+pub enum ReplaceType {
+    Exact { text: String },
+    Range { from: String, to: Option<String> },
+}
+
+impl TextRange {
+    /// Apply this edit to the source code and return the modified result
+    pub fn apply_edit(&self, source_code: &str, new_content: &str) -> String {
+        let mut rope = Rope::from_str(source_code);
+
+        match self {
+            TextRange::Insert(insert) => {
+                let char_idx = rope.byte_to_char(insert.byte_offset);
+                rope.insert(char_idx, new_content);
+            }
+            TextRange::Replace(replace) => {
+                let start_char = rope.byte_to_char(replace.start_byte);
+                let end_char = rope.byte_to_char(replace.end_byte);
+                rope.remove(start_char..end_char);
+                rope.insert(start_char, new_content);
+            }
+        }
+
+        rope.to_string()
     }
-}
 
-impl Ancestor {
-    fn from_node(node: Node<'_>, source_code: &str) -> Self {
-        let source = truncate(
-            source_code[node.byte_range()]
-                .to_string()
-                .replace('\n', "\\n"),
-            150,
-        );
-        let ast = truncate(node.to_string(), 150);
-        Self {
-            kind: node.kind().to_string(),
-            ast,
-            source,
+    /// Get a human-readable description of this text range
+    pub fn description(&self) -> String {
+        match self {
+            TextRange::Insert(insert) => {
+                format!(
+                    "Insert {} anchor \"{}\"",
+                    match insert.position {
+                        InsertPosition::Before => "before",
+                        InsertPosition::After => "after",
+                    },
+                    insert.anchor
+                )
+            }
+            TextRange::Replace(replace) => match &replace.replace_type {
+                ReplaceType::Exact { text } => {
+                    format!("Replace exact match \"{text}\"")
+                }
+                ReplaceType::Range { from, to } => {
+                    if let Some(to_text) = to {
+                        format!("Replace range from \"{from}\" to \"{to_text}\"")
+                    } else {
+                        format!("Replace from \"{from}\" (structural)")
+                    }
+                }
+            },
         }
     }
 }
 
-/// Find the tree-sitter node at a specific byte position
-fn find_node_at_byte_position<'a>(
-    tree: &'a Tree,
-    byte_start: usize,
-    anchor_len: usize,
-) -> Option<Node<'a>> {
-    let root = tree.root_node();
+fn find_insert_positions(
+    anchor: &str,
+    position: InsertPosition,
+    source_code: &str,
+) -> Result<Vec<InsertTextPosition>, String> {
+    log::trace!("top of find_insert_positions for {anchor:?}, {position:?}");
 
-    // Find the smallest node that contains this byte position
-    let mut current = root;
+    let positions = source_code
+        .match_indices(anchor)
+        .map(|(byte_offset, _)| {
+            let adjusted_offset = match position {
+                InsertPosition::Before => byte_offset,
+                InsertPosition::After => byte_offset + anchor.len(),
+            };
+            InsertTextPosition {
+                byte_offset: adjusted_offset,
+                anchor: anchor.to_string(),
+                position,
+            }
+        })
+        .collect::<Vec<_>>();
 
-    loop {
-        let mut found_child = false;
-        for i in 0..current.child_count() {
-            if let Some(child) = current.child(i) {
-                if child.start_byte() <= byte_start && (byte_start + anchor_len) <= child.end_byte()
-                {
-                    current = child;
-                    found_child = true;
-                    break;
+    if positions.is_empty() {
+        Err(format!("Anchor text \"{anchor}\" not found in source"))
+    } else {
+        Ok(positions)
+    }
+}
+
+fn find_exact_matches(
+    exact_text: &str,
+    source_code: &str,
+) -> Result<Vec<ReplaceTextPosition>, String> {
+    let positions = source_code
+        .match_indices(exact_text)
+        .map(|(start_byte, matched)| ReplaceTextPosition {
+            start_byte,
+            end_byte: start_byte + matched.len(),
+            matched_text: matched.to_string(),
+            replace_type: ReplaceType::Exact {
+                text: exact_text.to_string(),
+            },
+        })
+        .collect::<Vec<_>>();
+
+    if positions.is_empty() {
+        Err(format!("Exact text \"{exact_text}\" not found in source"))
+    } else {
+        Ok(positions)
+    }
+}
+
+fn find_range_matches(
+    from_text: &str,
+    to_text: Option<&str>,
+    source_code: &str,
+) -> Result<Vec<ReplaceTextPosition>, String> {
+    let from_positions: Vec<_> = source_code.match_indices(from_text).collect();
+
+    if from_positions.is_empty() {
+        return Err(format!("From text \"{from_text}\" not found in source"));
+    }
+
+    if let Some(to_text) = to_text {
+        // Explicit range: find from...to pairs
+        let to_positions: Vec<_> = source_code.match_indices(to_text).collect();
+
+        if to_positions.is_empty() {
+            return Err(format!("To text \"{to_text}\" not found in source"));
+        }
+
+        let mut ranges = Vec::new();
+
+        for (from_byte, _) in from_positions {
+            // Find the first 'to' position that comes after this 'from' position
+            // Use outer edges: start of 'from' to end of 'to'
+            for (to_byte, _) in &to_positions {
+                if *to_byte >= from_byte + from_text.len() {
+                    let start_byte = from_byte;
+                    let end_byte = *to_byte + to_text.len();
+
+                    ranges.push(ReplaceTextPosition {
+                        start_byte,
+                        end_byte,
+                        matched_text: source_code[start_byte..end_byte].to_string(),
+                        replace_type: ReplaceType::Range {
+                            from: from_text.to_string(),
+                            to: Some(to_text.to_string()),
+                        },
+                    });
+                    break; // Take the first valid 'to' for this 'from'
                 }
             }
         }
 
-        if !found_child {
-            break;
-        }
-    }
-
-    Some(current)
-}
-
-/// Walk up the AST to find an ancestor of the specified type
-fn find_ancestor_of_type<'a>(node: &Node<'a>, target_type: &str) -> Option<Node<'a>> {
-    let mut current = *node;
-
-    // Check the current node first
-    if current.kind() == target_type {
-        return Some(current);
-    }
-
-    while let Some(parent) = current.parent() {
-        if parent.kind() == target_type {
-            return Some(parent);
-        }
-        current = parent;
-    }
-
-    None
-}
-
-fn truncate(mut s: String, len: usize) -> String {
-    if s.len() > len {
-        let len = s[..len].rfind(|c: char| !c.is_whitespace()).unwrap_or(len);
-        s.truncate(len);
-        s.push_str("...");
-    }
-    s
-}
-
-/// Get the chain of ancestor node types for error reporting
-fn get_ancestor_chain(node: &Node, source_code: &str) -> Vec<Ancestor> {
-    let mut chain = Vec::new();
-    let mut current = *node;
-
-    // Include the current node's type first
-    chain.push(current);
-
-    while let Some(parent) = current.parent() {
-        chain.push(parent);
-        current = parent;
-    }
-
-    chain
-        .into_iter()
-        .map(|node| Ancestor::from_node(node, source_code))
-        .collect()
-}
-
-/// Convert byte position to (line, column) for error reporting
-fn byte_position_to_line_column(source_code: &str, byte_pos: usize) -> (usize, usize) {
-    let mut line = 1;
-    let mut column = 1;
-
-    for (i, ch) in source_code.char_indices() {
-        if i >= byte_pos {
-            break;
-        }
-
-        if ch == '\n' {
-            line += 1;
-            column = 1;
+        if ranges.is_empty() {
+            Err(format!(
+                "No valid range found from \"{from_text}\" to \"{to_text}\""
+            ))
         } else {
-            column += 1;
+            Ok(ranges)
         }
-    }
-
-    (line, column)
-}
-
-/// Format error message when no ancestor is found
-fn format_no_ancestor_error(
-    anchor_text: &str,
-    ancestor_node_type: &str,
-    anchor_info: &[AnchorInfo],
-    source_code: &str,
-) -> String {
-    let total_anchors = anchor_info.len();
-    let valid_targets = anchor_info.iter().filter(|info| info.found_target).count();
-
-    if valid_targets == 0 && total_anchors > 0 {
-        // Found anchor text but no valid ancestors
-        let mut message = format!(
-            "Error: anchor_text {anchor_text:?} appears {total_anchors} time(s) but no instances have ancestor {ancestor_node_type:?}
-Suggestion: use the open_files tool if you have not yet done so for this file
-"
-        );
-
-        // Show context for each anchor position
-        for (i, info) in anchor_info.iter().enumerate() {
-            message.push_str(&format!("\n- Occurence {}: ", i + 1));
-            if let Some(context) =
-                get_context_around_position(&info.anchor_node, source_code, anchor_text, 40)
-            {
-                message.push_str(&format!("`{context}`"));
-            }
-
-            if !info.ancestor_chain.is_empty() {
-                let mut available_ancestors = info
-                    .ancestor_chain
-                    .iter()
-                    .map(|ancestor| &*ancestor.kind)
-                    .collect::<Vec<_>>();
-                available_ancestors.dedup();
-
-                message.push_str(&format!(
-                    "\n   Available ancestors: {}",
-                    available_ancestors.join(", ")
-                ));
-            }
-        }
-
-        let mut bk_tree = bk_tree::BKTree::new(bk_tree::metrics::Levenshtein);
-        for ancestor in anchor_info
-            .iter()
-            .flat_map(|info| info.ancestor_chain.iter().map(|x| x.kind.clone()))
-        {
-            bk_tree.add(ancestor);
-        }
-
-        if let Some(suggestion) = bk_tree
-            .find(ancestor_node_type, 2)
-            .map(|(_distance, s)| &**s)
-            .next()
-        {
-            message.push_str(&format!(
-                "\nSuggestion: Try ancestor_node_type {suggestion:?} instead"
-            ));
-        }
-
-        message
     } else {
-        format!("anchor_text {anchor_text:?} not found in file")
+        Err("structural replacement not implemented yet, please provide a `to` snippet".into())
     }
 }
 
-/// Format error message when multiple valid targets are found
-fn format_ambiguous_error(
-    anchor_text: &str,
-    ancestor_node_type: &str,
-    anchor_info: &[AnchorInfo],
-    source_code: &str,
-) -> String {
-    let valid_count = anchor_info.iter().filter(|info| info.found_target).count();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut message = format!(
-        "anchor_text `{anchor_text}` with ancestor_node_type `{ancestor_node_type}` matches {valid_count} nodes\nOccurrences:\n"
-    );
+    #[test]
+    fn test_insert_before() {
+        let selector = Selector::Insert {
+            anchor: "fn main()".to_string(),
+            position: InsertPosition::Before,
+        };
 
-    for info in anchor_info.iter().filter(|info| info.found_target) {
-        if let Some(target_node) = &info.target_node {
-            message.push_str(
-                &truncate(source_code[target_node.byte_range()].to_string(), 50)
-                    .replace('\n', "\\n")
-                    .replace('\t', "\\t"),
-            );
-            message.push_str("\n\n");
+        let source = "fn main() {\n    println!(\"Hello\");\n}";
+        let ranges = selector.find_text_ranges(source).unwrap();
+
+        assert_eq!(ranges.len(), 1);
+        match &ranges[0] {
+            TextRange::Insert(insert) => {
+                assert_eq!(insert.byte_offset, 0);
+                assert_eq!(insert.anchor, "fn main()");
+            }
+            _ => panic!("Expected insert range"),
         }
     }
 
-    message.push_str(
-        "Suggestions: 
--> Use more specific anchor text to distinguish between matches
--> use the open_files tool if you have not yet done so",
-    );
-    message
-}
+    #[test]
+    fn test_insert_after() {
+        let selector = Selector::Insert {
+            anchor: "fn main()".to_string(),
+            position: InsertPosition::After,
+        };
 
-/// Get text context around a byte position
-fn get_context_around_position(
-    node: &Node<'_>,
-    source_code: &str,
-    anchor_text: &str,
-    context_chars: usize,
-) -> Option<String> {
-    let node_text = &source_code[node.byte_range()];
-    if node_text.len() > anchor_text.len() {
-        return Some(node_text.to_string());
-    }
+        let source = "fn main() {\n    println!(\"Hello\");\n}";
+        let ranges = selector.find_text_ranges(source).unwrap();
 
-    if let Some(parent) = node.parent() {
-        let Range { start, end } = parent.byte_range();
-        if end - start < context_chars {
-            return Some(
-                source_code[start..end]
-                    .trim()
-                    .replace('\n', "\\n")
-                    .replace('\t', "\\t"),
-            );
+        assert_eq!(ranges.len(), 1);
+        match &ranges[0] {
+            TextRange::Insert(insert) => {
+                assert_eq!(insert.byte_offset, 9); // After "fn main()"
+            }
+            _ => panic!("Expected insert range"),
         }
     }
 
-    let byte_pos = node.start_byte();
-    let mut start = byte_pos.saturating_sub(context_chars);
-    let mut end = (byte_pos + anchor_text.len() + context_chars).min(source_code.len());
-    if let Some(second_anchor) =
-        source_code[(byte_pos + anchor_text.len()).min(end)..end].find(anchor_text)
-    {
-        end = byte_pos + anchor_text.len() + second_anchor;
+    #[test]
+    fn test_exact_replace() {
+        let selector = Selector::Replace {
+            exact: Some("println!".to_string()),
+            from: None,
+            to: None,
+        };
+
+        let source = "fn main() {\n    println!(\"Hello\");\n}";
+        let ranges = selector.find_text_ranges(source).unwrap();
+
+        assert_eq!(ranges.len(), 1);
+        match &ranges[0] {
+            TextRange::Replace(replace) => {
+                assert_eq!(replace.start_byte, 16);
+                assert_eq!(replace.end_byte, 24);
+                assert_eq!(replace.matched_text, "println!");
+            }
+            _ => panic!("Expected replace range"),
+        }
     }
 
-    if let Some(earlier_anchor) = source_code[start..byte_pos].rfind(anchor_text) {
-        start = start + earlier_anchor + anchor_text.len()
+    #[test]
+    fn test_range_replace() {
+        let selector = Selector::Replace {
+            exact: None,
+            from: Some("fn main() {".to_string()),
+            to: Some("}".to_string()),
+        };
+
+        let source = "fn main() {\n    println!(\"Hello\");\n}";
+        let ranges = selector.find_text_ranges(source).unwrap();
+
+        assert_eq!(ranges.len(), 1);
+        match &ranges[0] {
+            TextRange::Replace(replace) => {
+                assert_eq!(replace.start_byte, 0);
+                assert_eq!(replace.end_byte, source.len());
+            }
+            _ => panic!("Expected replace range"),
+        }
     }
 
-    if start < source_code.len() && end <= source_code.len() {
-        Some(
-            source_code[start..end]
-                .trim()
-                .replace('\n', "\\n")
-                .replace('\t', "\\t"),
-        )
-    } else {
-        None
+    #[test]
+    fn test_validation_errors() {
+        // Both exact and from specified
+        let selector = Selector::Replace {
+            exact: Some("test".to_string()),
+            from: Some("other".to_string()),
+            to: None,
+        };
+        assert!(selector.validate().is_err());
+
+        // Neither exact nor from specified
+        let selector = Selector::Replace {
+            exact: None,
+            from: None,
+            to: None,
+        };
+        assert!(selector.validate().is_err());
+
+        // Exact with to specified
+        let selector = Selector::Replace {
+            exact: Some("test".to_string()),
+            from: None,
+            to: Some("end".to_string()),
+        };
+        assert!(selector.validate().is_err());
     }
 }
