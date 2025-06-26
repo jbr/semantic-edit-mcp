@@ -1,12 +1,14 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use super::selector::Position::{After, Around, Before, Replace};
-use crate::operations::selector::NodeSelector;
+use super::selector::{Selector, TextRange};
 use crate::validation::ContextValidator;
 use crate::{languages::LanguageCommon, state::StagedOperation};
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, PatchFormatter};
+use schemars::JsonSchema;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use tree_sitter::{Parser, Tree};
 
 #[derive(Debug)]
@@ -20,10 +22,24 @@ pub enum ExecutionResult {
     },
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EditOperation {
-    pub(crate) target: NodeSelector,
-    pub(crate) content: Option<String>,
+    /// How to position the `content`
+    #[serde(deserialize_with = "deserialize_selector")]
+    pub selector: Selector,
+    /// The new content to insert or replace
+    pub content: String,
+}
+
+fn deserialize_selector<'de, D>(deserializer: D) -> Result<Selector, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: Value = Deserialize::deserialize(deserializer)?;
+    match value {
+        Value::String(s) => serde_json::from_str(&s).map_err(serde::de::Error::custom),
+        _ => Selector::deserialize(value).map_err(serde::de::Error::custom),
+    }
 }
 
 #[derive(Debug)]
@@ -41,21 +57,29 @@ macro_rules! maybe_early_return {
 }
 
 impl EditOperation {
-    /// Get the target selector for this operation
-    pub fn target_selector(&self) -> &NodeSelector {
-        &self.target
+    /// Create a new edit operation
+    pub fn new(selector: Selector, content: String) -> Self {
+        Self { selector, content }
     }
 
     /// Get a human-readable operation name
     pub fn operation_name(&self) -> &str {
-        match (&self.target.position, &self.content) {
-            (None, _) => "Explore",
-            (Some(Before), _) => "Insert before",
-            (Some(After), _) => "Insert after",
-            (Some(Around), _) => "Insert around",
-            (Some(Replace), Some(_)) => "Replace",
-            (Some(Replace), None) => "Delete",
-        }
+        self.selector.operation_name()
+    }
+
+    /// Get the content for this operation
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    /// Get a mutable reference to the selector for retargeting
+    pub fn selector_mut(&mut self) -> &mut Selector {
+        &mut self.selector
+    }
+
+    /// Replace the selector while keeping the same content (for retargeting)
+    pub fn retarget(&mut self, selector: Selector) {
+        self.selector = selector;
     }
 
     /// Apply operation with full validation pipeline
@@ -65,6 +89,11 @@ impl EditOperation {
         file_path: &Path,
         preview_only: bool,
     ) -> Result<ExecutionResult> {
+        log::trace!(
+            "top of apply for {self:?} and language {language} with {}",
+            file_path.display()
+        );
+
         let source_code = std::fs::read_to_string(file_path)?;
         let mut parser = language.tree_sitter_parser()?;
         let tree = parser.parse(&source_code, None).ok_or_else(|| {
@@ -82,44 +111,60 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             ))
         );
 
-        let target_node = match self
-            .target_selector()
-            .find_node_with_suggestions(&tree, &source_code)
-        {
-            Ok(target_node) => target_node,
+        // Find text ranges for the operation
+        let text_ranges = match self.selector.find_text_ranges(&source_code) {
+            Ok(ranges) => ranges,
             Err(response) => return Ok(ExecutionResult::ResponseOnly(response)),
         };
 
-        // Apply operation
-        let editor = language.editor();
-        let mut edit_result = editor.apply_operation(target_node, &tree, self, &source_code)?;
+        // Handle disambiguation if multiple ranges found
+        if text_ranges.len() > 1 {
+            return Ok(ExecutionResult::ResponseOnly(format_multiple_matches(
+                &text_ranges,
+                &source_code,
+            )));
+        }
+
+        if text_ranges.is_empty() {
+            return Ok(ExecutionResult::ResponseOnly(
+                "No valid text ranges found".to_string(),
+            ));
+        }
+
+        // Apply the edit using the first (and only) range
+        let text_range = &text_ranges[0];
+        let new_content = text_range.apply_edit(&source_code, &self.content);
+
+        let edit_result = EditResult {
+            message: format!("Applied {} operation", self.operation_name()),
+            new_content,
+        };
 
         maybe_early_return!(validate(&edit_result, &mut parser, language, &source_code)?);
 
-        edit_result.new_content = language.editor().format_code(&edit_result.new_content)?;
+        let formatted_content = language.editor().format_code(&edit_result.new_content)?;
+        let final_result = EditResult {
+            message: edit_result.message,
+            new_content: formatted_content,
+        };
 
         // Format response
         if preview_only {
-            // Generate contextual preview showing insertion point
             return self
-                .generate_contextual_preview(&edit_result, &source_code)
+                .generate_contextual_preview(&final_result, &source_code)
                 .map(ExecutionResult::ResponseOnly);
         }
 
-        let diff = generate_diff(
-            &source_code,
-            &edit_result.new_content,
-            self.content.as_deref(),
-        );
+        let diff = generate_diff(&source_code, &final_result.new_content, Some(&self.content));
 
         let response = format!(
             "{} operation result:\n{}\n\n{diff}",
             self.operation_name(),
-            edit_result.message,
+            final_result.message,
         );
         Ok(ExecutionResult::Change {
             response,
-            output: edit_result.new_content,
+            output: final_result.new_content,
             output_path: file_path.to_path_buf(),
         })
     }
@@ -137,15 +182,67 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         preview.push_str(&generate_diff(
             source_code,
             new_content,
-            self.content.as_deref(),
+            Some(&self.content),
         ));
 
         Ok(preview)
     }
+}
 
-    pub(crate) fn target_selector_mut(&mut self) -> &mut NodeSelector {
-        &mut self.target
+fn format_multiple_matches(ranges: &[TextRange], source_code: &str) -> String {
+    let mut message = format!(
+        "Found {} possible matches. Please be more specific:\n\n",
+        ranges.len()
+    );
+
+    for (i, range) in ranges.iter().enumerate() {
+        match range {
+            TextRange::Insert(insert) => {
+                let context = get_context_around_byte_position(source_code, insert.byte_offset, 50);
+                message.push_str(&format!(
+                    "{}. Insert {} anchor \"{}\": {}\n",
+                    i + 1,
+                    match insert.position {
+                        super::selector::InsertPosition::Before => "before",
+                        super::selector::InsertPosition::After => "after",
+                    },
+                    insert.anchor,
+                    context
+                ));
+            }
+            TextRange::Replace(replace) => {
+                let text = &source_code[replace.start_byte..replace.end_byte];
+                let preview = if text.len() > 100 {
+                    format!("{}...", &text[..97])
+                } else {
+                    text.to_string()
+                };
+                message.push_str(&format!(
+                    "{}. {}: {}\n",
+                    i + 1,
+                    range.description(),
+                    preview.replace('\n', "\\n")
+                ));
+            }
+        }
     }
+
+    message.push_str(
+        "\nSuggestion: Add more context to your anchor text to uniquely identify the target.",
+    );
+    message
+}
+
+fn get_context_around_byte_position(
+    source_code: &str,
+    byte_pos: usize,
+    context_chars: usize,
+) -> String {
+    let start = byte_pos.saturating_sub(context_chars);
+    let end = (byte_pos + context_chars).min(source_code.len());
+    source_code[start..end]
+        .replace('\n', "\\n")
+        .replace('\t', "\\t")
 }
 
 fn changed_lines(patch: &diffy::Patch<'_, str>, total_original_lines: usize) -> usize {
@@ -236,6 +333,7 @@ fn validate_tree(language: &LanguageCommon, tree: &Tree, content: &str) -> Optio
             .collect(),
     )
 }
+
 fn validate(
     edit_result: &EditResult,
     parser: &mut Parser,
@@ -267,4 +365,59 @@ Suggestion: Try a different change.\n
     }
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::operations::selector::{InsertPosition, Selector};
+
+    #[test]
+    fn test_retargeting() {
+        let mut operation = EditOperation::new(
+            Selector::Insert {
+                anchor: "fn main()".to_string(),
+                position: InsertPosition::Before,
+            },
+            "// Comment\n".to_string(),
+        );
+
+        // Original target
+        assert_eq!(operation.operation_name(), "Insert");
+
+        // Retarget to a different location
+        operation.retarget(Selector::Insert {
+            anchor: "fn test()".to_string(),
+            position: InsertPosition::After,
+        });
+
+        // Content stays the same, but selector changes
+        assert_eq!(operation.content(), "// Comment\n");
+        match &operation.selector {
+            Selector::Insert { anchor, position } => {
+                assert_eq!(anchor, "fn test()");
+                assert!(matches!(position, InsertPosition::After));
+            }
+            _ => panic!("Expected insert selector"),
+        }
+    }
+
+    #[test]
+    fn test_selector_separation() {
+        // Test that we can deserialize just the selector part
+        let json = r#"{"selector": {"operation": "insert", "anchor": "fn main()", "position": "before"}, "content": "test"}"#;
+
+        let operation: EditOperation = serde_json::from_str(json).unwrap();
+
+        // Verify the selector part
+        match &operation.selector {
+            Selector::Insert { anchor, position } => {
+                assert_eq!(anchor, "fn main()");
+                assert!(matches!(position, InsertPosition::Before));
+            }
+            _ => panic!("Expected insert selector"),
+        }
+
+        assert_eq!(operation.content, "test");
+    }
 }

@@ -30,6 +30,10 @@ fn run_snapshot_tests() {
 }
 
 #[test]
-fn test() {
-    semantic_edit_mcp::tools::Tools::schema();
+fn tools_doesnt_panic() {
+    println!(
+        "{}",
+        serde_json::to_string(&semantic_edit_mcp::tools::Tools::schema()).unwrap()
+    );
+    panic!()
 }

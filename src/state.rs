@@ -7,7 +7,7 @@ use lru::LruCache;
 use serde::{Deserialize, Serialize};
 
 use crate::languages::{LanguageName, LanguageRegistry};
-use crate::operations::{EditOperation, NodeSelector};
+use crate::operations::{EditOperation, Selector};
 use crate::session::SessionStore;
 
 // Explanation for the presence of session_id that is currently unused: The intent was initially to
@@ -37,8 +37,8 @@ pub struct StagedOperation {
 }
 
 impl StagedOperation {
-    pub fn retarget(&mut self, target: NodeSelector) {
-        *self.operation_mut().target_selector_mut() = target;
+    pub fn retarget(&mut self, selector: Selector) {
+        self.operation.retarget(selector);
     }
 }
 
@@ -54,6 +54,17 @@ pub struct SemanticEditTools {
     commit_fn: Option<Box<(dyn Fn(PathBuf, String) + 'static)>>,
     #[fieldwork(set, with)]
     default_session_id: &'static str,
+}
+
+impl std::fmt::Debug for SemanticEditTools {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SemanticEditTools")
+            .field("session_store", &self.session_store)
+            .field("language_registry", &self.language_registry)
+            .field("file_cache", &self.file_cache)
+            .field("default_session_id", &self.default_session_id)
+            .finish()
+    }
 }
 
 impl SemanticEditTools {

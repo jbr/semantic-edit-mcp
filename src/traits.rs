@@ -68,12 +68,26 @@ where
             );
         }
 
-        let input_schema = serde_json::from_value(schema.into()).unwrap();
-
-        ToolSchema {
-            name,
-            description: Some(description),
-            input_schema,
+        match serde_json::from_value(schema.clone().into()) {
+            Ok(input_schema) => ToolSchema {
+                name,
+                description: Some(description),
+                input_schema,
+            },
+            Err(e) => {
+                let json = serde_json::to_string_pretty(&schema).unwrap();
+                eprintln!("{json}");
+                log::error!("{json}");
+                panic!("{e}")
+            }
         }
+
+        // let input_schema = serde_json::from_value(schema.into()).unwrap();
+
+        // ToolSchema {
+        //     name,
+        //     description: Some(description),
+        //     input_schema,
+        // }
     }
 }

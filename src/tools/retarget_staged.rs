@@ -1,4 +1,4 @@
-use crate::operations::{ExecutionResult, NodeSelector};
+use crate::operations::{ExecutionResult, Selector};
 use crate::state::SemanticEditTools;
 use crate::traits::WithExamples;
 use crate::types::Example;
@@ -10,54 +10,52 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename = "retarget_staged")]
 pub struct RetargetStaged {
-    /// Text-anchored node selector using exact text and AST navigation.
-    /// 🔄 RETARGETING STRATEGY: Use exploration mode (omit ancestor_node_type) to discover options, then retarget to try different scopes (e.g., field_declaration → struct_item → source_file for broader scope, or vice versa for narrower scope).
-    pub selector: NodeSelector,
+    pub selector: Selector,
 }
 
 impl WithExamples for RetargetStaged {
     fn examples() -> Option<Vec<Example<Self>>> {
         Some(vec![
-            Example {
-                description: "After staging content to add a struct field, retarget from field_declaration to field_declaration_list for better insertion point",
-                item: Self {
-                    selector: NodeSelector {
-                        anchor_text: "pub created_at:".into(),
-                        ancestor_node_type: Some("field_declaration_list".into()),
-                        position: None,
-                    },
-                },
-            },
-            Example {
-                description: "Move JSON insertion from inside an object to after the entire object pair",
-                item: Self {
-                    selector: NodeSelector {
-                        anchor_text: "\"cache\"".into(),
-                        ancestor_node_type: Some("pair".into()),
-                        position: None,
-                    },
-                },
-            },
-            Example {
-                description: "Adjust function insertion from declaration_list to function_item scope",
-                item: Self {
-                    selector: NodeSelector {
-                        anchor_text: "pub fn validate_email".into(),
-                        ancestor_node_type: Some("function_item".into()),
-                        position: None,
-                    },
-                },
-            },
-            Example {
-                description: "Use exploration mode first to see all targeting options before retargeting",
-                item: Self {
-                    selector: NodeSelector {
-                        anchor_text: "impl User".into(),
-                        ancestor_node_type: None,
-                        position: None,
-                    },
-                },
-            },
+            // Example {
+            //     description: "After staging content to add a struct field, retarget from field_declaration to field_declaration_list for better insertion point",
+            //     item: Self {
+            //         selector: NodeSelector {
+            //             anchor_text: "pub created_at:".into(),
+            //             ancestor_node_type: Some("field_declaration_list".into()),
+            //             position: None,
+            //         },
+            //     },
+            // },
+            // Example {
+            //     description: "Move JSON insertion from inside an object to after the entire object pair",
+            //     item: Self {
+            //         selector: NodeSelector {
+            //             anchor_text: "\"cache\"".into(),
+            //             ancestor_node_type: Some("pair".into()),
+            //             position: None,
+            //         },
+            //     },
+            // },
+            // Example {
+            //     description: "Adjust function insertion from declaration_list to function_item scope",
+            //     item: Self {
+            //         selector: NodeSelector {
+            //             anchor_text: "pub fn validate_email".into(),
+            //             ancestor_node_type: Some("function_item".into()),
+            //             position: None,
+            //         },
+            //     },
+            // },
+            // Example {
+            //     description: "Use exploration mode first to see all targeting options before retargeting",
+            //     item: Self {
+            //         selector: NodeSelector {
+            //             anchor_text: "impl User".into(),
+            //             ancestor_node_type: None,
+            //             position: None,
+            //         },
+            //     },
+            // },
         ])
     }
 }

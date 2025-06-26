@@ -1,5 +1,4 @@
-pub mod editor;
-use crate::languages::LanguageName;
+use crate::languages::{traits::DefaultEditor, LanguageName};
 
 use super::{utils::parse_node_types_json, LanguageCommon};
 use anyhow::Result;
@@ -7,7 +6,7 @@ use anyhow::Result;
 pub fn language() -> Result<LanguageCommon> {
     let language = tree_sitter_md::LANGUAGE.into();
     let node_types = parse_node_types_json(tree_sitter_md::NODE_TYPES_BLOCK)?;
-    let editor = Box::new(editor::MarkdownEditor::new());
+    let editor = Box::new(DefaultEditor::new());
 
     Ok(LanguageCommon {
         name: LanguageName::Markdown,
