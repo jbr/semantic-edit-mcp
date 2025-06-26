@@ -1,6 +1,7 @@
+use crate::editor::Editor;
+use crate::state::SemanticEditTools;
 use crate::traits::WithExamples;
 use crate::types::Example;
-use crate::{operations::ExecutionResult, state::SemanticEditTools};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
@@ -41,34 +42,17 @@ impl CommitStaged {
             .take_staged_operation(None)?
             .ok_or_else(|| anyhow!("No operation is currently staged"))?;
 
-        let language = state
-            .language_registry()
-            .get_language(staged_operation.language_name)
-            .ok_or_else(|| anyhow!("language not recognized"))?;
+        let editor = Editor::from_staged_operation(staged_operation, &state.language_registry())?;
+        let (message, output, output_path) = editor.commit()?;
 
-        // Apply the operation for real (preview_only=false)
-        let result =
-            staged_operation
-                .operation()
-                .apply(language, staged_operation.file_path(), false)?;
-
-        match result {
-            ExecutionResult::Change {
-                response,
-                output,
-                output_path,
-            } => {
-                if let Some(commit) = state.commit_fn_mut().take() {
-                    commit(output_path, output);
-                } else {
-                    std::fs::write(output_path, output)?;
-                }
-                Ok(response)
-            }
-            ExecutionResult::ResponseOnly(response) => Ok(response),
-            ExecutionResult::ChangeStaged(_, _) => {
-                Err(anyhow!("Unexpected staged result from commit"))
+        if let Some(output) = output {
+            if let Some(commit) = state.commit_fn_mut().take() {
+                commit(output_path, output);
+            } else {
+                std::fs::write(output_path, output)?;
             }
         }
+
+        Ok(message)
     }
 }

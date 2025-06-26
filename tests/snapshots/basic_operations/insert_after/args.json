@@ -1,0 +1,19 @@
+[
+  {
+    "arguments": {
+      "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
+      "selector": {
+        "anchor": "42\n}",
+        "position": "after",
+        "operation": "insert"
+      }
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

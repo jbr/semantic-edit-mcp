@@ -1,7 +1,10 @@
-use crate::operations::{ExecutionResult, Selector};
-use crate::state::SemanticEditTools;
-use crate::traits::WithExamples;
-use crate::types::Example;
+use crate::{
+    editor::Editor,
+    selector::{deserialize_selector, Selector},
+    state::SemanticEditTools,
+    traits::WithExamples,
+    types::Example,
+};
 use anyhow::{anyhow, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename = "retarget_staged")]
 pub struct RetargetStaged {
+    #[serde(deserialize_with = "deserialize_selector")]
     pub selector: Selector,
 }
 
@@ -64,24 +68,13 @@ impl RetargetStaged {
     pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self { selector } = self;
 
-        let staged = state
+        let staged_operation = state
             .modify_staged_operation(None, |op| op.retarget(selector))?
             .ok_or_else(|| anyhow!("no operation staged"))?;
 
-        let language = state
-            .language_registry()
-            .get_language(staged.language_name)
-            .ok_or_else(|| anyhow!("language not recognized"))?;
-
-        let ExecutionResult::ResponseOnly(message) =
-            staged
-                .operation()
-                .apply(language, staged.file_path(), true)?
-        else {
-            return Err(anyhow!("unexpected change from preview"));
-        };
-
-        state.stage_operation(None, staged)?;
+        let editor = Editor::from_staged_operation(staged_operation, state.language_registry())?;
+        let (message, staged_operation) = editor.preview()?;
+        state.stage_operation(None, staged_operation)?;
         Ok(message)
     }
 }

@@ -25,6 +25,7 @@ macro_rules! tools {
                 vec![$($capitalized::as_tool_schema(),)+]
             }
 
+            #[allow(dead_code)]
             pub fn name(&self) -> &str {
                 match self {
                     $(Tools::$capitalized { .. } => $string,)+

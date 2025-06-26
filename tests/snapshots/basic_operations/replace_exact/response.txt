@@ -1,0 +1,25 @@
+=== snapshot test tool call: stage_operation ===
+STAGED: Replace
+
+===DIFF===
+ use std::collections::HashMap;
+
+ pub fn target_function() {
+-    println!("This function will have content replaced");
++    println!("This function has had content replaced");
+ }
+
+ pub fn another_function() {
+=== snapshot test tool call: commit_staged ===
+Replace operation result:
+Applied Replace operation
+
+===DIFF===
+ use std::collections::HashMap;
+
+ pub fn target_function() {
+-    println!("This function will have content replaced");
++    println!("This function has had content replaced");
+ }
+
+ pub fn another_function() {

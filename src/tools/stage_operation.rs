@@ -1,10 +1,10 @@
+use crate::editor::Editor;
 use crate::languages::LanguageName;
-use crate::operations::selector::{InsertPosition, Selector};
-use crate::operations::{EditOperation, ExecutionResult};
-use crate::state::{SemanticEditTools, StagedOperation};
+use crate::selector::{deserialize_selector, InsertPosition, Selector};
+use crate::state::SemanticEditTools;
 use crate::traits::WithExamples;
 use crate::types::Example;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -20,9 +20,12 @@ pub struct StageOperation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<LanguageName>,
 
-    /// The edit operation to perform using text-based selection
-    #[serde(flatten)]
-    pub operation: EditOperation,
+    /// How to position the `content`
+    #[serde(deserialize_with = "deserialize_selector")]
+    pub selector: Selector,
+
+    /// The new content to insert or replace
+    pub content: String,
 }
 
 impl WithExamples for StageOperation {
@@ -32,13 +35,11 @@ impl WithExamples for StageOperation {
                 description: "Insert content after a function declaration",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    operation: EditOperation {
-                        selector: Selector::Insert {
-                            anchor: "fn main() {".into(),
-                            position: InsertPosition::After,
-                        },
-                        content: "\n    println!(\"Hello, world!\");".to_string(),
+                    selector: Selector::Insert {
+                        anchor: "fn main() {".into(),
+                        position: InsertPosition::After,
                     },
+                    content: "\n    println!(\"Hello, world!\");".to_string(),
                     language: None,
                 },
             },
@@ -46,14 +47,12 @@ impl WithExamples for StageOperation {
                 description: "Replace a function with new implementation",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    operation: EditOperation {
-                        selector: Selector::Replace {
-                            exact: None,
-                            from: Some("fn hello()".to_string()),
-                            to: None,
-                        },
-                        content: "fn hello() { println!(\"Hello, world!\"); }".to_string(),
+                    selector: Selector::Replace {
+                        exact: None,
+                        from: Some("fn hello()".to_string()),
+                        to: None,
                     },
+                    content: "fn hello() { println!(\"Hello, world!\"); }".to_string(),
                     language: None,
                 },
             },
@@ -61,16 +60,13 @@ impl WithExamples for StageOperation {
                 description: "Replace a range of code with explicit boundaries",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    operation: EditOperation {
-                        selector: Selector::Replace {
-                            exact: None,
-                            from: Some("let user =".to_string()),
-                            to: Some("return user;".into()),
-                        },
-                        content:
-                            "let user = User::new();\n    validate_user(&user);\n    return user;"
-                                .into(),
+                    selector: Selector::Replace {
+                        exact: None,
+                        from: Some("let user =".to_string()),
+                        to: Some("return user;".into()),
                     },
+                    content: "let user = User::new();\n    validate_user(&user);\n    return user;"
+                        .into(),
                     language: None,
                 },
             },
@@ -80,10 +76,10 @@ impl WithExamples for StageOperation {
 
 impl StageOperation {
     pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
-        log::trace!("top of execute for {self:?}");
         let Self {
             file_path,
-            operation,
+            selector,
+            content,
             language,
         } = self;
 
@@ -93,17 +89,8 @@ impl StageOperation {
             .language_registry()
             .get_language_with_hint(&file_path, language)?;
 
-        let ExecutionResult::ResponseOnly(message) = operation.apply(language, &file_path, true)?
-        else {
-            return Err(anyhow!("unexpected change from preview"));
-        };
-
-        let staged_operation = StagedOperation {
-            operation,
-            file_path: file_path.clone(),
-            language_name: language.name(),
-        };
-
+        let editor = Editor::new(content, selector, language, file_path, None)?;
+        let (message, staged_operation) = editor.preview()?;
         state.stage_operation(None, staged_operation)?;
 
         Ok(message)

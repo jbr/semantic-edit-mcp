@@ -1,0 +1,19 @@
+[
+  {
+    "arguments": {
+      "content": "// This comment is inserted before the target function\n",
+      "selector": {
+        "anchor": "pub fn target",
+        "position": "before",
+        "operation": "insert"
+      }
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {
+      "acknowledge": true
+    },
+    "name": "commit_staged"
+  }
+]

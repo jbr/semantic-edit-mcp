@@ -136,8 +136,8 @@ impl LanguageRegistry {
         self.languages.insert(name, language);
     }
 
-    pub fn get_language(&self, name: LanguageName) -> Option<&LanguageCommon> {
-        self.languages.get(&name)
+    pub fn get_language(&self, name: LanguageName) -> &LanguageCommon {
+        self.languages.get(&name).unwrap()
     }
 
     pub fn get_language_with_hint(
@@ -150,8 +150,7 @@ impl LanguageRegistry {
             .ok_or_else(|| {
                 anyhow!("Unable to detect language from file path and no language hint provided")
             })?;
-        self.get_language(language_name)
-            .ok_or_else(|| anyhow!("Unsupported language {language_name}"))
+        Ok(self.get_language(language_name))
     }
 
     pub fn detect_language_from_path(&self, file_path: &Path) -> Option<LanguageName> {

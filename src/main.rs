@@ -1,7 +1,8 @@
 #![allow(clippy::collapsible_if)]
 
+mod editor;
 mod languages;
-mod operations;
+mod selector;
 mod session;
 mod state;
 mod tools;
