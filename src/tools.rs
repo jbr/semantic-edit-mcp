@@ -39,6 +39,5 @@ tools!(
     (StageOperation, stage_operation, "stage_operation"),
     (RetargetStaged, retarget_staged, "retarget_staged"),
     (CommitStaged, commit_staged, "commit_staged"),
-    (OpenFiles, open_files, "open_files"),
     (SetContext, set_context, "set_context")
 );
