@@ -130,9 +130,3 @@
  value: (_) @invalid.mut.static.without.unsafe
  (#not-has-ancestor? unsafe_block))
 
-
-;; CRITICAL: Associated types outside of traits/impls
-((type_item) @invalid.associated.type.outside.trait.impl
- (#not-has-ancestor? trait_item)
- (#not-has-ancestor? impl_item)
- (#has-ancestor? block)) ; Only flag if inside a block (function body)
