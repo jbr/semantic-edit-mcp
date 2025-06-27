@@ -289,9 +289,11 @@ fn find_range_matches(
     } else {
         Ok(from_positions
             .into_iter()
-            .filter_map(|(from, _)| {
+            .filter_map(|(from, from_text)| {
+                let from_end = from + from_text.len();
                 tree.root_node()
-                    .first_child_for_byte(from)
+                    .named_descendant_for_byte_range(from, from_end)
+                    .or_else(|| tree.root_node().descendant_for_byte_range(from, from_end))
                     .map(|node| ReplaceTextPosition {
                         start_byte: node.start_byte(),
                         end_byte: node.end_byte(),
