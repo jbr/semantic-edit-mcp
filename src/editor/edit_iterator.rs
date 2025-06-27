@@ -1,3 +1,5 @@
+use std::iter::Iterator;
+
 use tree_sitter::Tree;
 
 use crate::{
@@ -12,8 +14,10 @@ pub(super) struct EditIterator<'editor, 'language> {
     selector: &'editor Selector,
     source_code: &'editor str,
     tree: &'editor Tree,
-    temporary_tracker: bool,
     staged_edit: Option<&'editor EditPosition>,
+
+    positions: Option<Vec<EditPosition>>,
+    current_index: usize,
 }
 
 impl<'editor, 'language> EditIterator<'editor, 'language> {
@@ -27,24 +31,16 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         } = &editor;
         Self {
             editor,
-            temporary_tracker: false,
             selector,
             source_code,
             tree,
             staged_edit: staged_edit.as_ref(),
+            positions: None,
+            current_index: 0,
         }
     }
 
-    fn find_edit_position(&self) -> Result<EditPosition, String> {
-        let text_ranges = self.find_text_ranges()?;
-        match &text_ranges[..] {
-            [] => Err("No valid text ranges found".to_string()),
-            [text_range] => Ok(text_range.into()),
-            text_ranges => Err(format_multiple_matches(text_ranges, self.source_code)),
-        }
-    }
-
-    fn find_text_ranges(&self) -> Result<Vec<TextRange>, String> {
+    fn find_text_ranges(&self) -> Result<Vec<EditPosition>, String> {
         let selector: &Selector = self.selector;
         let source_code: &str = self.source_code;
         let tree: &Tree = self.tree;
@@ -53,15 +49,12 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         match selector {
             Selector::Insert { anchor, position } => {
                 find_insert_positions(anchor, *position, source_code)
-                    .map(|positions| positions.into_iter().map(TextRange::Insert).collect())
             }
             Selector::Replace { exact, from, to } => {
                 if let Some(exact_text) = exact {
                     find_exact_matches(exact_text, source_code)
-                        .map(|ranges| ranges.into_iter().map(TextRange::Replace).collect())
                 } else if let Some(from_text) = from {
                     find_range_matches(from_text, to.as_deref(), source_code, tree)
-                        .map(|ranges| ranges.into_iter().map(TextRange::Replace).collect())
                 } else {
                     // This should be caught by validate(), but just in case
                     Err("Invalid replace operation".to_string())
@@ -69,119 +62,39 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             }
         }
     }
+
+    fn ensure_text_ranges_loaded(&mut self) -> Result<(), String> {
+        if self.positions.is_none() {
+            self.positions = Some(self.find_text_ranges()?);
+        }
+        Ok(())
+    }
 }
 
-impl<'editor, 'language> std::iter::Iterator for EditIterator<'editor, 'language> {
+impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
     type Item = Result<Edit<'editor, 'language>, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.temporary_tracker {
-            return None;
+        // If we have a staged edit, return it first and only once
+        if let Some(edit_position) = self.staged_edit.take() {
+            return Some(Ok(Edit::new(self.editor, *edit_position)));
         }
 
-        self.temporary_tracker = true;
-
-        if let Some(edit_position) = self.staged_edit {
-            Some(Ok(Edit::new(self.editor, *edit_position)))
-        } else {
-            match self.find_edit_position() {
-                Ok(edit_position) => Some(Ok(Edit::new(self.editor, edit_position))),
-                Err(e) => Some(Err(e)),
-            }
+        // Ensure text ranges are loaded
+        if let Err(e) = self.ensure_text_ranges_loaded() {
+            return Some(Err(e));
         }
-    }
-}
 
-#[derive(Debug, Clone)]
-enum TextRange {
-    Insert(InsertTextPosition),
-    Replace(ReplaceTextPosition),
-}
-
-#[derive(Debug, Clone)]
-struct InsertTextPosition {
-    byte_offset: usize,
-    anchor: String,
-    position: InsertPosition,
-}
-
-#[derive(Debug, Clone)]
-struct ReplaceTextPosition {
-    start_byte: usize,
-    end_byte: usize,
-    replace_type: ReplaceType,
-}
-
-#[derive(Debug, Clone)]
-enum ReplaceType {
-    Exact { text: String },
-    Range { from: String, to: Option<String> },
-}
-
-impl From<TextRange> for EditPosition {
-    fn from(value: TextRange) -> Self {
-        match value {
-            TextRange::Insert(InsertTextPosition { byte_offset, .. }) => Self {
-                start_byte: byte_offset,
-                end_byte: None,
-            },
-            TextRange::Replace(ReplaceTextPosition {
-                start_byte,
-                end_byte,
-                ..
-            }) => Self {
-                start_byte,
-                end_byte: Some(end_byte),
-            },
+        // Get the current text range to try
+        let text_ranges = self.positions.as_ref().unwrap();
+        if self.current_index >= text_ranges.len() {
+            return None; // No more ranges to try
         }
-    }
-}
-impl From<&TextRange> for EditPosition {
-    fn from(value: &TextRange) -> Self {
-        match value {
-            TextRange::Insert(InsertTextPosition { byte_offset, .. }) => Self {
-                start_byte: *byte_offset,
-                end_byte: None,
-            },
-            TextRange::Replace(ReplaceTextPosition {
-                start_byte,
-                end_byte,
-                ..
-            }) => Self {
-                start_byte: *start_byte,
-                end_byte: Some(*end_byte),
-            },
-        }
-    }
-}
 
-impl TextRange {
-    /// Get a human-readable description of this text range
-    fn description(&self) -> String {
-        match self {
-            TextRange::Insert(insert) => {
-                format!(
-                    "Insert {} anchor \"{}\"",
-                    match insert.position {
-                        InsertPosition::Before => "before",
-                        InsertPosition::After => "after",
-                    },
-                    insert.anchor
-                )
-            }
-            TextRange::Replace(replace) => match &replace.replace_type {
-                ReplaceType::Exact { text } => {
-                    format!("Replace exact match \"{text}\"")
-                }
-                ReplaceType::Range { from, to } => {
-                    if let Some(to_text) = to {
-                        format!("Replace range from \"{from}\" to \"{to_text}\"")
-                    } else {
-                        format!("Replace from \"{from}\" (structural)")
-                    }
-                }
-            },
-        }
+        let edit_position = text_ranges[self.current_index];
+        self.current_index += 1;
+
+        Some(Ok(Edit::new(self.editor, edit_position)))
     }
 }
 
@@ -189,21 +102,17 @@ fn find_insert_positions(
     anchor: &str,
     position: InsertPosition,
     source_code: &str,
-) -> Result<Vec<InsertTextPosition>, String> {
+) -> Result<Vec<EditPosition>, String> {
     log::trace!("top of find_insert_positions for {anchor:?}, {position:?}");
 
     let positions = source_code
         .match_indices(anchor)
-        .map(|(byte_offset, _)| {
-            let adjusted_offset = match position {
+        .map(|(byte_offset, _)| EditPosition {
+            start_byte: match position {
                 InsertPosition::Before => byte_offset,
                 InsertPosition::After => byte_offset + anchor.len(),
-            };
-            InsertTextPosition {
-                byte_offset: adjusted_offset,
-                anchor: anchor.to_string(),
-                position,
-            }
+            },
+            end_byte: None,
         })
         .collect::<Vec<_>>();
 
@@ -214,18 +123,12 @@ fn find_insert_positions(
     }
 }
 
-fn find_exact_matches(
-    exact_text: &str,
-    source_code: &str,
-) -> Result<Vec<ReplaceTextPosition>, String> {
+fn find_exact_matches(exact_text: &str, source_code: &str) -> Result<Vec<EditPosition>, String> {
     let positions = source_code
         .match_indices(exact_text)
-        .map(|(start_byte, matched)| ReplaceTextPosition {
+        .map(|(start_byte, matched)| EditPosition {
             start_byte,
-            end_byte: start_byte + matched.len(),
-            replace_type: ReplaceType::Exact {
-                text: exact_text.to_string(),
-            },
+            end_byte: Some(start_byte + matched.len()),
         })
         .collect::<Vec<_>>();
 
@@ -241,120 +144,76 @@ fn find_range_matches(
     to_text: Option<&str>,
     source_code: &str,
     tree: &Tree,
-) -> Result<Vec<ReplaceTextPosition>, String> {
-    let from_positions: Vec<_> = source_code.match_indices(from_text).collect();
+) -> Result<Vec<EditPosition>, String> {
+    if let Some(to_text) = to_text {
+        find_explicit_range(from_text, to_text, source_code)
+    } else {
+        select_ast_node(from_text, source_code, tree)
+    }
+}
 
+fn select_ast_node(
+    from_text: &str,
+    source_code: &str,
+    tree: &Tree,
+) -> Result<Vec<EditPosition>, String> {
+    Ok(from_positions(source_code, from_text)?
+        .into_iter()
+        .filter_map(|(from, from_text)| {
+            let from_end = from + from_text.len();
+            tree.root_node()
+                .named_descendant_for_byte_range(from, from_end)
+                .or_else(|| tree.root_node().descendant_for_byte_range(from, from_end))
+                .map(|node| EditPosition {
+                    start_byte: node.start_byte(),
+                    end_byte: Some(node.end_byte()),
+                })
+        })
+        .collect())
+}
+
+fn from_positions<'a>(
+    source_code: &'a str,
+    from_text: &str,
+) -> Result<Vec<(usize, &'a str)>, String> {
+    let from_positions: Vec<_> = source_code.match_indices(from_text).collect();
     if from_positions.is_empty() {
         return Err(format!("From text \"{from_text}\" not found in source"));
     }
-
-    if let Some(to_text) = to_text {
-        // Explicit range: find from...to pairs
-        let to_positions: Vec<_> = source_code.match_indices(to_text).collect();
-
-        if to_positions.is_empty() {
-            return Err(format!("To text \"{to_text}\" not found in source"));
-        }
-
-        let mut ranges = Vec::new();
-
-        for (from_byte, _) in from_positions {
-            // Find the first 'to' position that comes after this 'from' position
-            // Use outer edges: start of 'from' to end of 'to'
-            for (to_byte, _) in &to_positions {
-                if *to_byte >= from_byte + from_text.len() {
-                    let start_byte = from_byte;
-                    let end_byte = *to_byte + to_text.len();
-
-                    ranges.push(ReplaceTextPosition {
-                        start_byte,
-                        end_byte,
-                        replace_type: ReplaceType::Range {
-                            from: from_text.to_string(),
-                            to: Some(to_text.to_string()),
-                        },
-                    });
-                    break; // Take the first valid 'to' for this 'from'
-                }
-            }
-        }
-
-        if ranges.is_empty() {
-            Err(format!(
-                "No valid range found from \"{from_text}\" to \"{to_text}\""
-            ))
-        } else {
-            Ok(ranges)
-        }
-    } else {
-        Ok(from_positions
-            .into_iter()
-            .filter_map(|(from, from_text)| {
-                let from_end = from + from_text.len();
-                tree.root_node()
-                    .named_descendant_for_byte_range(from, from_end)
-                    .or_else(|| tree.root_node().descendant_for_byte_range(from, from_end))
-                    .map(|node| ReplaceTextPosition {
-                        start_byte: node.start_byte(),
-                        end_byte: node.end_byte(),
-                        replace_type: ReplaceType::Exact {
-                            text: source_code[node.byte_range()].to_string(),
-                        },
-                    })
-            })
-            .collect())
-    }
+    Ok(from_positions)
 }
 
-fn get_context_around_byte_position(
+fn to_positions<'a>(source_code: &'a str, to_text: &str) -> Result<Vec<(usize, &'a str)>, String> {
+    let to_positions: Vec<_> = source_code.match_indices(to_text).collect();
+    if to_positions.is_empty() {
+        return Err(format!("To text \"{to_text}\" not found in source"));
+    }
+    Ok(to_positions)
+}
+
+fn find_explicit_range(
+    from_text: &str,
+    to_text: &str,
     source_code: &str,
-    byte_pos: usize,
-    context_chars: usize,
-) -> String {
-    let start = byte_pos.saturating_sub(context_chars);
-    let end = (byte_pos + context_chars).min(source_code.len());
-    source_code[start..end]
-        .replace('\n', "\\n")
-        .replace('\t', "\\t")
-}
+) -> Result<Vec<EditPosition>, String> {
+    let mut ranges = Vec::new();
 
-fn format_multiple_matches(ranges: &[TextRange], source_code: &str) -> String {
-    let mut message = format!(
-        "Found {} possible matches. Please be more specific:\n\n",
-        ranges.len()
-    );
-
-    for (i, range) in ranges.iter().enumerate() {
-        match range {
-            TextRange::Insert(insert) => {
-                let context = get_context_around_byte_position(source_code, insert.byte_offset, 50);
-                message.push_str(&format!(
-                    "{}. Insert {} anchor \"{}\": {}\n",
-                    i + 1,
-                    insert.position,
-                    insert.anchor,
-                    context
-                ));
-            }
-            TextRange::Replace(replace) => {
-                let text = &source_code[replace.start_byte..replace.end_byte];
-                let preview = if text.len() > 100 {
-                    format!("{}...", &text[..97])
-                } else {
-                    text.to_string()
-                };
-                message.push_str(&format!(
-                    "{}. {}: {}\n",
-                    i + 1,
-                    range.description(),
-                    preview.replace('\n', "\\n")
-                ));
+    for (from_byte, _) in from_positions(source_code, from_text)? {
+        for (to_byte, _) in to_positions(source_code, to_text)? {
+            if to_byte >= from_byte + from_text.len() {
+                ranges.push(EditPosition {
+                    start_byte: from_byte,
+                    end_byte: Some(to_byte + to_text.len()),
+                });
             }
         }
     }
 
-    message.push_str(
-        "\nSuggestion: Add more context to your anchor text to uniquely identify the target.",
-    );
-    message
+    if ranges.is_empty() {
+        Err(format!(
+            "No valid range found from \"{from_text}\" to \"{to_text}\""
+        ))
+    } else {
+        Ok(ranges)
+    }
 }

@@ -25,7 +25,9 @@ pub struct StageOperation {
     pub selector: Selector,
 
     /// The new content to insert or replace
-    pub content: String,
+    /// IMPORTANT TIP: To remove code, use `replace` and omit `content`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 impl WithExamples for StageOperation {
@@ -39,7 +41,7 @@ impl WithExamples for StageOperation {
                         anchor: "fn main() {".into(),
                         position: InsertPosition::After,
                     },
-                    content: "\n    println!(\"Hello, world!\");".to_string(),
+                    content: Some("\n    println!(\"Hello, world!\");".to_string()),
                     language: None,
                 },
             },
@@ -52,7 +54,7 @@ impl WithExamples for StageOperation {
                         from: Some("fn hello()".to_string()),
                         to: None,
                     },
-                    content: "fn hello() { println!(\"Hello, world!\"); }".to_string(),
+                    content: Some("fn hello() { println!(\"Hello, world!\"); }".to_string()),
                     language: None,
                 },
             },
@@ -65,8 +67,23 @@ impl WithExamples for StageOperation {
                         from: Some("let user =".to_string()),
                         to: Some("return user;".into()),
                     },
-                    content: "let user = User::new();\n    validate_user(&user);\n    return user;"
-                        .into(),
+                    content: Some(
+                        "let user = User::new();\n    validate_user(&user);\n    return user;"
+                            .into(),
+                    ),
+                    language: None,
+                },
+            },
+            Example {
+                description: "Removing a function by omitting replacement content",
+                item: Self {
+                    file_path: "src/main.rs".into(),
+                    selector: Selector::Replace {
+                        exact: None,
+                        from: Some("fn main() {".to_string()),
+                        to: None,
+                    },
+                    content: None,
                     language: None,
                 },
             },
@@ -89,7 +106,13 @@ impl StageOperation {
             .language_registry()
             .get_language_with_hint(&file_path, language)?;
 
-        let editor = Editor::new(content, selector, language, file_path, None)?;
+        let editor = Editor::new(
+            content.unwrap_or_default(),
+            selector,
+            language,
+            file_path,
+            None,
+        )?;
         let (message, staged_operation) = editor.preview()?;
         state.stage_operation(None, staged_operation)?;
 
