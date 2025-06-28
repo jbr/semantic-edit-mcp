@@ -2,11 +2,9 @@
   {
     "arguments": {
       "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
-      "selector": {
-        "from": "pub fn old",
-        "to": "42\n}",
-        "operation": "replace"
-      }
+      "anchor": "pub fn old",
+      "end": "42\n}",
+      "operation": "replace_range"
     },
     "name": "stage_operation"
   },

@@ -2,10 +2,8 @@
   {
     "arguments": {
       "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
-      "selector": {
-        "from": "fn old",
-        "operation": "replace"
-      }
+      "anchor": "fn old",
+      "operation": "replace_node"
     },
     "name": "stage_operation"
   },

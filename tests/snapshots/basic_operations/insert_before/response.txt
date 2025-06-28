@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: Insert
+STAGED: insert before
 
 ===DIFF===
  // Test file for insert before node
@@ -10,8 +10,8 @@ STAGED: Insert
      println!("This function will have content inserted before it");
  }
 === snapshot test tool call: commit_staged ===
-Insert operation result:
-Applied Insert operation
+insert before operation result:
+Applied insert before operation
 
 ===DIFF===
  // Test file for insert before node

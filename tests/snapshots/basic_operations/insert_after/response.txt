@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: Insert
+STAGED: insert after
 
 ===DIFF===
      println!("Existing function");
@@ -12,8 +12,8 @@ STAGED: Insert
  pub struct TestStruct {
      value: i32,
 === snapshot test tool call: commit_staged ===
-Insert operation result:
-Applied Insert operation
+insert after operation result:
+Applied insert after operation
 
 ===DIFF===
      println!("Existing function");
