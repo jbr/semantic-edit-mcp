@@ -8,7 +8,20 @@ use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Stage an operation for execution and preview what it would do
+/// Stage an operation and see a preview of the changes
+///
+/// The Selector uses a simple but powerful approach: find text with `anchor` (and optionally `end`),
+/// then perform the specified `operation`. All operations are AST-aware and respect language syntax.
+///
+/// # Basic Usage
+///
+/// Most operations only need an `anchor` - a short, unique piece of text to locate:
+/// {"operation": "insert_after_node", "anchor": "fn main() {" }
+///
+/// Replace_range operations also use `end` to specify the extent:
+/// { "operation": "replace_range", "anchor": "// Start here", "end": "// End here" }
+///
+/// To delete a syntax node, use one of the `replace` operations and omit `content`
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename = "stage_operation")]
 pub struct StageOperation {
@@ -33,6 +46,31 @@ pub struct StageOperation {
 impl WithExamples for StageOperation {
     fn examples() -> Option<Vec<Example<Self>>> {
         Some(vec![
+            // more examples to add
+            //
+            // ```json
+            // // Add a new import
+            // {
+            //   "operation": "insert_after",
+            //   "anchor": "use std::collections::HashMap;",
+            //   "content": "use std::fs::File;"
+            // }
+            //
+            // // Replace a function body
+            // {
+            //   "operation": "replace_node",
+            //   "anchor": "fn old_function() {",
+            //   "content": "fn new_function() {\n    println!(\"Updated!\");\n}"
+            // }
+            //
+            // // Change a section of code
+            // {
+            //   "operation": "replace_range",
+            //   "anchor": "// TODO: implement this",
+            //   "end": "return None;",
+            //   "content": "let result = calculate_value();\nreturn Some(result);"
+            // }
+            //
             Example {
                 description: "Insert content after a function declaration",
                 item: Self {
