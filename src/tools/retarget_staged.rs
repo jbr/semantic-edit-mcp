@@ -1,8 +1,5 @@
 use crate::{
-    editor::Editor,
-    selector::{deserialize_selector, Selector},
-    state::SemanticEditTools,
-    traits::WithExamples,
+    editor::Editor, selector::Selector, state::SemanticEditTools, traits::WithExamples,
     types::Example,
 };
 use anyhow::{anyhow, Result};
@@ -13,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename = "retarget_staged")]
 pub struct RetargetStaged {
-    #[serde(deserialize_with = "deserialize_selector")]
+    #[serde(flatten)]
     pub selector: Selector,
 }
 
@@ -74,7 +71,10 @@ impl RetargetStaged {
 
         let editor = Editor::from_staged_operation(staged_operation, state.language_registry())?;
         let (message, staged_operation) = editor.preview()?;
-        state.stage_operation(None, staged_operation)?;
+        if staged_operation.is_some() {
+            // leave failed operations in place
+            state.stage_operation(None, staged_operation)?;
+        }
         Ok(message)
     }
 }

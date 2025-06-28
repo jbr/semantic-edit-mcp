@@ -31,9 +31,6 @@
  body: (block
         [(const_item) (static_item)] @invalid.const.in.function.body))
 
-(function_item 
- body: (block
-        [(struct_item) (enum_item) (union_item)] @invalid.type.in.function.body))
 
 (function_item
  body: (block
@@ -91,22 +88,23 @@
          type: (reference_type
                 (mutable_specifier)) @invalid.mut.ref.in.const.fn)))
 
-;; CRITICAL: Return statements outside of functions
-((return_expression) @invalid.return.outside.function
- (#not-has-ancestor? function_item)
- (#not-has-ancestor? closure_expression))
+
 
 ;; CRITICAL: Break/continue outside of loops
 
 ((break_expression) @invalid.break.outside.loop
  (#not-has-ancestor? loop_expression)
  (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression))
+ (#not-has-ancestor? for_expression)
+ (#not-has-ancestor? match_expression)
+ (#not-has-ancestor? block))
 
 ((continue_expression) @invalid.continue.outside.loop
  (#not-has-ancestor? loop_expression)
  (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression))
+ (#not-has-ancestor? for_expression)
+ (#not-has-ancestor? match_expression)
+ (#not-has-ancestor? block))
 
 ;; CRITICAL: Visibility modifiers on items inside functions
 (function_item
@@ -129,4 +127,12 @@
  (mutable_specifier)
  value: (_) @invalid.mut.static.without.unsafe
  (#not-has-ancestor? unsafe_block))
+
+
+;; CRITICAL: Await expressions outside async functions/blocks
+((await_expression) @invalid.await.outside.async
+ (#not-has-ancestor? function_item)
+ (#not-has-ancestor? async_block)
+ (#not-has-ancestor? closure_expression))
+
 

@@ -1,6 +1,6 @@
 use crate::editor::Editor;
 use crate::languages::LanguageName;
-use crate::selector::{deserialize_selector, InsertPosition, Selector};
+use crate::selector::{Operation, Selector};
 use crate::state::SemanticEditTools;
 use crate::traits::WithExamples;
 use crate::types::Example;
@@ -21,7 +21,7 @@ pub struct StageOperation {
     pub language: Option<LanguageName>,
 
     /// How to position the `content`
-    #[serde(deserialize_with = "deserialize_selector")]
+    #[serde(flatten)]
     pub selector: Selector,
 
     /// The new content to insert or replace
@@ -37,9 +37,10 @@ impl WithExamples for StageOperation {
                 description: "Insert content after a function declaration",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    selector: Selector::Insert {
+                    selector: Selector {
                         anchor: "fn main() {".into(),
-                        position: InsertPosition::After,
+                        operation: Operation::InsertAfter,
+                        end: None,
                     },
                     content: Some("\n    println!(\"Hello, world!\");".to_string()),
                     language: None,
@@ -49,10 +50,10 @@ impl WithExamples for StageOperation {
                 description: "Replace a function with new implementation",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    selector: Selector::Replace {
-                        exact: None,
-                        from: Some("fn hello()".to_string()),
-                        to: None,
+                    selector: Selector {
+                        anchor: "fn hello()".to_string(),
+                        operation: Operation::ReplaceNode,
+                        end: None,
                     },
                     content: Some("fn hello() { println!(\"Hello, world!\"); }".to_string()),
                     language: None,
@@ -62,10 +63,10 @@ impl WithExamples for StageOperation {
                 description: "Replace a range of code with explicit boundaries",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    selector: Selector::Replace {
-                        exact: None,
-                        from: Some("let user =".to_string()),
-                        to: Some("return user;".into()),
+                    selector: Selector {
+                        operation: Operation::ReplaceRange,
+                        anchor: "let user =".to_string(),
+                        end: Some("return user;".into()),
                     },
                     content: Some(
                         "let user = User::new();\n    validate_user(&user);\n    return user;"
@@ -78,10 +79,10 @@ impl WithExamples for StageOperation {
                 description: "Removing a function by omitting replacement content",
                 item: Self {
                     file_path: "src/main.rs".into(),
-                    selector: Selector::Replace {
-                        exact: None,
-                        from: Some("fn main() {".to_string()),
-                        to: None,
+                    selector: Selector {
+                        operation: Operation::ReplaceNode,
+                        anchor: "fn main() {".to_string(),
+                        end: None,
                     },
                     content: None,
                     language: None,

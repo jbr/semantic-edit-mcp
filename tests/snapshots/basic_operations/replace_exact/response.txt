@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: Replace
+STAGED: replace exact
 
 ===DIFF===
  use std::collections::HashMap;
@@ -11,8 +11,8 @@ STAGED: Replace
 
  pub fn another_function() {
 === snapshot test tool call: commit_staged ===
-Replace operation result:
-Applied Replace operation
+replace exact operation result:
+Applied replace exact operation
 
 ===DIFF===
  use std::collections::HashMap;

@@ -2,11 +2,8 @@
   {
     "arguments": {
       "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
-      "selector": {
-        "anchor": "42\n}",
-        "position": "after",
-        "operation": "insert"
-      }
+      "anchor": "42\n}",
+      "operation": "insert_after"
     },
     "name": "stage_operation"
   },

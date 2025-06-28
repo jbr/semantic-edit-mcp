@@ -2,10 +2,8 @@
   {
     "arguments": {
       "content": "has had",
-      "selector": {
-        "exact": "will have",
-        "operation": "replace"
-      }
+      "anchor": "will have",
+      "operation": "replace_exact"
     },
     "name": "stage_operation"
   },

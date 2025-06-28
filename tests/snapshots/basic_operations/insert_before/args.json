@@ -2,11 +2,8 @@
   {
     "arguments": {
       "content": "// This comment is inserted before the target function\n",
-      "selector": {
-        "anchor": "pub fn target",
-        "position": "before",
-        "operation": "insert"
-      }
+      "anchor": "pub fn target",
+      "operation": "insert_before"
     },
     "name": "stage_operation"
   },

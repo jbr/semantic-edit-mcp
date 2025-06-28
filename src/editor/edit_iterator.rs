@@ -4,7 +4,7 @@ use tree_sitter::Tree;
 
 use crate::{
     editor::EditPosition,
-    selector::{InsertPosition, Selector},
+    selector::{Operation, Selector},
 };
 
 use super::{Edit, Editor};
@@ -15,7 +15,6 @@ pub(super) struct EditIterator<'editor, 'language> {
     source_code: &'editor str,
     tree: &'editor Tree,
     staged_edit: Option<&'editor EditPosition>,
-
     positions: Option<Vec<EditPosition>>,
     current_index: usize,
 }
@@ -41,24 +40,23 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
     }
 
     fn find_text_ranges(&self) -> Result<Vec<EditPosition>, String> {
-        let selector: &Selector = self.selector;
         let source_code: &str = self.source_code;
         let tree: &Tree = self.tree;
-        selector.validate()?;
+        self.selector.validate()?;
+        let Selector {
+            operation,
+            anchor,
+            end,
+        } = &self.selector;
 
-        match selector {
-            Selector::Insert { anchor, position } => {
-                find_insert_positions(anchor, *position, source_code)
-            }
-            Selector::Replace { exact, from, to } => {
-                if let Some(exact_text) = exact {
-                    find_exact_matches(exact_text, source_code)
-                } else if let Some(from_text) = from {
-                    find_range_matches(from_text, to.as_deref(), source_code, tree)
-                } else {
-                    // This should be caught by validate(), but just in case
-                    Err("Invalid replace operation".to_string())
-                }
+        match operation {
+            Operation::InsertBefore => find_insert_positions(anchor, true, source_code),
+            Operation::InsertAfter => find_insert_positions(anchor, false, source_code),
+            Operation::ReplaceRange => find_range_matches(anchor, end.as_deref(), source_code),
+            Operation::ReplaceExact => find_exact_matches(anchor, source_code),
+            Operation::ReplaceNode => select_ast_node(anchor, source_code, tree),
+            Operation::InsertAfterNode => {
+                find_after_ast_insert_positions(anchor, source_code, tree)
             }
         }
     }
@@ -69,6 +67,22 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         }
         Ok(())
     }
+}
+
+fn find_after_ast_insert_positions(
+    anchor: &str,
+    source_code: &str,
+    tree: &Tree,
+) -> Result<Vec<EditPosition>, String> {
+    Ok(select_ast_node(anchor, source_code, tree)?
+        .into_iter()
+        .filter_map(|edit_position| {
+            edit_position.end_byte.map(|start_byte| EditPosition {
+                start_byte,
+                end_byte: None,
+            })
+        })
+        .collect())
 }
 
 impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
@@ -100,17 +114,16 @@ impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
 
 fn find_insert_positions(
     anchor: &str,
-    position: InsertPosition,
+    before: bool,
     source_code: &str,
 ) -> Result<Vec<EditPosition>, String> {
-    log::trace!("top of find_insert_positions for {anchor:?}, {position:?}");
-
     let positions = source_code
         .match_indices(anchor)
         .map(|(byte_offset, _)| EditPosition {
-            start_byte: match position {
-                InsertPosition::Before => byte_offset,
-                InsertPosition::After => byte_offset + anchor.len(),
+            start_byte: if before {
+                byte_offset
+            } else {
+                byte_offset + anchor.len()
             },
             end_byte: None,
         })
@@ -140,27 +153,26 @@ fn find_exact_matches(exact_text: &str, source_code: &str) -> Result<Vec<EditPos
 }
 
 fn find_range_matches(
-    from_text: &str,
-    to_text: Option<&str>,
+    anchor: &str,
+    end: Option<&str>,
     source_code: &str,
-    tree: &Tree,
 ) -> Result<Vec<EditPosition>, String> {
-    if let Some(to_text) = to_text {
-        find_explicit_range(from_text, to_text, source_code)
+    if let Some(end) = end {
+        find_explicit_range(anchor, end, source_code)
     } else {
-        select_ast_node(from_text, source_code, tree)
+        Err("end is required for range replacement".to_string())
     }
 }
 
 fn select_ast_node(
-    from_text: &str,
+    anchor: &str,
     source_code: &str,
     tree: &Tree,
 ) -> Result<Vec<EditPosition>, String> {
-    Ok(from_positions(source_code, from_text)?
+    Ok(from_positions(source_code, anchor)?
         .into_iter()
-        .filter_map(|(from, from_text)| {
-            let from_end = from + from_text.len();
+        .filter_map(|(from, anchor)| {
+            let from_end = from + anchor.len();
             tree.root_node()
                 .named_descendant_for_byte_range(from, from_end)
                 .or_else(|| tree.root_node().descendant_for_byte_range(from, from_end))
@@ -172,38 +184,35 @@ fn select_ast_node(
         .collect())
 }
 
-fn from_positions<'a>(
-    source_code: &'a str,
-    from_text: &str,
-) -> Result<Vec<(usize, &'a str)>, String> {
-    let from_positions: Vec<_> = source_code.match_indices(from_text).collect();
+fn from_positions<'a>(source_code: &'a str, anchor: &str) -> Result<Vec<(usize, &'a str)>, String> {
+    let from_positions: Vec<_> = source_code.match_indices(anchor).collect();
     if from_positions.is_empty() {
-        return Err(format!("From text \"{from_text}\" not found in source"));
+        return Err(format!("From text \"{anchor}\" not found in source"));
     }
     Ok(from_positions)
 }
 
-fn to_positions<'a>(source_code: &'a str, to_text: &str) -> Result<Vec<(usize, &'a str)>, String> {
-    let to_positions: Vec<_> = source_code.match_indices(to_text).collect();
+fn to_positions<'a>(source_code: &'a str, end: &str) -> Result<Vec<(usize, &'a str)>, String> {
+    let to_positions: Vec<_> = source_code.match_indices(end).collect();
     if to_positions.is_empty() {
-        return Err(format!("To text \"{to_text}\" not found in source"));
+        return Err(format!("To text \"{end}\" not found in source"));
     }
     Ok(to_positions)
 }
 
 fn find_explicit_range(
-    from_text: &str,
-    to_text: &str,
+    anchor: &str,
+    end: &str,
     source_code: &str,
 ) -> Result<Vec<EditPosition>, String> {
     let mut ranges = Vec::new();
 
-    for (from_byte, _) in from_positions(source_code, from_text)? {
-        for (to_byte, _) in to_positions(source_code, to_text)? {
-            if to_byte >= from_byte + from_text.len() {
+    for (from_byte, _) in from_positions(source_code, anchor)? {
+        for (to_byte, _) in to_positions(source_code, end)? {
+            if to_byte >= from_byte + anchor.len() {
                 ranges.push(EditPosition {
                     start_byte: from_byte,
-                    end_byte: Some(to_byte + to_text.len()),
+                    end_byte: Some(to_byte + end.len()),
                 });
             }
         }
@@ -211,7 +220,7 @@ fn find_explicit_range(
 
     if ranges.is_empty() {
         Err(format!(
-            "No valid range found from \"{from_text}\" to \"{to_text}\""
+            "No valid range found from \"{anchor}\" to \"{end}\""
         ))
     } else {
         Ok(ranges)
