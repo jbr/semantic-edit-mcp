@@ -41,8 +41,63 @@ impl Display for Operation {
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 pub struct Selector {
+    /// The type of edit operation to perform.
+    ///
+    /// Insert Operations
+    /// - **`insert_before`** - Insert content immediately before the anchor text
+    /// - **`insert_after`** - Insert content immediately after the anchor text  
+    /// - **`insert_after_node`** - Insert content after the complete AST node containing the anchor
+    ///
+    /// Replace Operations
+    /// - **`replace_exact`** - Replace only the exact anchor text
+    /// - **`replace_node`** - Replace the entire AST node containing the anchor
+    /// - **`replace_range`** - Replace everything from anchor to end (requires `end` field)
+    ///
+    /// ## Choosing the Right Operation
+    ///
+    /// **For adding new code:**
+    /// - Use `insert_before` or `insert_after` for precise placement
+    /// - Use `insert_after_node` when you want to add after a complete statement/declaration
+    ///
+    /// **For changing existing code:**
+    /// - Use `replace_exact` for small, precise text changes
+    /// - Use `replace_node` for changing entire functions, classes, blocks, or statements
+    /// - Use `replace_range` for changing multi-line sections with clear start/end boundaries
     pub operation: Operation,
+
+    /// Text to locate in the source code as the target for the operation.
+    ///
+    /// Should be a short, distinctive piece of text that uniquely identifies the location.
+    /// For range operations, this marks the start of the range.
+    /// For node operations, this should cover the start of the ast node.
+    ///
+    /// Tips for Good Anchors
+    ///
+    /// - **Keep anchors short but unique** - "fn main" instead of the entire function signature
+    /// - **Use distinctive text** - function names, keywords, or unique comments work well
+    /// - **Avoid whitespace-only anchors** - they're often not unique enough
+    /// - **Test your anchor** - if it appears multiple times, the tool will find the best placement
+    ///
+    /// # Examples
+    /// - `"fn main() {"` - Targets a function definition
+    /// - `"struct User {"` - Targets a struct definition  
+    /// - `"// TODO: implement"` - Targets a specific comment
+    /// - `"import React"` - Targets an import statement
     pub anchor: String,
+
+    /// End boundary for replace range operations only.
+    ///
+    /// When specified, defines the end of the text range to be replaced.
+    /// Use this to avoid repeating long blocks of content just to replace them.
+    ///
+    /// # Example
+    /// ```json
+    /// {
+    ///   "operation": "replace_range",
+    ///   "anchor": "// Start replacing here",
+    ///   "end": "// Stop replacing here"
+    /// }
+    /// ```
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end: Option<String>,
 }

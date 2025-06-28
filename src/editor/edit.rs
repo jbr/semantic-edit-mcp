@@ -1,13 +1,17 @@
+use std::borrow::Cow;
+
 use anyhow::Result;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Point, Tree};
 
 use super::{EditPosition, Editor};
 
+#[derive(Clone)]
 pub(super) struct Edit<'editor, 'language> {
     pub(super) editor: &'editor Editor<'language>,
     pub(super) tree: Tree,
     pub(super) rope: Rope,
+    pub(super) content: Cow<'editor, str>,
     pub(super) position: EditPosition,
     pub(super) valid: bool,
     pub(super) message: Option<String>,
@@ -21,10 +25,21 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             tree: editor.tree.clone(),
             rope: editor.rope.clone(),
             position,
+            content: Cow::Borrowed(&editor.content),
             valid: false,
             message: None,
             output: None,
         }
+    }
+
+    pub fn with_end_byte(mut self, end_byte: usize) -> Self {
+        self.position.end_byte = Some(end_byte);
+        self
+    }
+
+    pub fn with_content(mut self, content: String) -> Self {
+        self.content = Cow::Owned(content);
+        self
     }
 
     pub fn is_valid(&self) -> bool {
@@ -40,7 +55,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     }
 
     pub(crate) fn apply(&mut self) -> Result<()> {
-        let content = &self.editor.content;
+        let content = &self.content;
 
         let EditPosition {
             start_byte,
