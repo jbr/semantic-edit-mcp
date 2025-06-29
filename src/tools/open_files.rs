@@ -32,7 +32,7 @@ pub struct OpenFiles {
 }
 
 impl WithExamples for OpenFiles {
-    fn examples() -> Option<Vec<Example<Self>>> {
+    fn examples() -> Vec<Example<Self>> {
         Some(vec![
             Example {
                 description: "Open a single rust file",

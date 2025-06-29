@@ -2,9 +2,11 @@ use crate::editor::Editor;
 use crate::languages::LanguageName;
 use crate::selector::{Operation, Selector};
 use crate::state::SemanticEditTools;
-use crate::traits::WithExamples;
-use crate::types::Example;
 use anyhow::Result;
+use mcplease::{
+    traits::{Tool, WithExamples},
+    types::Example,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -44,8 +46,8 @@ pub struct StageOperation {
 }
 
 impl WithExamples for StageOperation {
-    fn examples() -> Option<Vec<Example<Self>>> {
-        Some(vec![
+    fn examples() -> Vec<Example<Self>> {
+        vec![
             // more examples to add
             //
             // ```json
@@ -126,12 +128,12 @@ impl WithExamples for StageOperation {
                     language: None,
                 },
             },
-        ])
+        ]
     }
 }
 
-impl StageOperation {
-    pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+impl Tool<SemanticEditTools> for StageOperation {
+    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
             selector,

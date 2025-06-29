@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::editor::EditPosition;
 use crate::languages::{LanguageName, LanguageRegistry};
 use crate::selector::Selector;
-use crate::session::SessionStore;
+use mcplease::session::SessionStore;
 
 // Explanation for the presence of session_id that is currently unused: The intent was initially to
 // have a conversation-unique identifier of some sort in order to isolate state between
