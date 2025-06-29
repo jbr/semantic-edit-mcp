@@ -1,5 +1,4 @@
-use super::{traits::LanguageEditor, utils::parse_node_types_json, LanguageCommon};
-use crate::languages::LanguageName;
+use super::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::{anyhow, Result};
 use std::{
     io::{Read, Write},
@@ -12,13 +11,11 @@ pub fn language() -> Result<LanguageCommon> {
         &language,
         include_str!("../../queries/rust/validation.scm"),
     )?);
-    let node_types = parse_node_types_json(tree_sitter_rust::NODE_TYPES)?;
-    let editor = Box::new(RustEditor::new());
+    let editor = Box::new(RustEditor);
 
     Ok(LanguageCommon {
         language,
         validation_query,
-        node_types,
         editor,
         name: LanguageName::Rust,
         file_extensions: &["rs"],
@@ -26,12 +23,6 @@ pub fn language() -> Result<LanguageCommon> {
 }
 
 struct RustEditor;
-
-impl RustEditor {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 impl LanguageEditor for RustEditor {
     fn format_code(&self, source: &str) -> Result<String> {

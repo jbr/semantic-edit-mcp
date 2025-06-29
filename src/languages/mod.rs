@@ -7,7 +7,6 @@ pub mod toml;
 pub mod traits;
 pub mod tsx;
 pub mod typescript;
-pub mod utils;
 
 use anyhow::Result;
 use schemars::JsonSchema;
@@ -19,7 +18,7 @@ use std::{
 };
 use tree_sitter::{Language, Parser, Query};
 
-use crate::languages::traits::{LanguageEditor, NodeTypeInfo};
+use crate::languages::traits::LanguageEditor;
 
 /// Registry to manage all supported languages
 #[derive(Debug)]
@@ -36,7 +35,6 @@ pub struct LanguageCommon {
     file_extensions: &'static [&'static str],
     #[fieldwork(rename = tree_sitter_language)]
     language: Language,
-    node_types: Vec<NodeTypeInfo>,
     editor: Box<dyn LanguageEditor>,
     validation_query: Option<Query>,
 }
@@ -47,7 +45,6 @@ impl fmt::Debug for LanguageCommon {
             .field("name", &self.name)
             .field("file_extensions", &self.file_extensions)
             .field("language", &self.language)
-            .field("node_types", &self.node_types)
             .field("validation_query", &self.validation_query)
             .finish()
     }
@@ -63,18 +60,6 @@ impl LanguageCommon {
         let mut parser = Parser::new();
         parser.set_language(self.tree_sitter_language())?;
         Ok(parser)
-    }
-
-    pub fn docs(&self) -> String {
-        let node_types = self.node_types();
-        let name = self.name();
-        let named_types = node_types
-            .iter()
-            .filter(|nt| nt.named)
-            .map(|nt| &*nt.node_type)
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("Node types you can use for {name}: {named_types}")
     }
 }
 
