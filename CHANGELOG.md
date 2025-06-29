@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/jbr/semantic-edit-mcp/compare/v0.1.2...v0.2.0) - 2025-06-29
+
+### Added
+
+- [**breaking**] this commit represents a complete rewrite of this server
+- *(validation)* add complete context validation to insert_before_node and wrap_node
+- *(validation)* make context validation language-aware
+- *(validation)* add syntax validation safety check to prevent file corruption
+- *(integration)* wire up new language system with existing tools
+- *(languages)* implement Phase 1 - query-based language abstractions
+
+### Fixed
+
+- *(lint)* clippy
+- *(lint)* fmt
+
+### Other
+
+- comprehensive documentation update to reflect current state
+- add adding-languages.md
+
 ## [0.1.2](https://github.com/jbr/semantic-edit-mcp/compare/v0.1.1...v0.1.2) - 2025-06-07
 
 ### Added
