@@ -34,6 +34,3 @@
     value: (object) @nested_object
     (#eq? @parent_key "\"TARGET_PARENT\"")))
 
-;; Find top-level value node
-(document
-  (value) @root_value)

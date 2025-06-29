@@ -1,0 +1,11 @@
+=== snapshot test tool call: stage_operation ===
+STAGED: replace node
+
+===DIFF===
+     }
+
+     fn get_value(&self) -> i32 {
++        println!("Getting value: {}", self.value);
+         self.value
+     }
+
