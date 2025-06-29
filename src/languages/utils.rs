@@ -35,7 +35,7 @@ pub fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
 
 fn collect_errors_recursive<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
     // Check if this node is an error
-    if node.is_error() || node.kind() == "ERROR" {
+    if node.is_error() || node.is_missing() {
         errors.push(node);
     }
 

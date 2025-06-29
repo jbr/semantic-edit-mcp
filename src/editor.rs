@@ -88,9 +88,13 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     fn validate_tree(&self, tree: &Tree, content: &str) -> Option<String> {
-        let errors = self.language.editor().collect_errors(tree, content);
+        Self::validate(self.language, tree, content)
+    }
+
+    pub fn validate(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
+        let errors = language.editor().collect_errors(tree, content);
         if errors.is_empty() {
-            if let Some(query) = self.language.validation_query() {
+            if let Some(query) = language.validation_query() {
                 let validation_result = ContextValidator::validate_tree(tree, query, content);
 
                 if !validation_result.is_valid {
@@ -213,7 +217,15 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     pub fn format_code(&self, source: &str) -> Result<String> {
-        self.language.editor().format_code(source)
+        self.language.editor().format_code(source).map_err(|e| {
+            anyhow!(
+                "The formatter has encountered the following error making \
+                 that change, so the file has not been modified. The tool has \
+                 prevented what it believes to be an unsafe edit. Please try a \
+                 different edit.\n\n\
+                 {e}"
+            )
+        })
     }
 
     pub fn commit(mut self) -> Result<(String, Option<String>, PathBuf)> {
@@ -232,7 +244,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
     fn parse(&self, output: &str, old_tree: Option<&Tree>) -> Option<Tree> {
         let mut parser = self.language.tree_sitter_parser().unwrap();
-        parser.parse(&output, old_tree)
+        parser.parse(output, old_tree)
     }
 }
 

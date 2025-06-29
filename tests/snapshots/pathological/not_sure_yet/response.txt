@@ -1,0 +1,14 @@
+=== snapshot test tool call: stage_operation ===
+STAGED: replace node
+
+Edit efficiency: 0%
+💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration
+
+===DIFF===
+             email,
+             created_at: chrono::Utc::now(),
+             is_active: true,
++            phone_number: None,
+             profile: UserProfile::default(),
+         }
+     }

@@ -205,7 +205,9 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         source_code: &str,
         tree: &Tree,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        Ok(from_positions(source_code, anchor)?
+        let anchor = anchor.trim().lines().next().unwrap_or_default();
+
+        Ok(from_positions(source_code, anchor.trim())?
             .into_iter()
             .filter_map(|(from, anchor)| {
                 let from_end = from + anchor.len();
