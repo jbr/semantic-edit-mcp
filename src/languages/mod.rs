@@ -1,6 +1,6 @@
 pub mod javascript;
 pub mod json;
-pub mod markdown;
+pub mod plain;
 pub mod python;
 pub mod rust;
 pub mod toml;
@@ -9,10 +9,14 @@ pub mod tsx;
 pub mod typescript;
 pub mod utils;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display, path::Path};
+use std::{
+    collections::HashMap,
+    fmt::{self, Display, Formatter},
+    path::Path,
+};
 use tree_sitter::{Language, Parser, Query};
 
 use crate::languages::traits::{LanguageEditor, NodeTypeInfo};
@@ -37,8 +41,8 @@ pub struct LanguageCommon {
     validation_query: Option<Query>,
 }
 
-impl std::fmt::Debug for LanguageCommon {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for LanguageCommon {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LanguageCommon")
             .field("name", &self.name)
             .field("file_extensions", &self.file_extensions)
@@ -49,7 +53,7 @@ impl std::fmt::Debug for LanguageCommon {
     }
 }
 impl Display for LanguageCommon {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.name.as_str())
     }
 }
@@ -81,30 +85,31 @@ impl LanguageCommon {
 pub enum LanguageName {
     Rust,
     Json,
-    Markdown,
     Toml,
     Javascript,
     Typescript,
     Tsx,
     Python,
+    #[serde(other)]
+    Other,
 }
 impl LanguageName {
     fn as_str(&self) -> &str {
         match self {
             LanguageName::Rust => "rust",
             LanguageName::Json => "json",
-            LanguageName::Markdown => "markdown",
             LanguageName::Toml => "toml",
             LanguageName::Javascript => "javascript",
             LanguageName::Typescript => "typescript",
             LanguageName::Tsx => "tsx",
             LanguageName::Python => "python",
+            LanguageName::Other => "other",
         }
     }
 }
 
 impl Display for LanguageName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -117,13 +122,13 @@ impl LanguageRegistry {
         };
 
         registry.register_language(json::language()?);
-        registry.register_language(markdown::language()?);
         registry.register_language(rust::language()?);
         registry.register_language(toml::language()?);
         registry.register_language(typescript::language()?);
         registry.register_language(tsx::language()?);
         registry.register_language(javascript::language()?);
         registry.register_language(python::language()?);
+        registry.register_language(plain::language()?);
 
         Ok(registry)
     }
@@ -147,9 +152,7 @@ impl LanguageRegistry {
     ) -> Result<&LanguageCommon> {
         let language_name = language_hint
             .or_else(|| self.detect_language_from_path(file_path))
-            .ok_or_else(|| {
-                anyhow!("Unable to detect language from file path and no language hint provided")
-            })?;
+            .unwrap_or(LanguageName::Other);
         Ok(self.get_language(language_name))
     }
 

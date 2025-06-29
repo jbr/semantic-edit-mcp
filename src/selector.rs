@@ -55,21 +55,14 @@ pub struct Selector {
     ///
     /// ## Choosing the Right Operation
     ///
-    /// **Start with the simpler operations first - they usually work!**
-    ///
     /// **For adding new code:**
-    /// - **`insert_after_node`** - **Try this first** for adding methods, functions, or statements. Works great with simple anchors like `"methodName() {"`
-    /// - Use `insert_before` or `insert_after` for precise placement within lines
+    /// - Use `insert_before` or `insert_after` for precise placement
+    /// - Use `insert_after_node` when you want to add after a complete statement/declaration
     ///
     /// **For changing existing code:**
-    /// - **`replace_node`** - **Try this first** for changing entire functions or methods. Use simple anchors like `"functionName() {"`
     /// - Use `replace_exact` for small, precise text changes
-    /// - Use `replace_range` only when you need to replace across multiple different semantic boundaries
-    ///
-    /// **Common successful patterns:**
-    /// - Adding a method to a class: `insert_after_node` with `"existingMethod() {"`
-    /// - Replacing a function: `replace_node` with `"targetFunction() {"`
-    /// - Only escalate to `replace_range` if the node-based operations don't work
+    /// - Use `replace_node` for changing entire functions, classes, blocks, or statements
+    /// - Use `replace_range` for changing multi-line sections with clear start/end boundaries
     pub operation: Operation,
 
     /// Text to locate in the source code as the target for the operation.
@@ -80,43 +73,16 @@ pub struct Selector {
     ///
     /// Tips for Good Anchors
     ///
-    /// - **Start simple** - Try just the function signature first: `fn main() {`, `constructor() {`, `def method():`
-    /// - **Function signatures work great** - No need for full method bodies or complex targeting
     /// - **Keep anchors short but unique** - "fn main" instead of the entire function signature
     /// - **Use distinctive text** - function names, keywords, or unique comments work well
     /// - **Avoid whitespace-only anchors** - they're often not unique enough
     /// - **Test your anchor** - if it appears multiple times, the tool will find the best placement
-    /// - **When adding methods to classes** - `insert_after_node` with just the method signature usually works perfectly
     ///
     /// # Examples
-    ///
-    /// **Simple function/method signatures (recommended):**
-    /// - `"fn main() {"` - Targets a Rust function definition
-    /// - `"pub fn new() {"` - Targets a specific Rust method
-    /// - `"constructor(apiKey) {"` - Targets a JavaScript constructor
-    /// - `"async loadUser(id) {"` - Targets an async JavaScript method
-    /// - `"def validate_email(email: str) -> bool:"` - Targets a Python function
-    /// - `"clearCache(): void {"` - Targets a TypeScript method
-    ///
-    /// **Other useful patterns:**
+    /// - `"fn main() {"` - Targets a function definition
     /// - `"struct User {"` - Targets a struct definition  
-    /// - `"class UserManager {"` - Targets a class definition
     /// - `"// TODO: implement"` - Targets a specific comment
     /// - `"import React"` - Targets an import statement
-    ///
-    /// **For adding methods to classes, try `insert_after_node` first:**
-    /// ```rust
-    /// // Instead of complex targeting, just use:
-    /// anchor: "existingMethod() {"
-    /// operation: "insert_after_node"
-    /// // This will add your new method right after the existing one
-    /// ```
-    ///
-    /// **Troubleshooting:**
-    /// - If your operation fails, try a simpler anchor first
-    /// - "Function not found" → Check the exact function signature in the file
-    /// - "Invalid syntax" → Usually means you need `insert_after_node` instead of `insert_after`
-    /// - When in doubt: start with function signatures and `insert_after_node` or `replace_node`
     pub anchor: String,
 
     /// End boundary for replace range operations only.
