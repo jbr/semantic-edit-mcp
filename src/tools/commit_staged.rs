@@ -1,8 +1,8 @@
 use crate::editor::Editor;
 use crate::state::SemanticEditTools;
-use crate::traits::WithExamples;
-use crate::types::Example;
 use anyhow::{anyhow, Result};
+use mcplease::traits::{Tool, WithExamples};
+use mcplease::types::Example;
 use serde::{Deserialize, Serialize};
 
 /// Execute the currently staged operation
@@ -22,16 +22,16 @@ fn default_acknowledge() -> bool {
 }
 
 impl WithExamples for CommitStaged {
-    fn examples() -> Option<Vec<Example<Self>>> {
-        Some(vec![Example {
+    fn examples() -> Vec<Example<Self>> {
+        vec![Example {
             description: "Commit the currently staged operation",
             item: Self { acknowledge: true },
-        }])
+        }]
     }
 }
 
-impl CommitStaged {
-    pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+impl Tool<SemanticEditTools> for CommitStaged {
+    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self { acknowledge } = self;
 
         if !acknowledge {

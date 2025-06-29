@@ -1,8 +1,10 @@
-use crate::{
-    editor::Editor, selector::Selector, state::SemanticEditTools, traits::WithExamples,
+use crate::{editor::Editor, selector::Selector, state::SemanticEditTools};
+
+use anyhow::{anyhow, Result};
+use mcplease::{
+    traits::{Tool, WithExamples},
     types::Example,
 };
-use anyhow::{anyhow, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +17,8 @@ pub struct RetargetStaged {
 }
 
 impl WithExamples for RetargetStaged {
-    fn examples() -> Option<Vec<Example<Self>>> {
-        Some(vec![
+    fn examples() -> Vec<Example<Self>> {
+        vec![
             // Example {
             //     description: "After staging content to add a struct field, retarget from field_declaration to field_declaration_list for better insertion point",
             //     item: Self {
@@ -57,12 +59,12 @@ impl WithExamples for RetargetStaged {
             //         },
             //     },
             // },
-        ])
+        ]
     }
 }
 
-impl RetargetStaged {
-    pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+impl Tool<SemanticEditTools> for RetargetStaged {
+    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self { selector } = self;
 
         let staged_operation = state

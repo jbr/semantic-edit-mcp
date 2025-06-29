@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
-use crate::{state::SemanticEditTools, traits::WithExamples, types::Example};
+use crate::state::SemanticEditTools;
 use anyhow::Result;
+use mcplease::{
+    traits::{Tool, WithExamples},
+    types::Example,
+};
 use serde::{Deserialize, Serialize};
 
 /// Set the working context path for a session
@@ -22,19 +26,19 @@ pub struct SetContext {
 }
 
 impl WithExamples for SetContext {
-    fn examples() -> Option<Vec<Example<Self>>> {
-        Some(vec![Example {
+    fn examples() -> Vec<Example<Self>> {
+        vec![Example {
             description: "setting context to a development project",
             item: Self {
                 path: "/usr/local/projects/cobol".into(),
                 //                session_id: "GraceHopper1906".into(),
             },
-        }])
+        }]
     }
 }
 
-impl SetContext {
-    pub(crate) fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+impl Tool<SemanticEditTools> for SetContext {
+    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self { path } = self;
         let path = PathBuf::from(&*shellexpand::tilde(&path));
         let response = format!(
