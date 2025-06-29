@@ -1,18 +1,15 @@
-use super::{utils::parse_node_types_json, LanguageCommon};
-use crate::languages::{traits::LanguageEditor, LanguageName};
+use crate::languages::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::Result;
 use rustpython_parser::ast::TextSize;
 
 pub fn language() -> Result<LanguageCommon> {
     let language = tree_sitter_python::LANGUAGE.into();
-    let node_types = parse_node_types_json(tree_sitter_python::NODE_TYPES)?;
-    let editor = Box::new(PythonEditor::new());
+    let editor = Box::new(PythonEditor);
 
     Ok(LanguageCommon {
         name: LanguageName::Python,
         file_extensions: &["py", "pyi"],
         language,
-        node_types,
         editor,
         validation_query: None,
     })

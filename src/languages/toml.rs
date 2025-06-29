@@ -1,5 +1,4 @@
-use super::{utils::parse_node_types_json, LanguageCommon};
-use crate::languages::{traits::LanguageEditor, LanguageName};
+use crate::languages::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::Result;
 use std::ops::Range;
 use taplo::rowan::{TextRange, TextSize};
@@ -7,14 +6,12 @@ use tree_sitter::Tree;
 
 pub fn language() -> Result<LanguageCommon> {
     let language = tree_sitter_toml_ng::LANGUAGE.into();
-    let node_types = parse_node_types_json(tree_sitter_toml_ng::NODE_TYPES)?;
     let editor = Box::new(TomlEditor::new());
 
     Ok(LanguageCommon {
         name: LanguageName::Toml,
         file_extensions: &["toml"],
         language,
-        node_types,
         editor,
         validation_query: None,
     })

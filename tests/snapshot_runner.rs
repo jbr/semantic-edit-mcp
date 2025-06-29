@@ -1,5 +1,6 @@
 use anyhow::{Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
+use mcplease::traits::Tool;
 use semantic_edit_mcp::state::SemanticEditTools;
 use semantic_edit_mcp::tools::Tools;
 use serde_json::Value;

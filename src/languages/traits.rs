@@ -1,20 +1,5 @@
 use anyhow::Result;
-use tree_sitter::Tree;
-
-use crate::languages::utils::collect_errors;
-
-/// Information about a node type from tree-sitter's node-types.json
-#[derive(Debug, Clone)]
-pub struct NodeTypeInfo {
-    pub node_type: String, // from node-types.json: "function_item", "object"
-    pub named: bool,       // from node-types.json
-}
-
-impl NodeTypeInfo {
-    pub fn new(node_type: String, named: bool) -> Self {
-        Self { node_type, named }
-    }
-}
+use tree_sitter::{Node, Tree};
 
 /// Default editor implementation with basic tree-sitter validation
 #[derive(Debug, Clone)]
@@ -50,4 +35,22 @@ pub trait LanguageEditor: Send + Sync {
 
 impl LanguageEditor for DefaultEditor {
     // Uses all default implementations
+}
+
+pub fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
+    let mut errors = vec![];
+    collect_errors_recursive(tree.root_node(), &mut errors);
+    errors
+}
+
+fn collect_errors_recursive<'tree>(node: Node<'tree>, errors: &mut Vec<Node<'tree>>) {
+    // Check if this node is an error
+    if node.is_error() || node.is_missing() {
+        errors.push(node);
+    }
+
+    // Recursively check all children
+    for child in node.children(&mut node.walk()) {
+        collect_errors_recursive(child, errors);
+    }
 }
