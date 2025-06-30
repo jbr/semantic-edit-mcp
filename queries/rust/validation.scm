@@ -92,20 +92,6 @@
 
 ;; CRITICAL: Break/continue outside of loops
 
-((break_expression) @invalid.break.outside.loop
- (#not-has-ancestor? loop_expression)
- (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression)
- (#not-has-ancestor? match_expression)
- (#not-has-ancestor? block))
-
-((continue_expression) @invalid.continue.outside.loop
- (#not-has-ancestor? loop_expression)
- (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression)
- (#not-has-ancestor? match_expression)
- (#not-has-ancestor? block))
-
 ;; CRITICAL: Visibility modifiers on items inside functions
 (function_item
  body: (block
