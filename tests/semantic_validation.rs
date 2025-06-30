@@ -9,6 +9,17 @@ fn impl_block_pub_fn() {
     assert!(validate_code(r#"impl User pub fn new () {}"#, Rust).is_some());
 }
 
+#[test]
+fn docs_automation() {
+    assert_eq!(
+        validate_code(
+            include_str!("./semantic_validation_corpus/docs_automation.rs"),
+            Rust
+        ),
+        None
+    );
+}
+
 fn validate_code(code: &str, language: LanguageName) -> Option<String> {
     let registry = LanguageRegistry::new().unwrap();
     let language = registry.get_language(language);
