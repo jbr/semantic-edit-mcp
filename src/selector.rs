@@ -5,7 +5,7 @@ use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Copy)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Copy, Eq, PartialEq)]
 pub enum Operation {
     #[serde(rename = "insert_before")]
     InsertBefore,
@@ -39,7 +39,7 @@ impl Display for Operation {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 pub struct Selector {
     /// The type of edit operation to perform.
     ///
