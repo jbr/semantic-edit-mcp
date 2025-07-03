@@ -12,7 +12,10 @@ use state::SemanticEditTools;
 use std::env;
 use tools::Tools;
 
-const INSTRUCTIONS: &str = "Semantic code editing with tree-sitter. Use stage_operation to preview changes, retarget_staged to adjust targeting, and commit_staged to apply.";
+const INSTRUCTIONS: &str = r#"Use stage_operation to preview changes, retarget_staged to adjust targeting, and commit_staged to apply.
+The purpose of the stage/retarget/commit pattern is so you can review a diff and adjust placement prior to persisting your change to disk.
+There is only one operation staged at a time, and there is no need to "unstage" the operation; just replace it with another operation.
+"#;
 
 fn main() {
     let mut state = SemanticEditTools::new(
