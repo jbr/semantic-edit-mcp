@@ -1,8 +1,8 @@
 [
   {
     "arguments": {
-      "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
-      "anchor": "42\n}",
+      "content": "\n    eprintln!(\"here\");",
+      "anchor": "function\");",
       "operation": "insert_after"
     },
     "name": "stage_operation"

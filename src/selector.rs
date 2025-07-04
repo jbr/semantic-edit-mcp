@@ -120,6 +120,10 @@ impl Selector {
             errors.push("- `anchor` cannot be empty");
         }
 
+        if anchor.contains('\n') {
+            errors.push("- Multiline anchors are not supported. Use shorter, single-line anchors for better reliability.");
+        }
+
         match operation {
             Operation::InsertBefore | Operation::InsertAfter | Operation::InsertAfterNode => {
                 if end.is_some() {

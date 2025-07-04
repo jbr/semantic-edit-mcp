@@ -93,7 +93,7 @@ impl SnapshotRunner {
     fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
         self.state = SemanticEditTools::new(None)?;
         self.state.set_default_session_id("test");
-        self.state.set_context(None, base_path)?;
+        self.state.set_working_directory(base_path, None)?;
         Ok(())
     }
 

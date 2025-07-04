@@ -3,10 +3,8 @@ use std::collections::HashMap;
 
 pub fn existing_function() -> i32 {
     println!("Existing function");
+    eprintln!("here");
     42
-}
-pub fn new_function() -> String {
-    "inserted after existing_function".to_string()
 }
 
 pub struct TestStruct {
