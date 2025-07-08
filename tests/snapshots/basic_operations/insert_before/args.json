@@ -3,13 +3,13 @@
     "arguments": {
       "content": "// This comment is inserted before the target function\n",
       "anchor": "pub fn target",
-      "operation": "insert_before"
+      "operation": "insert_before_node"
     },
     "name": "stage_operation"
   },
   {
     "arguments": {
-      "acknowledge": true
+      
     },
     "name": "commit_staged"
   }

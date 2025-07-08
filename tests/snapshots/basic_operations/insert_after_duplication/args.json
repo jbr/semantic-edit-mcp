@@ -1,7 +1,7 @@
 [
   {
     "arguments": {
-      "content": "\n    eprintln!(\"here\");",
+      "content": "println!(\"Existing function\");\n    eprintln!(\"here\");",
       "anchor": "function\");",
       "operation": "insert_after_node"
     },

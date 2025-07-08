@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: replace node
+STAGED: replace
 
 ===DIFF===
      }

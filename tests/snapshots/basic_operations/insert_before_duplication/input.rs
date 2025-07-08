@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 pub fn target_function() {
-    println!("This function will have content replaced");
+    println!("This function will have content inserted before it");
 }
 
 pub fn another_function() {

@@ -1,0 +1,14 @@
+[
+  {
+    "arguments": {
+      "content": "// This comment is inserted before the target function\npub fn target_function() {\n    println!(\"This function will have content inserted before it\");\n}",
+      "anchor": "pub fn target",
+      "operation": "insert_before_node"
+    },
+    "name": "stage_operation"
+  },
+  {
+    "arguments": {},
+    "name": "commit_staged"
+  }
+]

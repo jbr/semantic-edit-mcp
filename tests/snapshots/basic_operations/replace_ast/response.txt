@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: replace node
+STAGED: replace
 
 ===DIFF===
  // Sample Rust code for testing
@@ -13,8 +13,8 @@ STAGED: replace node
 
  pub fn other_function() -> String {
 === snapshot test tool call: commit_staged ===
-replace node operation result:
-Applied replace node operation
+replace operation result:
+Applied replace operation
 
 ===DIFF===
  // Sample Rust code for testing

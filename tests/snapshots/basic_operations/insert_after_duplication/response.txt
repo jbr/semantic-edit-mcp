@@ -1,0 +1,23 @@
+=== snapshot test tool call: stage_operation ===
+STAGED: insert after
+
+===DIFF===
+
+ pub fn existing_function() -> i32 {
+     println!("Existing function");
++    eprintln!("here");
+     42
+ }
+
+=== snapshot test tool call: commit_staged ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+
+ pub fn existing_function() -> i32 {
+     println!("Existing function");
++    eprintln!("here");
+     42
+ }
+

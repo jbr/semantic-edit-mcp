@@ -74,8 +74,7 @@ impl WithExamples for StageOperation {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         anchor: "fn main() {".into(),
-                        operation: Operation::InsertAfter,
-                        end: None,
+                        operation: Operation::InsertAfterNode,
                     },
                     content: Some("\n    println!(\"Hello, world!\");".to_string()),
                     language: None,
@@ -88,25 +87,20 @@ impl WithExamples for StageOperation {
                     selector: Selector {
                         anchor: "fn hello()".to_string(),
                         operation: Operation::ReplaceNode,
-                        end: None,
                     },
                     content: Some("fn hello() { println!(\"Hello, world!\"); }".to_string()),
                     language: None,
                 },
             },
             Example {
-                description: "Replace a range of code with explicit boundaries",
+                description: "Replace an if statement",
                 item: Self {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
-                        operation: Operation::ReplaceRange,
-                        anchor: "let user =".to_string(),
-                        end: Some("return user;".into()),
+                        operation: Operation::ReplaceNode,
+                        anchor: "if let Some(user) = user {".to_string(),
                     },
-                    content: Some(
-                        "let user = User::new();\n    validate_user(&user);\n    return user;"
-                            .into(),
-                    ),
+                    content: Some("user.map(User::name)".into()),
                     language: None,
                 },
             },
@@ -117,7 +111,6 @@ impl WithExamples for StageOperation {
                     selector: Selector {
                         operation: Operation::ReplaceNode,
                         anchor: "fn main() {".to_string(),
-                        end: None,
                     },
                     content: None,
                     language: None,

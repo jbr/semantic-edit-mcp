@@ -9,7 +9,7 @@
   },
   {
     "arguments": {
-      "acknowledge": true
+      
     },
     "name": "commit_staged"
   }

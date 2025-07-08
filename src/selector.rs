@@ -1,7 +1,9 @@
 use anyhow::Result;
+use clap::ValueEnum;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt::{self, Display, Formatter};
+use strum::{EnumString, VariantNames};
 
 #[derive(
     Debug,
@@ -12,24 +14,16 @@ use std::fmt::Display;
     Copy,
     Eq,
     PartialEq,
-    strum::EnumString,
-    strum::VariantNames,
-    clap::ValueEnum,
+    EnumString,
+    VariantNames,
+    ValueEnum,
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum Operation {
-    #[serde(rename = "insert_before")]
-    InsertBefore,
-    #[serde(rename = "insert_after")]
-    InsertAfter,
     #[serde(rename = "insert_after_node")]
     InsertAfterNode,
     #[serde(rename = "insert_before_node")]
     InsertBeforeNode,
-    #[serde(rename = "replace_range")]
-    ReplaceRange,
-    #[serde(rename = "replace_exact")]
-    ReplaceExact,
     #[serde(rename = "replace_node")]
     ReplaceNode,
 }
@@ -37,19 +31,15 @@ pub enum Operation {
 impl Operation {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Operation::InsertBefore => "insert before",
-            Operation::InsertAfter => "insert after",
-            Operation::InsertAfterNode => "insert after node",
-            Operation::InsertBeforeNode => "insert before node",
-            Operation::ReplaceRange => "replace range",
-            Operation::ReplaceExact => "replace exact",
-            Operation::ReplaceNode => "replace node",
+            Operation::InsertAfterNode => "insert after",
+            Operation::InsertBeforeNode => "insert before",
+            Operation::ReplaceNode => "replace",
         }
     }
 }
 
 impl Display for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -58,26 +48,9 @@ impl Display for Operation {
 pub struct Selector {
     /// The type of edit operation to perform.
     ///
-    /// Insert Operations
     /// - **`insert_after_node`** - Insert content after the complete AST node containing the anchor
-    /// - **`insert_before`** - Insert content immediately before the anchor text
-    /// - **`insert_after`** - Insert content immediately after the anchor text  
-    ///
-    /// Replace Operations
+    /// - **`insert_before_node`** - Insert content before the complete AST node containing the anchor
     /// - **`replace_node`** - Replace the entire AST node that starts with the anchor text
-    /// - **`replace_exact`** - Replace only the exact anchor text -- only for short replacements
-    /// - **`replace_range`** - Replace everything from anchor to `end`, inclusive (requires `end` field)
-    ///
-    /// ## Choosing the Right Operation
-    ///
-    /// **For adding new code:**
-    /// - Use `insert_before` or `insert_after` for precise placement
-    /// - Use `insert_after_node` when you want to add after a complete statement/declaration
-    ///
-    /// **For changing existing code:**
-    /// - Use `replace_exact` for small, precise text changes shorter than a line of code.
-    /// - Use `replace_node` for changing entire functions, classes, blocks, or statements
-    /// - Use `replace_range` for changing multi-line sections with clear start/end boundaries
     #[arg(value_enum)]
     pub operation: Operation,
 
@@ -100,23 +73,6 @@ pub struct Selector {
     /// - `"// TODO: implement"` - Targets a specific comment
     /// - `"import React"` - Targets an import statement
     pub anchor: String,
-
-    /// End boundary for replace range operations only.
-    ///
-    /// When specified, defines the end of the text range to be replaced, inclusively.
-    /// Use this to avoid repeating long blocks of content just to replace them.
-    ///
-    /// # Example
-    /// ```json
-    /// {
-    ///   "operation": "replace_range",
-    ///   "anchor": "// Start replacing here",
-    ///   "end": "// Stop replacing here"
-    /// }
-    /// ```
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[arg(short, long)]
-    pub end: Option<String>,
 }
 
 impl Selector {
@@ -126,11 +82,7 @@ impl Selector {
 
     /// Validate that the selector is properly formed
     pub fn validate(&self) -> Result<(), String> {
-        let Self {
-            operation,
-            anchor,
-            end,
-        } = self;
+        let Self { anchor, .. } = self;
 
         let mut errors = vec![];
         if anchor.trim().is_empty() {
@@ -139,29 +91,6 @@ impl Selector {
 
         if anchor.contains('\n') {
             errors.push("- Multiline anchors are not supported. Use shorter, single-line anchors for better reliability.");
-        }
-
-        match operation {
-            Operation::InsertBefore
-            | Operation::InsertAfter
-            | Operation::InsertAfterNode
-            | Operation::InsertBeforeNode => {
-                if end.is_some() {
-                    errors.push(
-                        "- End is not relevant for insert operations. Did you mean to `replace`?",
-                    );
-                }
-            }
-            Operation::ReplaceRange => {
-                if end.is_none() {
-                    errors.push("- End is required for range replacement");
-                }
-            }
-            Operation::ReplaceExact | Operation::ReplaceNode => {
-                if end.is_some() {
-                    errors.push("- `end` is not relevant for `replace_exact` operations. Did you intend to `replace_range`?");
-                }
-            }
         }
 
         if errors.is_empty() {

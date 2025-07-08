@@ -37,6 +37,49 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         }
     }
 
+    pub fn insert_before(mut self) -> Self {
+        if let Some(edit_region) = self.edit_region() {
+            if self.content.ends_with(edit_region) {
+                let len = edit_region.len();
+                match &mut self.content {
+                    Cow::Borrowed(borrowed) => *borrowed = &borrowed[..len],
+                    Cow::Owned(owned) => {
+                        owned.truncate(len);
+                    }
+                };
+            }
+        }
+
+        self.position.end_byte = None;
+        self
+    }
+
+    pub fn insert_after(mut self) -> Option<Self> {
+        let edit_region = self.edit_region()?;
+        if self.content.starts_with(edit_region) {
+            let len = edit_region.len();
+            match &mut self.content {
+                Cow::Borrowed(borrowed) => *borrowed = &borrowed[len..],
+                Cow::Owned(owned) => *owned = owned[len..].to_string(),
+            };
+        }
+
+        self.position.start_byte = self.position.end_byte.take()?;
+        Some(self)
+    }
+
+    pub fn edit_region(&self) -> Option<&'editor str> {
+        if let EditPosition {
+            start_byte,
+            end_byte: Some(end_byte),
+        } = self.position
+        {
+            self.editor.source_code.get(start_byte..end_byte)
+        } else {
+            None
+        }
+    }
+
     pub fn with_end_byte(mut self, end_byte: usize) -> Self {
         self.position.end_byte = Some(end_byte);
         self

@@ -1,5 +1,5 @@
 === snapshot test tool call: stage_operation ===
-STAGED: replace node
+STAGED: replace
 
 Edit efficiency: 0%
 💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration
