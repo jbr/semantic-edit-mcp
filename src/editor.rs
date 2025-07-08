@@ -6,8 +6,8 @@ use std::{collections::BTreeSet, path::PathBuf};
 
 use anyhow::{anyhow, Result};
 use diffy::{DiffOptions, Patch, PatchFormatter};
-use edit::Edit;
-use edit_iterator::EditIterator;
+pub(crate) use edit::Edit;
+pub(crate) use edit_iterator::EditIterator;
 use ropey::Rope;
 use tree_sitter::Tree;
 
@@ -20,6 +20,8 @@ use crate::{
     validation::ContextValidator,
 };
 
+#[derive(fieldwork::Fieldwork)]
+#[fieldwork(get)]
 pub struct Editor<'language> {
     content: String,
     selector: Selector,
@@ -132,8 +134,8 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         )
     }
 
-    fn edit_iterator(&self) -> EditIterator<'_, 'language> {
-        EditIterator::new(self)
+    fn build_edits<'editor>(&'editor self) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        self.language.editor().build_edits(self)
     }
 
     fn edit(&mut self) -> Result<(String, Option<String>)> {
@@ -141,20 +143,18 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             return Ok((prevalidation_failure, None));
         };
 
+        let mut all_edits = match self.build_edits() {
+            Ok(all_edits) => all_edits,
+            Err(message) => return Ok((message, None)),
+        };
         let mut failed_edits = vec![];
-        for edit in self.edit_iterator() {
-            match edit {
-                Ok(mut edit) => {
-                    edit.apply()?;
-                    if edit.is_valid() {
-                        return Ok((edit.message(), edit.output()));
-                    }
-
-                    failed_edits.push(edit);
-                }
-
-                Err(message) => return Ok((message, None)),
+        for mut edit in all_edits.drain(..) {
+            edit.apply()?;
+            if edit.is_valid() {
+                return Ok((edit.message(), edit.output()));
             }
+
+            failed_edits.push(edit);
         }
 
         Ok((failed_edits.first_mut().unwrap().message(), None))

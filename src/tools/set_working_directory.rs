@@ -7,8 +7,9 @@ use mcplease::{
 use serde::{Deserialize, Serialize};
 
 /// Set the working context path for a session
-#[derive(Serialize, Deserialize, Debug, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, schemars::JsonSchema, clap::Args)]
 #[serde(rename = "set_working_directory")]
+#[group(skip)]
 pub struct SetWorkingDirectory {
     /// New working directory. All relative paths will be relative to this path
     path: String,

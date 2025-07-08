@@ -1,6 +1,6 @@
 mod snapshot_runner;
+use crate::tools::Tools;
 use mcplease::traits::AsToolsList;
-use semantic_edit_mcp::tools::Tools;
 use snapshot_runner::SnapshotRunner;
 use std::env;
 

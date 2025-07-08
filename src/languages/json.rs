@@ -1,3 +1,5 @@
+use crate::editor::{Edit, EditIterator, Editor};
+
 use super::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::Result;
 use jsonformat::Indentation;
@@ -80,5 +82,12 @@ impl LanguageEditor for JsonEditor {
                 vec![e.line().saturating_sub(1)]
             }
         }
+    }
+
+    fn build_edits<'language, 'editor>(
+        &self,
+        editor: &'editor Editor<'language>,
+    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        EditIterator::new(editor).find_edits()
     }
 }

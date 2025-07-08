@@ -1,8 +1,8 @@
+use crate::state::SemanticEditTools;
+use crate::tools::Tools;
 use anyhow::{Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use mcplease::traits::Tool;
-use semantic_edit_mcp::state::SemanticEditTools;
-use semantic_edit_mcp::tools::Tools;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -91,18 +91,18 @@ impl SnapshotRunner {
     }
 
     fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
-        self.state = SemanticEditTools::new(None)?;
-        self.state.set_default_session_id("test");
-        self.state.set_working_directory(base_path, None)?;
+        self.state = SemanticEditTools::new(None)?
+            .with_default_session_id("test")
+            .with_working_directory(base_path, None)?;
         Ok(())
     }
 
     /// Discover all snapshot tests in the tests/snapshots directory
     pub fn discover_tests(&self) -> Result<Vec<SnapshotTest>> {
-        let snapshots_dir = Path::new("tests/snapshots");
+        let snapshots_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots");
         let mut tests = Vec::new();
 
-        Self::discover_tests_recursive(snapshots_dir, &mut tests)?;
+        Self::discover_tests_recursive(&snapshots_dir, &mut tests)?;
 
         tests.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tests)

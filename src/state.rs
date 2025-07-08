@@ -54,18 +54,16 @@ impl StagedOperation {
 
 /// Semantic editing tools with session support
 #[derive(fieldwork::Fieldwork)]
-#[fieldwork(get)]
+#[fieldwork(get, get_mut)]
 pub struct SemanticEditTools {
     /// Private session store for edit-specific state (staged operations, etc.)
-    #[fieldwork(get_mut)]
     session_store: SessionStore<SemanticEditSessionData>,
     /// Shared context store for cross-server communication
-    #[fieldwork(get_mut)]
     shared_context_store: SessionStore<SharedContextData>,
     language_registry: Arc<LanguageRegistry>,
     file_cache: Arc<Mutex<LruCache<String, String>>>,
-    #[fieldwork(set, get_mut, option = false)]
-    commit_fn: Option<Box<(dyn Fn(PathBuf, String) + 'static)>>,
+    #[fieldwork(set, get_mut(option_borrow_inner = false))]
+    commit_fn: Option<Box<dyn Fn(PathBuf, String) + 'static>>,
     #[fieldwork(set, with)]
     default_session_id: &'static str,
 }
@@ -176,6 +174,16 @@ impl SemanticEditTools {
         self.shared_context_store_mut().update(session_id, |data| {
             data.context_path = Some(path);
         })
+    }
+
+    #[allow(dead_code, reason = "used in tests")]
+    pub fn with_working_directory(
+        mut self,
+        path: PathBuf,
+        session_id: Option<&str>,
+    ) -> Result<Self> {
+        self.set_working_directory(path, session_id)?;
+        Ok(self)
     }
 
     /// Resolve a path relative to session context if needed

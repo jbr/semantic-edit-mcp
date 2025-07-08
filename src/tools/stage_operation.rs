@@ -15,8 +15,9 @@ use serde::{Deserialize, Serialize};
 /// The Selector uses a simple but powerful approach: find text with `anchor` (and optionally
 /// `end`), then perform the specified `operation`. All operations are AST-aware and respect
 /// language syntax. No changes are persisted to disk until you `commit_operation`
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "stage_operation")]
+#[group(skip)]
 pub struct StageOperation {
     /// Path to the source file.
     /// If a session has been configured, this can be a relative path to the session root.
@@ -24,15 +25,18 @@ pub struct StageOperation {
 
     /// Optional language hint. If not provided, language will be detected from file extension.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[arg(short, long, value_enum)]
     pub language: Option<LanguageName>,
 
     /// How to position the `content`
     #[serde(flatten)]
+    #[clap(flatten)]
     pub selector: Selector,
 
     /// The new content to insert or replace
-    /// IMPORTANT TIP: To remove code, use `replace` and omit `content`
+    /// IMPORTANT TIP: To remove code, omit `content`
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[arg(short, long)]
     pub content: Option<String>,
 }
 

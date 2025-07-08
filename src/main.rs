@@ -1,4 +1,5 @@
 #![allow(clippy::collapsible_if)]
+#![deny(dead_code)]
 
 mod editor;
 mod languages;
@@ -6,6 +7,9 @@ mod selector;
 mod state;
 mod tools;
 mod validation;
+
+#[cfg(test)]
+mod tests;
 
 use mcplease::server_info;
 use state::SemanticEditTools;

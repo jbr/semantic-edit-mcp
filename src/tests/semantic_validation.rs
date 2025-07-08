@@ -13,7 +13,7 @@ fn impl_block_pub_fn() {
 fn docs_automation() {
     assert_eq!(
         validate_code(
-            include_str!("./semantic_validation_corpus/docs_automation.rs"),
+            include_str!("../../tests/semantic_validation_corpus/docs_automation.rs"),
             Rust
         ),
         None

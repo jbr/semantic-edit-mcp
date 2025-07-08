@@ -9,10 +9,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Change the targeting of an already-staged operation without rewriting the content
-#[derive(Serialize, Deserialize, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "retarget_staged")]
+#[group(skip)]
 pub struct RetargetStaged {
     #[serde(flatten)]
+    #[clap(flatten)]
     pub selector: Selector,
 }
 

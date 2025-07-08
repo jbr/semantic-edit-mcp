@@ -2,20 +2,24 @@ use std::borrow::Cow;
 
 use anyhow::Result;
 use ropey::Rope;
-use tree_sitter::{InputEdit, Point, Tree};
+use tree_sitter::{InputEdit, Node, Point, Tree};
 
 use super::{EditPosition, Editor};
 
-#[derive(Clone)]
-pub(super) struct Edit<'editor, 'language> {
+#[derive(Clone, fieldwork::Fieldwork)]
+pub struct Edit<'editor, 'language> {
     pub(super) editor: &'editor Editor<'language>,
     pub(super) tree: Tree,
     pub(super) rope: Rope,
+    #[fieldwork(get, with, into)]
     pub(super) content: Cow<'editor, str>,
+    #[fieldwork(get, get_mut)]
     pub(super) position: EditPosition,
     pub(super) valid: bool,
     pub(super) message: Option<String>,
     pub(super) output: Option<String>,
+    #[fieldwork(get, set, with(option_set_some))]
+    pub(super) node: Option<Node<'editor>>,
 }
 
 impl<'editor, 'language> Edit<'editor, 'language> {
@@ -29,16 +33,12 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             valid: false,
             message: None,
             output: None,
+            node: None,
         }
     }
 
     pub fn with_end_byte(mut self, end_byte: usize) -> Self {
         self.position.end_byte = Some(end_byte);
-        self
-    }
-
-    pub fn with_content(mut self, content: String) -> Self {
-        self.content = Cow::Owned(content);
         self
     }
 

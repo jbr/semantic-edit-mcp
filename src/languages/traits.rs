@@ -1,5 +1,8 @@
 use anyhow::Result;
+
 use tree_sitter::{Node, Tree};
+
+use crate::editor::{Edit, EditIterator, Editor};
 
 /// Default editor implementation with basic tree-sitter validation
 #[derive(Debug, Clone)]
@@ -30,6 +33,13 @@ pub trait LanguageEditor: Send + Sync {
     /// Format code according to language conventions
     fn format_code(&self, source: &str) -> Result<String> {
         Ok(source.to_string())
+    }
+
+    fn build_edits<'language, 'editor>(
+        &self,
+        editor: &'editor Editor<'language>,
+    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        EditIterator::new(editor).find_edits()
     }
 }
 

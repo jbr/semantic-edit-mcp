@@ -13,8 +13,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    convert::Infallible,
     fmt::{self, Display, Formatter},
     path::Path,
+    str::FromStr,
 };
 use tree_sitter::{Language, Parser, Query};
 
@@ -30,10 +32,10 @@ pub struct LanguageRegistry {
 #[derive(fieldwork::Fieldwork)]
 #[fieldwork(get)]
 pub struct LanguageCommon {
-    #[fieldwork(get(copy))]
+    #[field(copy)]
     name: LanguageName,
     file_extensions: &'static [&'static str],
-    #[fieldwork(rename = tree_sitter_language)]
+    #[field = "tree_sitter_language"]
     language: Language,
     editor: Box<dyn LanguageEditor>,
     validation_query: Option<Query>,
@@ -64,9 +66,23 @@ impl LanguageCommon {
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, JsonSchema, Hash, Eq, PartialEq, Ord, PartialOrd, Clone, Copy,
+    Serialize,
+    Deserialize,
+    Debug,
+    JsonSchema,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Clone,
+    Copy,
+    strum::VariantNames,
+    strum::IntoStaticStr,
+    clap::ValueEnum,
 )]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum LanguageName {
     Rust,
     Json,
@@ -78,18 +94,27 @@ pub enum LanguageName {
     #[serde(other)]
     Other,
 }
+
+impl FromStr for LanguageName {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
+            "rust" | "rs" => LanguageName::Rust,
+            "json" => LanguageName::Json,
+            "toml" => LanguageName::Toml,
+            "javascript" | "js" | "jsx" => LanguageName::Javascript,
+            "ts" | "typescript" => LanguageName::Typescript,
+            "tsx" => LanguageName::Tsx,
+            "py" | "python" => LanguageName::Python,
+            _ => LanguageName::Other,
+        })
+    }
+}
+
 impl LanguageName {
-    fn as_str(&self) -> &str {
-        match self {
-            LanguageName::Rust => "rust",
-            LanguageName::Json => "json",
-            LanguageName::Toml => "toml",
-            LanguageName::Javascript => "javascript",
-            LanguageName::Typescript => "typescript",
-            LanguageName::Tsx => "tsx",
-            LanguageName::Python => "python",
-            LanguageName::Other => "other",
-        }
+    fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
