@@ -1,0 +1,5 @@
+[{"name": "stage_operation", "arguments":{
+  "operation": "replace",
+  "anchor": "#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct TestStruct {",
+  "content": "#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]\npub struct TestStruct {"
+}}]

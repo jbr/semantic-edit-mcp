@@ -55,13 +55,13 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         let Selector { operation, anchor } = &*self.selector;
 
         match operation {
-            Operation::InsertAfterNode => {
+            Operation::InsertAfter => {
                 self.find_after_ast_insert_positions(anchor, source_code, tree)
             }
-            Operation::InsertBeforeNode => {
+            Operation::InsertBefore => {
                 self.find_before_ast_insert_positions(anchor, source_code, tree)
             }
-            Operation::ReplaceNode => self.select_ast_node(anchor, source_code, tree),
+            Operation::Replace => self.select_ast_node(anchor, source_code, tree),
         }
     }
 
@@ -202,7 +202,13 @@ impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
 }
 
 fn from_positions<'a>(source_code: &'a str, anchor: &str) -> Result<Vec<(usize, &'a str)>, String> {
-    let from_positions: Vec<_> = source_code.match_indices(anchor).collect();
+    let mut from_positions: Vec<_> = source_code.match_indices(anchor.trim()).collect();
+    if from_positions.is_empty() {
+        if let Some(first_line) = anchor.lines().next() {
+            from_positions.extend(source_code.match_indices(first_line.trim()));
+        }
+    }
+
     if from_positions.is_empty() {
         return Err(format!("From text \"{anchor}\" not found in source"));
     }

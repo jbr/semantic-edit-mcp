@@ -3,7 +3,7 @@
     "arguments": {
       "content": "\n    eprintln!(\"here\");",
       "anchor": "function\");",
-      "operation": "insert_after_node"
+      "operation": "insert_after"
     },
     "name": "stage_operation"
   },

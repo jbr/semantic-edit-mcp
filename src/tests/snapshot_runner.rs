@@ -111,7 +111,7 @@ impl SnapshotRunner {
     /// Filter tests based on the TEST_FILTER environment variable
     /// Supports patterns like:
     /// - "basic_operations" (matches all tests starting with this)
-    /// - "basic_operations::insert_after_node" (exact match)
+    /// - "basic_operations::insert_after" (exact match)
     /// - "json_operations,markdown_operations" (multiple patterns separated by commas)
     fn filter_tests(&self, tests: Vec<SnapshotTest>) -> Vec<SnapshotTest> {
         if let Some(filter) = &self.test_filter {

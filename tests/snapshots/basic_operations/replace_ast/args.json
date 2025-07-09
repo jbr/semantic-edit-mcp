@@ -3,7 +3,7 @@
     "arguments": {
       "content": "pub fn new_function() -> i32 {\n    println!(\"This is the new implementation\");\n    100\n}",
       "anchor": "fn old",
-      "operation": "replace_node"
+      "operation": "replace"
     },
     "name": "stage_operation"
   },
