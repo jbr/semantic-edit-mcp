@@ -16,9 +16,9 @@ use serde::{Deserialize, Serialize};
 /// `end`), then perform the specified `operation`. All operations are AST-aware and respect
 /// language syntax. No changes are persisted to disk until you `commit_operation`
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
-#[serde(rename = "stage_operation")]
+#[serde(rename = "preview_edit")]
 #[group(skip)]
-pub struct StageOperation {
+pub struct PreviewEdit {
     /// Path to the source file.
     /// If a session has been configured, this can be a relative path to the session root.
     pub file_path: String,
@@ -40,7 +40,7 @@ pub struct StageOperation {
     pub content: Option<String>,
 }
 
-impl WithExamples for StageOperation {
+impl WithExamples for PreviewEdit {
     fn examples() -> Vec<Example<Self>> {
         vec![
             // more examples to add
@@ -120,7 +120,7 @@ impl WithExamples for StageOperation {
     }
 }
 
-impl Tool<SemanticEditTools> for StageOperation {
+impl Tool<SemanticEditTools> for PreviewEdit {
     fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
@@ -143,7 +143,7 @@ impl Tool<SemanticEditTools> for StageOperation {
             None,
         )?;
         let (message, staged_operation) = editor.preview()?;
-        state.stage_operation(None, staged_operation)?;
+        state.preview_edit(None, staged_operation)?;
 
         Ok(message)
     }

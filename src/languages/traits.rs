@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Result;
 
 use tree_sitter::{Node, Tree};
@@ -31,7 +33,8 @@ pub trait LanguageEditor: Send + Sync {
     }
 
     /// Format code according to language conventions
-    fn format_code(&self, source: &str) -> Result<String> {
+    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
+        let _ = file_path;
         Ok(source.to_string())
     }
 

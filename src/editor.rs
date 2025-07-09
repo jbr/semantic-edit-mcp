@@ -217,15 +217,18 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     pub fn format_code(&self, source: &str) -> Result<String> {
-        self.language.editor().format_code(source).map_err(|e| {
-            anyhow!(
-                "The formatter has encountered the following error making \
+        self.language
+            .editor()
+            .format_code(source, &self.file_path)
+            .map_err(|e| {
+                anyhow!(
+                    "The formatter has encountered the following error making \
                  that change, so the file has not been modified. The tool has \
                  prevented what it believes to be an unsafe edit. Please try a \
                  different edit.\n\n\
                  {e}"
-            )
-        })
+                )
+            })
     }
 
     pub fn commit(mut self) -> Result<(String, Option<String>, PathBuf)> {

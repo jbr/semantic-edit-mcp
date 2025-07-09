@@ -10,15 +10,15 @@ use serde::{Deserialize, Serialize};
 
 /// Change the targeting of an already-staged operation without rewriting the content
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
-#[serde(rename = "retarget_staged")]
+#[serde(rename = "retarget_edit")]
 #[group(skip)]
-pub struct RetargetStaged {
+pub struct RetargetEdit {
     #[serde(flatten)]
     #[clap(flatten)]
     pub selector: Selector,
 }
 
-impl WithExamples for RetargetStaged {
+impl WithExamples for RetargetEdit {
     fn examples() -> Vec<Example<Self>> {
         vec![
             // Example {
@@ -65,7 +65,7 @@ impl WithExamples for RetargetStaged {
     }
 }
 
-impl Tool<SemanticEditTools> for RetargetStaged {
+impl Tool<SemanticEditTools> for RetargetEdit {
     fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self { selector } = self;
 
@@ -78,7 +78,7 @@ impl Tool<SemanticEditTools> for RetargetStaged {
         let (message, staged_operation) = editor.preview()?;
         if staged_operation.is_some() {
             // leave failed operations in place
-            state.stage_operation(None, staged_operation)?;
+            state.preview_edit(None, staged_operation)?;
         }
         Ok(message)
     }

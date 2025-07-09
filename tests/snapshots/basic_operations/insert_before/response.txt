@@ -1,4 +1,4 @@
-=== snapshot test tool call: stage_operation ===
+=== snapshot test tool call: preview_edit ===
 STAGED: insert before
 
 ===DIFF===
@@ -9,7 +9,7 @@ STAGED: insert before
  pub fn target_function() {
      println!("This function will have content inserted before it");
  }
-=== snapshot test tool call: commit_staged ===
+=== snapshot test tool call: persist_edit ===
 insert before operation result:
 Applied insert before operation
 

@@ -1,0 +1,16 @@
+=== snapshot test tool call: preview_edit ===
+STAGED: insert after
+
+===DIFF===
+     pub id: u64,
+     pub username: String,
+ }
++/// Administrative user with elevated privileges
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
++pub struct AdminUser {
++    pub user: User,
++    pub permissions: Vec<String>,
++}
+
+ /// User profile information
+ #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

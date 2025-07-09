@@ -1,22 +1,11 @@
-=== snapshot test tool call: stage_operation ===
-This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
-Suggestion: Try a different change.
-
-===SYNTAX ERRORS===
-   2   ⎸
-   3   ⎸#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-   4   ⎸pub struct TestStruct {
-   5 ->⎸pub struct TestStruct {
-   6   ⎸    pub field: String,
-   7   ⎸}
-
+=== snapshot test tool call: preview_edit ===
+STAGED: replace
 
 ===DIFF===
  use serde::{Deserialize, Serialize};
 
 -#[derive(Debug, Clone, Serialize, Deserialize)]
 +#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-+pub struct TestStruct {
  pub struct TestStruct {
      pub field: String,
  }

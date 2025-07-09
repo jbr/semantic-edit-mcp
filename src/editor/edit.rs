@@ -4,6 +4,8 @@ use anyhow::Result;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Point, Tree};
 
+use crate::editor::edit_iterator::find_positions;
+
 use super::{EditPosition, Editor};
 
 #[derive(Clone, fieldwork::Fieldwork)]
@@ -20,6 +22,31 @@ pub struct Edit<'editor, 'language> {
     pub(super) output: Option<String>,
     #[fieldwork(get, set, with(option_set_some))]
     pub(super) node: Option<Node<'editor>>,
+    #[field(with)]
+    internal_explanation: Option<&'static str>,
+}
+
+impl<'editor, 'language> std::fmt::Debug for Edit<'editor, 'language> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("Edit");
+        s.field("content", &self.content)
+            .field("anchor", &self.editor.selector.anchor)
+            .field("start_byte", &self.position.start_byte);
+        if let Some(end_byte) = self.position.end_byte {
+            s.field("end_byte", &end_byte);
+        }
+        s.field("valid", &self.valid);
+        if let Some(node) = self.node {
+            s.field("node_kind", &node.kind());
+        }
+        if let Some(edit_region) = self.edit_region() {
+            s.field("edit_region", &edit_region);
+        }
+        if let Some(explanation) = self.internal_explanation {
+            s.field("internal_explanation", &explanation);
+        }
+        s.finish()
+    }
 }
 
 impl<'editor, 'language> Edit<'editor, 'language> {
@@ -34,19 +61,19 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             message: None,
             output: None,
             node: None,
+            internal_explanation: None,
         }
     }
 
     pub fn insert_before(mut self) -> Self {
         if let Some(edit_region) = self.edit_region() {
-            if self.content.ends_with(edit_region) {
-                let len = edit_region.len();
-                match &mut self.content {
-                    Cow::Borrowed(borrowed) => *borrowed = &borrowed[..len],
-                    Cow::Owned(owned) => {
-                        owned.truncate(len);
-                    }
-                };
+            if let Ok(positions) = find_positions(&self.content, edit_region) {
+                if let Some((start, _)) = positions.last() {
+                    match &mut self.content {
+                        Cow::Borrowed(borrowed) => *borrowed = &borrowed[..*start],
+                        Cow::Owned(owned) => *owned = owned[..*start].to_string(),
+                    };
+                }
             }
         }
 
@@ -56,15 +83,16 @@ impl<'editor, 'language> Edit<'editor, 'language> {
 
     pub fn insert_after(mut self) -> Option<Self> {
         let edit_region = self.edit_region()?;
-        if self.content.starts_with(edit_region) {
-            let len = edit_region.len();
-            match &mut self.content {
-                Cow::Borrowed(borrowed) => *borrowed = &borrowed[len..],
-                Cow::Owned(owned) => *owned = owned[len..].to_string(),
-            };
+        if let Ok(positions) = find_positions(&self.content, edit_region) {
+            if let Some((_, end)) = positions.first() {
+                match &mut self.content {
+                    Cow::Borrowed(borrowed) => *borrowed = &borrowed[*end..],
+                    Cow::Owned(owned) => *owned = owned[*end..].to_string(),
+                };
+            }
         }
-
         self.position.start_byte = self.position.end_byte.take()?;
+
         Some(self)
     }
 

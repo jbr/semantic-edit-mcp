@@ -1,4 +1,4 @@
-=== snapshot test tool call: stage_operation ===
+=== snapshot test tool call: preview_edit ===
 STAGED: insert after
 
 ===DIFF===

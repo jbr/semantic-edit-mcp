@@ -1,5 +1,8 @@
+mod common;
+mod ecma_editor;
 pub mod javascript;
 pub mod json;
+pub mod jsx;
 pub mod plain;
 pub mod python;
 pub mod rust;
@@ -9,15 +12,19 @@ pub mod tsx;
 pub mod typescript;
 
 use anyhow::Result;
+use clap::ValueEnum;
+use enum_map::{enum_map, Enum, EnumMap};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     convert::Infallible,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
     path::Path,
+    result,
     str::FromStr,
 };
+use strum::IntoStaticStr;
 use tree_sitter::{Language, Parser, Query};
 
 use crate::languages::traits::LanguageEditor;
@@ -25,7 +32,7 @@ use crate::languages::traits::LanguageEditor;
 /// Registry to manage all supported languages
 #[derive(Debug)]
 pub struct LanguageRegistry {
-    languages: HashMap<LanguageName, LanguageCommon>,
+    languages: EnumMap<LanguageName, LanguageCommon>,
     extensions: HashMap<&'static str, LanguageName>,
 }
 
@@ -41,7 +48,7 @@ pub struct LanguageCommon {
     validation_query: Option<Query>,
 }
 
-impl fmt::Debug for LanguageCommon {
+impl Debug for LanguageCommon {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LanguageCommon")
             .field("name", &self.name)
@@ -77,12 +84,13 @@ impl LanguageCommon {
     PartialOrd,
     Clone,
     Copy,
-    strum::VariantNames,
-    strum::IntoStaticStr,
-    clap::ValueEnum,
+    IntoStaticStr,
+    Enum,
+    ValueEnum,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[repr(u8)]
 pub enum LanguageName {
     Rust,
     Json,
@@ -91,6 +99,7 @@ pub enum LanguageName {
     Typescript,
     Tsx,
     Python,
+    Jsx,
     #[serde(other)]
     Other,
 }
@@ -98,12 +107,13 @@ pub enum LanguageName {
 impl FromStr for LanguageName {
     type Err = Infallible;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
         Ok(match s {
             "rust" | "rs" => LanguageName::Rust,
             "json" => LanguageName::Json,
             "toml" => LanguageName::Toml,
-            "javascript" | "js" | "jsx" => LanguageName::Javascript,
+            "javascript" | "js" => LanguageName::Javascript,
+            "jsx" => LanguageName::Jsx,
             "ts" | "typescript" => LanguageName::Typescript,
             "tsx" => LanguageName::Tsx,
             "py" | "python" => LanguageName::Python,
@@ -126,33 +136,31 @@ impl Display for LanguageName {
 
 impl LanguageRegistry {
     pub fn new() -> Result<Self> {
-        let mut registry = Self {
-            languages: HashMap::new(),
-            extensions: HashMap::new(),
+        let languages = enum_map! {
+            LanguageName::Rust => rust::language(),
+            LanguageName::Json => json::language(),
+            LanguageName::Toml => toml::language(),
+            LanguageName::Javascript => javascript::language(),
+            LanguageName::Typescript => typescript::language(),
+            LanguageName::Tsx => tsx::language(),
+            LanguageName::Python => python::language(),
+            LanguageName::Jsx => jsx::language(),
+            LanguageName::Other => plain::language(),
         };
 
-        registry.register_language(json::language()?);
-        registry.register_language(rust::language()?);
-        registry.register_language(toml::language()?);
-        registry.register_language(typescript::language()?);
-        registry.register_language(tsx::language()?);
-        registry.register_language(javascript::language()?);
-        registry.register_language(python::language()?);
-        registry.register_language(plain::language()?);
+        let extensions = languages
+            .iter()
+            .flat_map(|(name, lang)| lang.file_extensions.iter().map(move |ext| (*ext, name)))
+            .collect();
 
-        Ok(registry)
-    }
-
-    pub fn register_language(&mut self, language: LanguageCommon) {
-        let name = language.name();
-        for extension in language.file_extensions() {
-            self.extensions.insert(extension, name);
-        }
-        self.languages.insert(name, language);
+        Ok(Self {
+            languages,
+            extensions,
+        })
     }
 
     pub fn get_language(&self, name: LanguageName) -> &LanguageCommon {
-        self.languages.get(&name).unwrap()
+        &self.languages[name]
     }
 
     pub fn get_language_with_hint(

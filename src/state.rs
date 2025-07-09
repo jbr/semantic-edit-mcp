@@ -115,7 +115,7 @@ impl SemanticEditTools {
     }
 
     /// Stage a new operation, replacing any existing staged operation
-    pub fn stage_operation(
+    pub fn preview_edit(
         &mut self,
         session_id: Option<&str>,
         staged_operation: Option<StagedOperation>,

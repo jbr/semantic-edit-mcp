@@ -5,10 +5,10 @@
       "anchor": "function\");",
       "operation": "insert_after"
     },
-    "name": "stage_operation"
+    "name": "preview_edit"
   },
   {
     "arguments": {},
-    "name": "commit_staged"
+    "name": "persist_edit"
   }
 ]

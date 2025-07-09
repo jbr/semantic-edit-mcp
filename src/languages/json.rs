@@ -1,22 +1,21 @@
+use std::path::Path;
+
 use crate::editor::{Edit, EditIterator, Editor};
 
-use super::{traits::LanguageEditor, LanguageCommon, LanguageName};
+use super::{common::Indentation, traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::Result;
-use jsonformat::Indentation;
+use jsonformat::Indentation as JsonIndentation;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use tree_sitter::Tree;
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_json::LANGUAGE.into();
-    let editor = Box::new(JsonEditor::new());
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Json,
         file_extensions: &["json"],
-        language,
+        language: tree_sitter_json::LANGUAGE.into(),
         validation_query: None,
-        editor,
-    })
+        editor: Box::new(JsonEditor::new()),
+    }
 }
 
 pub struct JsonEditor;
@@ -34,42 +33,18 @@ impl JsonEditor {
 }
 
 impl LanguageEditor for JsonEditor {
-    fn format_code(&self, source: &str) -> Result<String> {
-        let mut tab_count = 0;
-        let mut space_counts = BTreeMap::<usize, usize>::new();
-        let mut last_indentation = 0;
-        let mut last_change = 0;
-        for line in source.lines().take(100) {
-            if line.starts_with('\t') {
-                tab_count += 1;
-            } else {
-                let count = line.chars().take_while(|c| c == &' ').count();
-                let diff = count.abs_diff(last_indentation);
-                last_indentation = count;
-                if diff > 0 {
-                    last_change = diff;
-                }
-                let entry = space_counts.entry(last_change).or_default();
-                *entry += 1;
-            }
-        }
-
+    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
         let custom;
 
-        let indentation_style = match space_counts
-            .into_iter()
-            .map(|(k, v)| (Some(k), v))
-            .chain(std::iter::once((None, tab_count)))
-            .max_by_key(|(_, count)| *count)
-        {
-            Some((Some(2), _)) => Indentation::TwoSpace,
-            Some((Some(4), _)) => Indentation::FourSpace,
-            Some((None, _)) => Indentation::Tab,
-            Some((Some(n), _)) => {
-                custom = " ".repeat(n);
-                Indentation::Custom(&custom)
+        let indentation_style = match Indentation::determine(source) {
+            Some(Indentation::Spaces(2)) => JsonIndentation::TwoSpace,
+            Some(Indentation::Spaces(4)) => JsonIndentation::FourSpace,
+            Some(Indentation::Tabs) => JsonIndentation::Tab,
+            Some(Indentation::Spaces(n)) => {
+                custom = " ".repeat(n.into());
+                JsonIndentation::Custom(&custom)
             }
-            None => Indentation::FourSpace,
+            None => JsonIndentation::FourSpace,
         };
 
         Ok(jsonformat::format(source, indentation_style))

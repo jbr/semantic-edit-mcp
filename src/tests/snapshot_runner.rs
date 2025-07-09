@@ -52,7 +52,7 @@ impl ArgsDotJson {
         };
 
         for tool in &mut tool_calls {
-            if tool["name"] == "stage_operation" {
+            if tool["name"] == "preview_edit" {
                 if let Some(input_path) = &input_path {
                     tool.get_mut("arguments")
                         .unwrap()

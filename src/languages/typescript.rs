@@ -1,15 +1,12 @@
-use super::{traits::DefaultEditor, LanguageCommon, LanguageName};
-use anyhow::Result;
+use super::{LanguageCommon, LanguageName};
+use crate::languages::ecma_editor::EcmaEditor;
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
-    let editor = Box::new(DefaultEditor::new());
-
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Typescript,
         file_extensions: &["ts"],
-        language,
-        editor,
+        language: tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        editor: Box::new(EcmaEditor::Ts),
         validation_query: None,
-    })
+    }
 }

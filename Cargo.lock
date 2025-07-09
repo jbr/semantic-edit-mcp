@@ -171,9 +171,9 @@ dependencies = [
 
 [[package]]
 name = "biome_console"
-version = "0.5.8"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678dfa9a976d1978c136ecddcdf9e9f4947aee7ef2003b4b988dfc78606bfd79"
+checksum = "c672a9e31e47f8df74549a570ea3245a93ce3404115c724bb16762fcbbfe17e1"
 dependencies = [
  "biome_markup",
  "biome_text_size",
@@ -218,9 +218,9 @@ dependencies = [
 
 [[package]]
 name = "biome_diagnostics"
-version = "0.5.8"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef09f4f5e519a73f1a36c0ffbf0a68ac844bf1a6eb3e9ced215a3d0c5b1319e7"
+checksum = "fe1317b6d610541c4e6a0e1f803a946f153ace3468bbc77a8f273dcb04ee526f"
 dependencies = [
  "backtrace",
  "biome_console",
@@ -229,12 +229,10 @@ dependencies = [
  "biome_rowan",
  "biome_text_edit",
  "biome_text_size",
+ "bitflags 2.9.1",
  "bpaf",
- "enumflags2",
  "oxc_resolver",
  "serde",
- "serde_ini",
- "serde_json",
  "termcolor",
  "unicode-width 0.1.14",
 ]
@@ -796,19 +794,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5320ae4c3782150d900b79807611a59a99fc9a1d61d686faafc24b93fc8d7ca"
 
 [[package]]
-name = "enumflags2"
-version = "0.7.12"
+name = "enum-map"
+version = "2.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef"
+checksum = "6866f3bfdf8207509a033af1a75a7b08abda06bbaaeae6669323fd5a097df2e9"
 dependencies = [
- "enumflags2_derive",
+ "enum-map-derive",
 ]
 
 [[package]]
-name = "enumflags2_derive"
-version = "0.7.12"
+name = "enum-map-derive"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827"
+checksum = "f282cfdfe92516eb26c2af8589c274c7c17681f5ecc03c18255fe741c6aa64eb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1671,6 +1669,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.2.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "061c1221631e079b26479d25bbf2275bfe5917ae8419cd7e34f13bfc2aa7539a"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.104",
+]
+
+[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1832,12 +1840,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
-name = "result"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "194d8e591e405d1eecf28819740abed6d719d1a2db87fc0bcdedee9a26d55560"
-
-[[package]]
 name = "ropey"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1962,11 +1964,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fbf2ae1b8bc8e02df939598064d22402220cd5bbcca1c76f7d6a310974d5615"
 dependencies = [
  "dyn-clone",
- "indexmap 2.10.0",
  "schemars_derive 0.8.22",
  "serde",
  "serde_json",
- "smallvec",
 ]
 
 [[package]]
@@ -2017,6 +2017,8 @@ name = "semantic-edit-mcp"
 version = "0.1.2"
 dependencies = [
  "anyhow",
+ "biome_console",
+ "biome_diagnostics",
  "biome_formatter",
  "biome_js_formatter",
  "biome_js_parser",
@@ -2029,6 +2031,7 @@ dependencies = [
  "clap 4.5.40",
  "diffy",
  "dirs",
+ "enum-map",
  "env_logger",
  "fastrand",
  "fieldwork",
@@ -2038,6 +2041,7 @@ dependencies = [
  "mcplease",
  "prettify",
  "prettify-markdown",
+ "prettyplease",
  "ropey",
  "rustpython-parser",
  "schemars 1.0.4",
@@ -2045,6 +2049,7 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "strum",
+ "syn 2.0.104",
  "taplo",
  "tree-sitter",
  "tree-sitter-javascript",
@@ -2086,17 +2091,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.104",
-]
-
-[[package]]
-name = "serde_ini"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb236687e2bb073a7521c021949be944641e671b8505a94069ca37b656c81139"
-dependencies = [
- "result",
- "serde",
- "void",
 ]
 
 [[package]]
@@ -2672,12 +2666,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "void"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "walkdir"

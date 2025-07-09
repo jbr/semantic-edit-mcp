@@ -5,6 +5,6 @@
       "operation": "replace",
       "anchor": "fn get_value(&self) -> i32 {"
     },
-    "name": "stage_operation"
+    "name": "preview_edit"
   }
 ]

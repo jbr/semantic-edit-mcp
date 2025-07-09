@@ -10,13 +10,13 @@ use serde::{Deserialize, Serialize};
 
 /// Execute the currently staged operation
 #[derive(Serialize, Deserialize, Debug, clap::Args)]
-#[serde(rename = "commit_staged")]
+#[serde(rename = "persist_edit")]
 #[group(skip)]
-pub struct CommitStaged {}
+pub struct PersistEdit {}
 
-impl JsonSchema for CommitStaged {
+impl JsonSchema for PersistEdit {
     fn schema_name() -> Cow<'static, str> {
-        Cow::Borrowed("commit_staged")
+        Cow::Borrowed("persist_edit")
     }
 
     fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
@@ -28,7 +28,7 @@ impl JsonSchema for CommitStaged {
     }
 }
 
-impl WithExamples for CommitStaged {
+impl WithExamples for PersistEdit {
     fn examples() -> Vec<Example<Self>> {
         vec![Example {
             description: "Commit the currently staged operation",
@@ -37,7 +37,7 @@ impl WithExamples for CommitStaged {
     }
 }
 
-impl Tool<SemanticEditTools> for CommitStaged {
+impl Tool<SemanticEditTools> for PersistEdit {
     fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let staged_operation = state
             .take_staged_operation(None)?

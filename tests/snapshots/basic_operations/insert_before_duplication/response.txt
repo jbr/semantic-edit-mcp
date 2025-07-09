@@ -1,25 +1,23 @@
-=== snapshot test tool call: stage_operation ===
+=== snapshot test tool call: preview_edit ===
 STAGED: insert before
 
 ===DIFF===
--// Test file for insert before node
-+// This comment is inserted before the target function
-+pub fn target_function() {
-+    println!("This function will have content inserted before it");
-+} // Test file for insert before node
+ // Test file for insert before node
  use std::collections::HashMap;
 
++// This comment is inserted before the target function
  pub fn target_function() {
-=== snapshot test tool call: commit_staged ===
+     println!("This function will have content inserted before it");
+ }
+=== snapshot test tool call: persist_edit ===
 insert before operation result:
 Applied insert before operation
 
 ===DIFF===
--// Test file for insert before node
-+// This comment is inserted before the target function
-+pub fn target_function() {
-+    println!("This function will have content inserted before it");
-+} // Test file for insert before node
+ // Test file for insert before node
  use std::collections::HashMap;
 
++// This comment is inserted before the target function
  pub fn target_function() {
+     println!("This function will have content inserted before it");
+ }

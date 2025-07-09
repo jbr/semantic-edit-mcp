@@ -1,20 +1,17 @@
 use crate::languages::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::Result;
-use std::ops::Range;
+use std::{ops::Range, path::Path};
 use taplo::rowan::{TextRange, TextSize};
 use tree_sitter::Tree;
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_toml_ng::LANGUAGE.into();
-    let editor = Box::new(TomlEditor::new());
-
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Toml,
         file_extensions: &["toml"],
-        language,
-        editor,
+        language: tree_sitter_toml_ng::LANGUAGE.into(),
+        editor: Box::new(TomlEditor::new()),
         validation_query: None,
-    })
+    }
 }
 
 pub struct TomlEditor;
@@ -32,7 +29,7 @@ impl TomlEditor {
 }
 
 impl LanguageEditor for TomlEditor {
-    fn format_code(&self, source: &str) -> Result<String> {
+    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
         Ok(taplo::formatter::format(
             source,
             taplo::formatter::Options::default(),

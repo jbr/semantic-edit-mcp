@@ -3,32 +3,35 @@ use crate::editor::{Edit, EditIterator, Editor};
 use super::{traits::LanguageEditor, LanguageCommon, LanguageName};
 use anyhow::{anyhow, Result};
 use std::{
+    collections::VecDeque,
     io::{Read, Write},
+    path::Path,
     process::{Command, Stdio},
 };
-use tree_sitter::{Node, Tree};
+use tree_sitter::{Node, Query, Tree};
 
-pub fn language() -> Result<LanguageCommon> {
+pub fn language() -> LanguageCommon {
     let language = tree_sitter_rust::LANGUAGE.into();
-    let validation_query = Some(tree_sitter::Query::new(
-        &language,
-        include_str!("../../queries/rust/validation.scm"),
-    )?);
+    let validation_query =
+        Some(Query::new(&language, include_str!("../../queries/rust/validation.scm")).unwrap());
     let editor = Box::new(RustEditor);
 
-    Ok(LanguageCommon {
+    LanguageCommon {
         language,
         validation_query,
         editor,
         name: LanguageName::Rust,
         file_extensions: &["rs"],
-    })
+    }
 }
 
 struct RustEditor;
 
 impl LanguageEditor for RustEditor {
-    fn format_code(&self, source: &str) -> Result<String> {
+    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
+        // let source = syn::parse_file(source)?;
+        // Ok(prettyplease::unparse(&source))
+
         let mut child = Command::new("rustfmt")
             .args(["--emit", "stdout", "--edition", "2024"])
             .stdin(Stdio::piped())
@@ -63,17 +66,13 @@ impl LanguageEditor for RustEditor {
         editor: &'editor Editor<'language>,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let edit_iterator = EditIterator::new(editor);
-
         let mut edits = edit_iterator.find_edits()?;
-
         let mut parser = editor.language().tree_sitter_parser().unwrap();
         let content_parse = parser.parse(editor.content(), None);
-        let Some(content_parse) = content_parse else {
-            return Ok(edits);
-        };
-
-        for edit in &mut edits {
-            handle_grouping(edit, &content_parse);
+        if let Some(content_parse) = content_parse {
+            for edit in &mut edits {
+                handle_grouping(edit, &content_parse);
+            }
         }
 
         Ok(edits)
@@ -82,9 +81,9 @@ impl LanguageEditor for RustEditor {
 
 fn handle_grouping<'language, 'editor>(
     edit: &mut Edit<'language, 'editor>,
-    replacement_tree: &Tree,
+    content_parse: &Tree,
 ) -> Option<()> {
-    let root = replacement_tree.root_node();
+    let root = content_parse.root_node();
     let mut walk = root.walk();
     let mut replacement = root.children(&mut walk);
 
@@ -92,27 +91,51 @@ fn handle_grouping<'language, 'editor>(
     let replacement_node =
         replacement.find(|replacement_node| replacement_node.kind() == edit_node.kind())?;
 
-    // return if the replacement content has no preceding nodes
+    // return if the replacement content has no grouped nodes
     find_grouped_nodes(replacement_node)?;
 
     let source_preceeding = find_grouped_nodes(*edit_node)?;
-    edit.position_mut()
-        .set_start_byte(source_preceeding.last()?.start_byte());
+    let position = edit.position_mut();
+    position.set_start_byte(source_preceeding.first()?.start_byte());
+    if position.end_byte.is_some() {
+        position.end_byte = Some(source_preceeding.last()?.end_byte());
+    }
+
     edit.set_node(None);
     None
 }
 
-fn find_grouped_nodes<'a>(mut node: Node<'a>) -> Option<Vec<Node<'a>>> {
-    let mut group: Option<Vec<Node<'a>>> = None;
+fn is_preceeding_item(node: Node<'_>) -> bool {
+    matches!(node.kind(), "line_comment" | "attribute_item")
+}
+
+fn find_grouped_nodes<'a>(start_node: Node<'a>) -> Option<Vec<Node<'a>>> {
+    let mut group: VecDeque<Node<'a>> = VecDeque::new();
+    group.push_front(start_node);
+
+    let mut node = start_node;
 
     while let Some(prev) = node.prev_sibling() {
-        if let "line_comment" | "attribute_item" = prev.kind() {
+        if is_preceeding_item(prev) {
             node = prev;
-            group.get_or_insert_default().push(prev);
+            group.push_front(prev);
         } else {
             break;
         }
     }
 
-    group
+    let mut node = start_node;
+
+    if is_preceeding_item(start_node) {
+        while let Some(next) = node.next_sibling() {
+            group.push_back(next);
+            if is_preceeding_item(next) {
+                node = next;
+            } else {
+                break;
+            }
+        }
+    }
+
+    (group.len() > 1).then(|| group.into())
 }

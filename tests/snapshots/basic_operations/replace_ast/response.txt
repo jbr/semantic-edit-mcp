@@ -1,4 +1,4 @@
-=== snapshot test tool call: stage_operation ===
+=== snapshot test tool call: preview_edit ===
 STAGED: replace
 
 ===DIFF===
@@ -12,7 +12,7 @@ STAGED: replace
  }
 
  pub fn other_function() -> String {
-=== snapshot test tool call: commit_staged ===
+=== snapshot test tool call: persist_edit ===
 replace operation result:
 Applied replace operation
 

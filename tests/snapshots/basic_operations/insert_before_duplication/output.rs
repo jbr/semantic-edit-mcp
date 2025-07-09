@@ -1,9 +1,7 @@
-// This comment is inserted before the target function
-pub fn target_function() {
-    println!("This function will have content inserted before it");
-} // Test file for insert before node
+// Test file for insert before node
 use std::collections::HashMap;
 
+// This comment is inserted before the target function
 pub fn target_function() {
     println!("This function will have content inserted before it");
 }
