@@ -1,38 +1,30 @@
-use std::fmt::{self, Debug, Formatter};
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
+use crate::{
+    editor::EditPosition,
+    languages::{LanguageName, LanguageRegistry},
+    selector::Selector,
+};
 use anyhow::{anyhow, Result};
 use fieldwork::Fieldwork;
-use lru::LruCache;
-use serde::{Deserialize, Serialize};
-
-use crate::editor::EditPosition;
-use crate::languages::{LanguageName, LanguageRegistry};
-use crate::selector::Selector;
 use mcplease::session::SessionStore;
+use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{self, Debug, Formatter},
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// Shared context data that can be used across multiple MCP servers
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct SharedContextData {
     /// Current working context path
-    pub context_path: Option<PathBuf>,
+    context_path: Option<PathBuf>,
 }
-
-// Explanation for the presence of session_id that is currently unused: The intent was initially to
-// have a conversation-unique identifier of some sort in order to isolate state between
-// conversations. However, MCP provides no mechanism to distinguish between conversations, so I
-// tried adding a session_id that was provided to every tool call in order to isolate state. This
-// presents a usability concern, so I've decided to just be extra careful about switching contexts
-// until we have a better solution. I still hope to iterate towards isolated sessions, so the code
-// is still written to support that.
 
 /// Session data specific to semantic editing operations
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct SemanticEditSessionData {
     /// Currently staged operation
-    pub staged_operation: Option<StagedOperation>,
+    staged_operation: Option<StagedOperation>,
 }
 
 /// Represents a staged operation that can be previewed and committed
@@ -53,7 +45,7 @@ impl StagedOperation {
 }
 
 /// Semantic editing tools with session support
-#[derive(fieldwork::Fieldwork)]
+#[derive(Fieldwork)]
 #[fieldwork(get, get_mut)]
 pub struct SemanticEditTools {
     /// Private session store for edit-specific state (staged operations, etc.)
@@ -61,10 +53,9 @@ pub struct SemanticEditTools {
     /// Shared context store for cross-server communication
     shared_context_store: SessionStore<SharedContextData>,
     language_registry: Arc<LanguageRegistry>,
-    file_cache: Arc<Mutex<LruCache<String, String>>>,
-    #[fieldwork(set, get_mut(option_borrow_inner = false))]
+    #[field(set, get_mut(option_borrow_inner = false))]
     commit_fn: Option<Box<dyn Fn(PathBuf, String) + 'static>>,
-    #[fieldwork(set, with)]
+    #[field(set, with)]
     default_session_id: &'static str,
 }
 
@@ -74,7 +65,6 @@ impl Debug for SemanticEditTools {
             .field("session_store", &self.session_store)
             .field("shared_context_store", &self.shared_context_store)
             .field("language_registry", &self.language_registry)
-            .field("file_cache", &self.file_cache)
             .field("default_session_id", &self.default_session_id)
             .finish()
     }
@@ -95,13 +85,11 @@ impl SemanticEditTools {
         let shared_context_store = SessionStore::new(Some(shared_path))?;
 
         let language_registry = Arc::new(LanguageRegistry::new()?);
-        let file_cache = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())));
 
         Ok(Self {
             session_store,
             shared_context_store,
             language_registry,
-            file_cache,
             commit_fn: None,
             default_session_id: "default",
         })

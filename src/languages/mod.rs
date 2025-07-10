@@ -1,4 +1,3 @@
-mod common;
 mod ecma_editor;
 pub mod javascript;
 pub mod json;

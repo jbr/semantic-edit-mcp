@@ -101,7 +101,7 @@ fn handle_grouping<'language, 'editor>(
         position.end_byte = Some(source_preceeding.last()?.end_byte());
     }
 
-    edit.set_node(None);
+    edit.set_internal_explanation("grouped").take_node();
     None
 }
 

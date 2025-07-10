@@ -6,7 +6,7 @@ pub fn language() -> LanguageCommon {
         name: LanguageName::Typescript,
         file_extensions: &["ts"],
         language: tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-        editor: Box::new(EcmaEditor::Ts),
+        editor: Box::new(EcmaEditor),
         validation_query: None,
     }
 }

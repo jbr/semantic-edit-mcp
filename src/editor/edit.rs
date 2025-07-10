@@ -1,33 +1,39 @@
-use std::borrow::Cow;
-
-use anyhow::Result;
-use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Point, Tree};
-
 use crate::editor::edit_iterator::find_positions;
+use anyhow::Result;
+use fieldwork::Fieldwork;
+use ropey::Rope;
+use std::{
+    borrow::Cow,
+    fmt::{self, Debug, Formatter},
+};
+use tree_sitter::{InputEdit, Node, Point, Tree};
 
 use super::{EditPosition, Editor};
 
-#[derive(Clone, fieldwork::Fieldwork)]
+#[derive(Clone, Fieldwork)]
+#[fieldwork(option_set_some)]
 pub struct Edit<'editor, 'language> {
     pub(super) editor: &'editor Editor<'language>,
     pub(super) tree: Tree,
     pub(super) rope: Rope,
-    #[fieldwork(get, with, into)]
+    #[field(get, set, with, get_mut(deref = false), into)]
     pub(super) content: Cow<'editor, str>,
-    #[fieldwork(get, get_mut)]
+    #[field(get, get_mut)]
     pub(super) position: EditPosition,
-    pub(super) valid: bool,
+    #[field(get = is_valid)]
+    pub(super) valid: Option<bool>,
+    #[field(get, take)]
     pub(super) message: Option<String>,
+    #[field(get, take)]
     pub(super) output: Option<String>,
-    #[fieldwork(get, set, with(option_set_some))]
+    #[field(get, set, with, take)]
     pub(super) node: Option<Node<'editor>>,
-    #[field(with)]
+    #[field(with, get, set)]
     internal_explanation: Option<&'static str>,
 }
 
-impl<'editor, 'language> std::fmt::Debug for Edit<'editor, 'language> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'editor, 'language> Debug for Edit<'editor, 'language> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("Edit");
         s.field("content", &self.content)
             .field("anchor", &self.editor.selector.anchor)
@@ -57,7 +63,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             rope: editor.rope.clone(),
             position,
             content: Cow::Borrowed(&editor.content),
-            valid: false,
+            valid: None,
             message: None,
             output: None,
             node: None,
@@ -113,10 +119,6 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         self
     }
 
-    pub fn is_valid(&self) -> bool {
-        self.valid
-    }
-
     fn byte_to_point(&self, byte_idx: usize) -> Point {
         let line = self.rope.byte_to_line(byte_idx);
         let line_start_byte = self.rope.line_to_byte(line);
@@ -125,7 +127,11 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         Point { row: line, column }
     }
 
-    pub(crate) fn apply(&mut self) -> Result<()> {
+    pub(crate) fn apply(&mut self) -> Result<bool> {
+        if let Some(valid) = self.valid {
+            return Ok(valid);
+        }
+
         let content = &self.content;
 
         let EditPosition {
@@ -167,22 +173,24 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             self.tree = tree;
         } else {
             self.message = Some("Unable to parse result so no changes were made. The file is still in a good state. Try a different edit".into());
-            return Ok(());
+            return Ok(false);
         }
 
-        if let Some(message) = self.validate(&output) {
+        let valid = if let Some(message) = self.validate(&output) {
             self.message = Some(message);
+            false
         } else {
-            self.valid = true;
             self.message = Some(format!(
                 "Applied {} operation",
                 self.editor.selector.operation_name()
             ));
 
             self.output = Some(self.editor.format_code(&output)?);
-        }
+            true
+        };
 
-        Ok(())
+        self.valid = Some(valid);
+        Ok(valid)
     }
 
     fn validate(&mut self, output: &str) -> Option<String> {
@@ -196,11 +204,23 @@ Suggestion: Try a different change.\n
         ))
     }
 
-    pub(crate) fn message(&mut self) -> String {
-        self.message.take().unwrap_or_default()
+    pub(crate) fn source_code(&self) -> &'editor str {
+        self.editor.source_code()
     }
 
-    pub(crate) fn output(&mut self) -> Option<String> {
-        self.output.take()
+    pub(crate) fn start_byte(&self) -> usize {
+        self.position.start_byte
+    }
+
+    pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
+        self.position.start_byte = start_byte;
+        self
+    }
+
+    pub(crate) fn modify(mut fun: impl FnMut(&mut Self)) -> impl FnMut(Self) -> Self {
+        move |mut edit| {
+            fun(&mut edit);
+            edit
+        }
     }
 }

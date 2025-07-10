@@ -2,6 +2,7 @@
 #![deny(dead_code)]
 
 mod editor;
+mod indentation;
 mod languages;
 mod selector;
 mod state;

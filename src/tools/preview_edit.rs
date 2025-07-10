@@ -36,7 +36,6 @@ pub struct PreviewEdit {
     /// The new content to insert or replace
     /// IMPORTANT TIP: To remove code, omit `content`
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[arg(short, long)]
     pub content: Option<String>,
 }
 

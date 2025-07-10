@@ -1,12 +1,9 @@
-use std::path::Path;
-
-use crate::editor::{Edit, EditIterator, Editor};
-
-use super::{common::Indentation, traits::LanguageEditor, LanguageCommon, LanguageName};
+use crate::{
+    editor::{Edit, EditIterator, Editor},
+    languages::{ecma_editor::EcmaEditor, LanguageCommon, LanguageEditor, LanguageName},
+};
 use anyhow::Result;
-use jsonformat::Indentation as JsonIndentation;
-use serde_json::Value;
-use tree_sitter::Tree;
+use std::path::Path;
 
 pub fn language() -> LanguageCommon {
     LanguageCommon {
@@ -33,36 +30,29 @@ impl JsonEditor {
 }
 
 impl LanguageEditor for JsonEditor {
-    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
-        let custom;
-
-        let indentation_style = match Indentation::determine(source) {
-            Some(Indentation::Spaces(2)) => JsonIndentation::TwoSpace,
-            Some(Indentation::Spaces(4)) => JsonIndentation::FourSpace,
-            Some(Indentation::Tabs) => JsonIndentation::Tab,
-            Some(Indentation::Spaces(n)) => {
-                custom = " ".repeat(n.into());
-                JsonIndentation::Custom(&custom)
-            }
-            None => JsonIndentation::FourSpace,
-        };
-
-        Ok(jsonformat::format(source, indentation_style))
-    }
-
-    fn collect_errors(&self, _tree: &Tree, content: &str) -> Vec<usize> {
-        match serde_json::from_str::<Value>(content) {
-            Ok(_) => vec![],
-            Err(e) => {
-                vec![e.line().saturating_sub(1)]
-            }
-        }
+    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
+        EcmaEditor.format_code(source, file_path)
     }
 
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        EditIterator::new(editor).find_edits()
+        let mut edits = EditIterator::new(editor).find_edits()?;
+
+        let new_edits = edits
+            .iter()
+            .filter(|edit| !edit.content().ends_with(','))
+            .cloned()
+            .map(Edit::modify(|edit| {
+                edit.set_internal_explanation("added trailing comma")
+                    .content_mut()
+                    .to_mut()
+                    .push(',')
+            }))
+            .collect::<Vec<_>>();
+
+        edits.extend(new_edits);
+        Ok(edits)
     }
 }

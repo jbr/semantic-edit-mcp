@@ -147,17 +147,27 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             Ok(all_edits) => all_edits,
             Err(message) => return Ok((message, None)),
         };
-        let mut failed_edits = vec![];
-        for mut edit in all_edits.drain(..) {
-            edit.apply()?;
-            if edit.is_valid() {
-                return Ok((edit.message(), edit.output()));
-            }
 
-            failed_edits.push(edit);
+        for edit in &mut all_edits {
+            if edit.apply()? {
+                log::trace!("using {edit:?}");
+                if let Some(description) = edit.internal_explanation() {
+                    log::info!("used {description}");
+                }
+                return Ok((edit.take_message().unwrap_or_default(), edit.take_output()));
+            }
         }
 
-        Ok((failed_edits.first_mut().unwrap().message(), None))
+        log::trace!("{all_edits:#?}");
+
+        Ok((
+            all_edits
+                .first_mut()
+                .unwrap()
+                .take_message()
+                .unwrap_or_default(),
+            None,
+        ))
     }
 
     pub fn preview(mut self) -> Result<(String, Option<StagedOperation>)> {

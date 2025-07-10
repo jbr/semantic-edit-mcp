@@ -13,15 +13,15 @@ use super::{Edit, Editor};
 #[fieldwork(get, into)]
 pub struct EditIterator<'editor, 'language> {
     editor: &'editor Editor<'language>,
-    #[fieldwork(with, get_mut, set)]
+    #[field(with, get_mut, set)]
     selector: Cow<'editor, Selector>,
     source_code: &'editor str,
-    #[fieldwork(with, get_mut, set)]
+    #[field(with, get_mut, set)]
     content: Cow<'editor, str>,
     tree: &'editor Tree,
-    #[fieldwork(skip)]
+    #[field = false]
     staged_edit: Option<&'editor EditPosition>,
-    #[fieldwork(get_mut(deref = false))]
+    #[field(get_mut(deref = false))]
     edits: Option<Vec<Edit<'editor, 'language>>>,
     current_index: usize,
 }
@@ -136,7 +136,7 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             candidates.push(
                 self.build_edit(start)
                     .with_end_byte(end)
-                    .with_internal_explanation(Some("exact")),
+                    .with_internal_explanation("exact"),
             );
 
             if let Some(parent) = tree.root_node().descendant_for_byte_range(start, end) {
@@ -145,7 +145,7 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                     candidates.push(
                         self.build_edit(nodes.first().as_ref().unwrap().start_byte())
                             .with_end_byte(nodes.last().as_ref().unwrap().end_byte())
-                            .with_internal_explanation(Some("node range")),
+                            .with_internal_explanation("node range"),
                     );
                 }
 
@@ -153,7 +153,7 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                     self.build_edit(parent.start_byte())
                         .with_end_byte(parent.end_byte())
                         .with_node(parent)
-                        .with_internal_explanation(Some("common parent")),
+                        .with_internal_explanation("common parent"),
                 );
             }
         }
