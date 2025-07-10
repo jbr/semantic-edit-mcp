@@ -18,8 +18,7 @@ use std::env;
 use tools::Tools;
 
 const INSTRUCTIONS: &str = r#"Use preview_edit to preview changes, retarget_edit to adjust targeting, and persist_edit to apply.
-The purpose of the stage/retarget/commit pattern is so you can review a diff and adjust placement prior to persisting your change to disk.
-There is only one operation staged at a time, and there is no need to "unstage" the operation; just replace it with another operation.
+The purpose of the preview/retarget/persist pattern is so you can review a diff and adjust placement prior to persisting your change to disk.
 "#;
 
 fn main() {

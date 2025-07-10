@@ -201,14 +201,14 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
             let changed_fraction = (changed_lines * 100) / content_line_count;
 
-            cleaned_diff.push_str(&format!("Edit efficiency: {changed_fraction}%\n",));
+            //            cleaned_diff.push_str(&format!("Edit efficiency: {changed_fraction}%\n",));
             if changed_fraction < 30 {
                 cleaned_diff.push_str("💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration\n");
             };
             cleaned_diff.push('\n');
         }
 
-        cleaned_diff.push_str("===DIFF===\n");
+        cleaned_diff.push_str("===DIFF===\nNote: the editor applies a consistent formatting style to the entire file, including your edit");
         for line in lines {
             // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
             if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@") {
