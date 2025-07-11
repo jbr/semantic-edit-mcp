@@ -1,16 +1,32 @@
 === snapshot test tool call: preview_edit ===
-STAGED: insert after
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
-     pub id: u64,
-     pub username: String,
- }
+ use serde::{Deserialize, Serialize};
+
 +/// Administrative user with elevated privileges
 +#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 +pub struct AdminUser {
 +    pub user: User,
 +    pub permissions: Vec<String>,
 +}
-
- /// User profile information
+ /// Represents a user in the system
  #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+ pub struct User {
+=== snapshot test tool call: persist_edit ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+ use serde::{Deserialize, Serialize};
+
++/// Administrative user with elevated privileges
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
++pub struct AdminUser {
++    pub user: User,
++    pub permissions: Vec<String>,
++}
+ /// Represents a user in the system
+ #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+ pub struct User {

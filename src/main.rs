@@ -4,6 +4,7 @@
 mod editor;
 mod indentation;
 mod languages;
+mod searcher;
 mod selector;
 mod state;
 mod tools;

@@ -2,23 +2,21 @@ mod edit;
 mod edit_iterator;
 mod edit_position;
 
-use std::{collections::BTreeSet, path::PathBuf};
-
-use anyhow::{anyhow, Result};
-use diffy::{DiffOptions, Patch, PatchFormatter};
-pub(crate) use edit::Edit;
-pub(crate) use edit_iterator::EditIterator;
-use ropey::Rope;
-use tree_sitter::Tree;
-
-pub use edit_position::EditPosition;
-
 use crate::{
     languages::{LanguageCommon, LanguageRegistry},
     selector::Selector,
     state::StagedOperation,
     validation::ContextValidator,
 };
+use anyhow::{anyhow, Result};
+use diffy::{DiffOptions, Patch, PatchFormatter};
+use ropey::Rope;
+use std::{collections::BTreeSet, iter, path::PathBuf};
+use tree_sitter::Tree;
+
+pub(crate) use edit::Edit;
+pub(crate) use edit_iterator::EditIterator;
+pub(crate) use edit_position::EditPosition;
 
 #[derive(fieldwork::Fieldwork)]
 #[fieldwork(get)]
@@ -115,7 +113,7 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
             .collect::<BTreeSet<_>>();
         Some(
-            std::iter::once(String::from("===SYNTAX ERRORS===\n"))
+            iter::once(String::from("===SYNTAX ERRORS===\n"))
                 .chain(
                     content
                         .lines()
@@ -143,25 +141,33 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             return Ok((prevalidation_failure, None));
         };
 
-        let mut all_edits = match self.build_edits() {
+        let mut edits = match self.build_edits() {
             Ok(all_edits) => all_edits,
             Err(message) => return Ok((message, None)),
         };
 
-        for edit in &mut all_edits {
-            if edit.apply()? {
-                log::trace!("using {edit:?}");
-                if let Some(description) = edit.internal_explanation() {
-                    log::info!("used {description}");
+        // let count = edits.len();
+        // edits.dedup();
+
+        // let count_after = edits.len();
+        // if count != count_after {
+        //     log::trace!("deduped from {count} to {count_after}");
+        // }
+
+        for edit in &mut edits {
+            if edit.apply() {
+                log::trace!("using {edit:#?}");
+                if let Some(annotation) = edit.annotation() {
+                    log::info!("used {annotation}");
                 }
                 return Ok((edit.take_message().unwrap_or_default(), edit.take_output()));
             }
         }
 
-        log::trace!("{all_edits:#?}");
+        log::trace!("{edits:#?}");
 
         Ok((
-            all_edits
+            edits
                 .first_mut()
                 .unwrap()
                 .take_message()
@@ -175,7 +181,10 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         if let Some(output) = &output {
             let mut preview = String::new();
 
-            preview.push_str(&format!("STAGED: {}\n\n", self.selector.operation_name()));
+            preview.push_str(&format!(
+                "Previewing: {}\nNote: the editor applies a consistent formatting style to the entire file, including your edit\n\n",
+                self.selector.operation_name()
+            ));
             preview.push_str(&self.diff(output));
 
             Ok((preview, Some(self.into())))
@@ -201,14 +210,13 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
             let changed_fraction = (changed_lines * 100) / content_line_count;
 
-            //            cleaned_diff.push_str(&format!("Edit efficiency: {changed_fraction}%\n",));
             if changed_fraction < 30 {
                 cleaned_diff.push_str("💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration\n");
             };
             cleaned_diff.push('\n');
         }
 
-        cleaned_diff.push_str("===DIFF===\nNote: the editor applies a consistent formatting style to the entire file, including your edit");
+        cleaned_diff.push_str("===DIFF===\n");
         for line in lines {
             // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
             if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@") {
@@ -226,17 +234,18 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         cleaned_diff
     }
 
-    pub fn format_code(&self, source: &str) -> Result<String> {
+    pub fn format_code(&self, source: &str) -> Result<String, String> {
         self.language
             .editor()
             .format_code(source, &self.file_path)
             .map_err(|e| {
-                anyhow!(
+                let diff = self.diff(source);
+                format!(
                     "The formatter has encountered the following error making \
                  that change, so the file has not been modified. The tool has \
                  prevented what it believes to be an unsafe edit. Please try a \
                  different edit.\n\n\
-                 {e}"
+                 {e}\n\n{diff}"
                 )
             })
     }

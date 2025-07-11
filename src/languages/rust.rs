@@ -12,14 +12,11 @@ use tree_sitter::{Node, Query, Tree};
 
 pub fn language() -> LanguageCommon {
     let language = tree_sitter_rust::LANGUAGE.into();
-    let validation_query =
-        Some(Query::new(&language, include_str!("../../queries/rust/validation.scm")).unwrap());
-    let editor = Box::new(RustEditor);
-
+    let query = Query::new(&language, include_str!("../../queries/rust/validation.scm")).unwrap();
     LanguageCommon {
         language,
-        validation_query,
-        editor,
+        validation_query: Some(query),
+        editor: Box::new(RustEditor),
         name: LanguageName::Rust,
         file_extensions: &["rs"],
     }
@@ -101,7 +98,7 @@ fn handle_grouping<'language, 'editor>(
         position.end_byte = Some(source_preceeding.last()?.end_byte());
     }
 
-    edit.set_internal_explanation("grouped").take_node();
+    edit.set_annotation("grouped").take_node();
     None
 }
 

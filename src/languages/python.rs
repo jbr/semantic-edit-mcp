@@ -9,13 +9,21 @@ use std::{
     path::Path,
     process::{Command, Stdio},
 };
+use tree_sitter::Query;
 pub fn language() -> LanguageCommon {
+    let language = tree_sitter_python::LANGUAGE.into();
+    let query = Query::new(
+        &language,
+        include_str!("../../queries/python/validation.scm"),
+    )
+    .unwrap();
+
     LanguageCommon {
         name: LanguageName::Python,
         file_extensions: &["py", "pyi"],
-        language: tree_sitter_python::LANGUAGE.into(),
+        language,
         editor: Box::new(PythonEditor),
-        validation_query: None,
+        validation_query: Some(query),
     }
 }
 
@@ -30,7 +38,31 @@ impl LanguageEditor for PythonEditor {
 
         let mut edits = edit_iterator.find_edits()?;
 
-        log::trace!("🐍 PYTHON EDITOR CALLED with {} edits", edits.len());
+        let additional_edits = edits
+            .iter()
+            .filter_map(|edit| {
+                edit.node()
+                    .and_then(|node| {
+                        node.children(&mut node.walk())
+                            .find(|node| node.kind() == "block")
+                    })
+                    .map(|block| {
+                        [
+                            edit.clone()
+                                .with_node(block)
+                                .with_start_byte(block.start_byte())
+                                .with_annotation("inside block"),
+                            edit.clone()
+                                .with_node(block)
+                                .with_start_byte(block.start_byte())
+                                .with_content(format!("{}\n", edit.content()))
+                                .with_annotation("inside block with newline"),
+                        ]
+                    })
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        edits.extend(additional_edits);
 
         for edit in &mut edits {
             Self::adjust_indentation(edit);
@@ -73,13 +105,9 @@ impl LanguageEditor for PythonEditor {
 impl PythonEditor {
     fn adjust_indentation<'language, 'editor>(edit: &mut Edit<'editor, 'language>) {
         let source_code = edit.source_code();
-        let start_byte = edit.start_byte();
-        let content = edit.content_mut();
+        let mut start_byte = edit.start_byte();
 
-        let line_start = source_code[..start_byte]
-            .rfind('\n')
-            .map(|pos| pos + 1) // +1 to get position after the newline
-            .unwrap_or(0); // If no newline found, start of file
+        let line_start = find_line_start(source_code, start_byte);
 
         let line_end = source_code[start_byte..]
             .find(|x: char| !x.is_whitespace() || x == '\n')
@@ -90,11 +118,32 @@ impl PythonEditor {
         let file_indentation =
             Indentation::determine(source_code).unwrap_or(Indentation::Spaces(4));
 
-        let target_indentation_count =
-            file_indentation.unit_count(&source_code[line_start..line_end]);
+        let reference_region = if let Some(node) = edit.node() {
+            let line_start = find_line_start(source_code, node.start_byte());
 
-        file_indentation.reindent(target_indentation_count, content);
+            &source_code[line_start..node.end_byte()]
+        } else {
+            &source_code[line_start..line_end]
+        };
 
-        edit.set_start_byte(line_start);
+        let target_indentation_count = file_indentation.minimum(reference_region);
+
+        if source_code[line_start..start_byte].trim().is_empty() {
+            start_byte = line_start;
+        }
+        file_indentation.reindent(
+            target_indentation_count,
+            edit.content_mut(),
+            start_byte == line_start,
+        );
+
+        edit.set_start_byte(start_byte);
     }
+}
+
+fn find_line_start(source_code: &str, start_byte: usize) -> usize {
+    source_code[..start_byte]
+        .rfind('\n')
+        .map(|pos| pos + 1) // +1 to get position after the newline
+        .unwrap_or(0) // If no newline found, start of file
 }

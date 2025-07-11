@@ -1,5 +1,5 @@
-use crate::editor::edit_iterator::find_positions;
-use anyhow::Result;
+use super::{EditPosition, Editor};
+use crate::searcher::find_positions;
 use fieldwork::Fieldwork;
 use ropey::Rope;
 use std::{
@@ -8,49 +8,86 @@ use std::{
 };
 use tree_sitter::{InputEdit, Node, Point, Tree};
 
-use super::{EditPosition, Editor};
-
 #[derive(Clone, Fieldwork)]
 #[fieldwork(option_set_some)]
 pub struct Edit<'editor, 'language> {
-    pub(super) editor: &'editor Editor<'language>,
-    pub(super) tree: Tree,
-    pub(super) rope: Rope,
+    editor: &'editor Editor<'language>,
+    tree: Tree,
+    rope: Rope,
     #[field(get, set, with, get_mut(deref = false), into)]
-    pub(super) content: Cow<'editor, str>,
+    content: Cow<'editor, str>,
     #[field(get, get_mut)]
-    pub(super) position: EditPosition,
+    position: EditPosition,
     #[field(get = is_valid)]
-    pub(super) valid: Option<bool>,
+    valid: Option<bool>,
     #[field(get, take)]
-    pub(super) message: Option<String>,
+    message: Option<String>,
     #[field(get, take)]
-    pub(super) output: Option<String>,
+    output: Option<String>,
     #[field(get, set, with, take)]
-    pub(super) node: Option<Node<'editor>>,
+    node: Option<Node<'editor>>,
     #[field(with, get, set)]
-    internal_explanation: Option<&'static str>,
+    annotation: Option<&'static str>,
 }
+
+impl PartialEq for Edit<'_, '_> {
+    fn eq(&self, other: &Edit<'_, '_>) -> bool {
+        std::ptr::eq(self.editor, other.editor)
+            && self.content == other.content
+            && self.position == other.position
+            && self.node == other.node
+    }
+}
+
+impl Eq for Edit<'_, '_> {}
 
 impl<'editor, 'language> Debug for Edit<'editor, 'language> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let alternate = f.alternate();
         let mut s = f.debug_struct("Edit");
         s.field("content", &self.content)
             .field("anchor", &self.editor.selector.anchor)
-            .field("start_byte", &self.position.start_byte);
-        if let Some(end_byte) = self.position.end_byte {
-            s.field("end_byte", &end_byte);
+            .field("operation", &self.editor.selector.operation);
+
+        if let Some(valid) = self.valid {
+            s.field("valid", &valid);
         }
-        s.field("valid", &self.valid);
         if let Some(node) = self.node {
-            s.field("node_kind", &node.kind());
+            s.field("node_kind", &format_args!("{}", node.kind()));
         }
+
         if let Some(edit_region) = self.edit_region() {
             s.field("edit_region", &edit_region);
+        } else {
+            let source_code = self.source_code();
+            let start_byte = self.position.start_byte;
+            let min = source_code[..start_byte]
+                .rmatch_indices('\n')
+                .nth(2)
+                .map(|(n, _)| n)
+                .unwrap_or(0);
+            let max = source_code[start_byte..]
+                .find('\n')
+                .unwrap_or(source_code.len());
+            s.field(
+                "insertion_point",
+                &format!(
+                    "{}<|>{}",
+                    &source_code[min..start_byte],
+                    &source_code[start_byte..start_byte + max]
+                ),
+            );
         }
-        if let Some(explanation) = self.internal_explanation {
-            s.field("internal_explanation", &explanation);
+        if let Some(annotation) = self.annotation {
+            s.field("annotation", &format_args!("{annotation}"));
         }
+
+        if let Some(message) = self.message() {
+            if alternate {
+                s.field("message", &format_args!("{message}"));
+            }
+        }
+
         s.finish()
     }
 }
@@ -67,7 +104,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             message: None,
             output: None,
             node: None,
-            internal_explanation: None,
+            annotation: None,
         }
     }
 
@@ -88,17 +125,18 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     }
 
     pub fn insert_after(mut self) -> Option<Self> {
-        let edit_region = self.edit_region()?;
-        if let Ok(positions) = find_positions(&self.content, edit_region) {
-            if let Some((_, end)) = positions.first() {
-                match &mut self.content {
-                    Cow::Borrowed(borrowed) => *borrowed = &borrowed[*end..],
-                    Cow::Owned(owned) => *owned = owned[*end..].to_string(),
-                };
+        if let Some(edit_region) = self.edit_region() {
+            if let Ok(positions) = find_positions(&self.content, edit_region) {
+                if let Some((_, end)) = positions.first() {
+                    match &mut self.content {
+                        Cow::Borrowed(borrowed) => *borrowed = &borrowed[*end..],
+                        Cow::Owned(owned) => *owned = owned[*end..].to_string(),
+                    };
+                }
             }
         }
-        self.position.start_byte = self.position.end_byte.take()?;
 
+        self.position.start_byte = self.position.end_byte.take()?;
         Some(self)
     }
 
@@ -127,9 +165,9 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         Point { row: line, column }
     }
 
-    pub(crate) fn apply(&mut self) -> Result<bool> {
+    pub(crate) fn apply(&mut self) -> bool {
         if let Some(valid) = self.valid {
-            return Ok(valid);
+            return valid;
         }
 
         let content = &self.content;
@@ -172,8 +210,9 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         if let Some(tree) = self.editor.parse(&output, Some(&self.tree)) {
             self.tree = tree;
         } else {
+            self.valid = Some(false);
             self.message = Some("Unable to parse result so no changes were made. The file is still in a good state. Try a different edit".into());
-            return Ok(false);
+            return false;
         }
 
         let valid = if let Some(message) = self.validate(&output) {
@@ -185,12 +224,20 @@ impl<'editor, 'language> Edit<'editor, 'language> {
                 self.editor.selector.operation_name()
             ));
 
-            self.output = Some(self.editor.format_code(&output)?);
-            true
+            match self.editor.format_code(&output) {
+                Ok(formatted) => {
+                    self.output = Some(formatted);
+                    true
+                }
+                Err(err) => {
+                    self.message = Some(err);
+                    false
+                }
+            }
         };
 
         self.valid = Some(valid);
-        Ok(valid)
+        valid
     }
 
     fn validate(&mut self, output: &str) -> Option<String> {
@@ -222,5 +269,10 @@ Suggestion: Try a different change.\n
             fun(&mut edit);
             edit
         }
+    }
+
+    pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {
+        self.position.start_byte = start_byte;
+        self
     }
 }

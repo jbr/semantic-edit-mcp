@@ -45,7 +45,7 @@ impl LanguageEditor for JsonEditor {
             .filter(|edit| !edit.content().ends_with(','))
             .cloned()
             .map(Edit::modify(|edit| {
-                edit.set_internal_explanation("added trailing comma")
+                edit.set_annotation("added trailing comma")
                     .content_mut()
                     .to_mut()
                     .push(',')

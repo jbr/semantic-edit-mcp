@@ -1,5 +1,6 @@
 === snapshot test tool call: preview_edit ===
-STAGED: insert after
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
      }

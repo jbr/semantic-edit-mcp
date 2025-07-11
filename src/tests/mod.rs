@@ -1,3 +1,4 @@
+mod semantic_validation;
 mod snapshot_runner;
 use crate::tools::Tools;
 use mcplease::traits::AsToolsList;
