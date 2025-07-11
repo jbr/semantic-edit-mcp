@@ -98,7 +98,7 @@ fn handle_grouping<'language, 'editor>(
         position.end_byte = Some(source_preceeding.last()?.end_byte());
     }
 
-    edit.set_annotation("grouped").take_node();
+    edit.set_annotation("rust: grouped").take_node();
     None
 }
 

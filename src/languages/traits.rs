@@ -6,22 +6,6 @@ use tree_sitter::{Node, Tree};
 
 use crate::editor::{Edit, EditIterator, Editor};
 
-/// Default editor implementation with basic tree-sitter validation
-#[derive(Debug, Clone)]
-pub struct DefaultEditor;
-
-impl DefaultEditor {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for DefaultEditor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Trait for language-specific operations like validation and formatting
 pub trait LanguageEditor: Send + Sync {
     /// Collect syntax error line numbers from a tree-sitter parse tree
@@ -46,11 +30,7 @@ pub trait LanguageEditor: Send + Sync {
     }
 }
 
-impl LanguageEditor for DefaultEditor {
-    // Uses all default implementations
-}
-
-pub fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
+fn collect_errors<'tree>(tree: &'tree Tree) -> Vec<Node<'tree>> {
     let mut errors = vec![];
     collect_errors_recursive(tree.root_node(), &mut errors);
     errors

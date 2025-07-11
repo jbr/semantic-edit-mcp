@@ -51,12 +51,12 @@ impl LanguageEditor for PythonEditor {
                             edit.clone()
                                 .with_node(block)
                                 .with_start_byte(block.start_byte())
-                                .with_annotation("inside block"),
+                                .with_annotation("python: inside block"),
                             edit.clone()
                                 .with_node(block)
                                 .with_start_byte(block.start_byte())
                                 .with_content(format!("{}\n", edit.content()))
-                                .with_annotation("inside block with newline"),
+                                .with_annotation("python: inside block with newline"),
                         ]
                     })
             })

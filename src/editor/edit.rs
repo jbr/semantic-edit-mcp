@@ -68,13 +68,14 @@ impl<'editor, 'language> Debug for Edit<'editor, 'language> {
                 .unwrap_or(0);
             let max = source_code[start_byte..]
                 .find('\n')
+                .map(|n| n + start_byte)
                 .unwrap_or(source_code.len());
             s.field(
                 "insertion_point",
                 &format!(
                     "{}<|>{}",
                     &source_code[min..start_byte],
-                    &source_code[start_byte..start_byte + max]
+                    &source_code[start_byte..max]
                 ),
             );
         }

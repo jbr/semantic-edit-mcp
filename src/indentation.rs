@@ -123,7 +123,6 @@ impl Indentation {
         let consistent_style = content_counts.len() == 1;
 
         if self == &content_style && min_units == target_indentation_count && consistent_style {
-            log::trace!("reindentation not needed");
             return;
         }
 
@@ -143,9 +142,9 @@ impl Indentation {
             string.pop();
         }
 
-        log::trace!(
-            "reindented from {min_units} {content_style:?} to {target_indentation_count} {self:?}"
-        );
+        // log::trace!(
+        //     "reindented from {min_units} {content_style:?} to {target_indentation_count} {self:?}"
+        // );
 
         *content = Cow::Owned(string);
     }
