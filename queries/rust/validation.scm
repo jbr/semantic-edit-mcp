@@ -21,16 +21,6 @@
  body: (block
         (mod_item) @invalid.mod.in.function.body))
 
-;; Use declarations inside function bodies (should be at module level)
-(function_item
- body: (block
-        (use_declaration) @invalid.use.in.function.body))
-
-;; Static/const items inside function bodies
-(function_item
- body: (block
-        [(const_item) (static_item)] @invalid.const.in.function.body))
-
 
 (function_item
  body: (block

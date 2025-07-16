@@ -1,5 +1,4 @@
 // docs-gen/src/main.rs
-use regex::Regex;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -36,11 +35,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn find_expandable_examples(content: &str) -> Result<Vec<CodeExample>, Box<dyn std::error::Error>> {
+    use regex::Regex;
+
+    const PATTERN: &str = r"(?s)```rust\n(.*?)\n```\s*\n\s*generates:\s*\n\s*```rust\n(.*?)\n```";
     let mut examples = Vec::new();
 
     // Regex to find: ```rust ... ``` generates: ```rust ... ```
-    let pattern =
-        Regex::new(r"(?s)```rust\n(.*?)\n```\s*\n\s*generates:\s*\n\s*```rust\n(.*?)\n```")?;
+    let pattern = Regex::new(PATTERN)?;
 
     for captures in pattern.captures_iter(content) {
         let full_match = captures.get(0).unwrap();
