@@ -2,8 +2,12 @@ use crate::state::SemanticEditTools;
 
 mcplease::tools!(
     SemanticEditTools,
-    (StageOperation, stage_operation, "stage_operation"),
-    (RetargetStaged, retarget_staged, "retarget_staged"),
-    (CommitStaged, commit_staged, "commit_staged"),
-    (SetContext, set_context, "set_context")
+    (PreviewEdit, preview_edit, "preview_edit"),
+    (RetargetEdit, retarget_edit, "retarget_edit"),
+    (PersistEdit, persist_edit, "persist_edit"),
+    (
+        SetWorkingDirectory,
+        set_working_directory,
+        "set_working_directory"
+    )
 );

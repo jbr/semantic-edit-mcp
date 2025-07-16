@@ -1,0 +1,12 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ use serde::{Deserialize, Serialize};
+
+-#[derive(Debug, Clone, Serialize, Deserialize)]
++#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+ pub struct TestStruct {
+     pub field: String,
+ }

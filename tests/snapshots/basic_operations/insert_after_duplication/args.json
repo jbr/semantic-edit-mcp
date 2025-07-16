@@ -1,0 +1,14 @@
+[
+  {
+    "arguments": {
+      "content": "println!(\"Existing function\");\n    eprintln!(\"here\");",
+      "anchor": "function\");",
+      "operation": "insert_after"
+    },
+    "name": "preview_edit"
+  },
+  {
+    "arguments": {},
+    "name": "persist_edit"
+  }
+]

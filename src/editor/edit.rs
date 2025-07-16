@@ -1,21 +1,96 @@
-use std::borrow::Cow;
-
-use anyhow::Result;
-use ropey::Rope;
-use tree_sitter::{InputEdit, Point, Tree};
-
 use super::{EditPosition, Editor};
+use crate::searcher::find_positions;
+use fieldwork::Fieldwork;
+use ropey::Rope;
+use std::{
+    borrow::Cow,
+    fmt::{self, Debug, Formatter},
+};
+use tree_sitter::{InputEdit, Node, Point, Tree};
 
-#[derive(Clone)]
-pub(super) struct Edit<'editor, 'language> {
-    pub(super) editor: &'editor Editor<'language>,
-    pub(super) tree: Tree,
-    pub(super) rope: Rope,
-    pub(super) content: Cow<'editor, str>,
-    pub(super) position: EditPosition,
-    pub(super) valid: bool,
-    pub(super) message: Option<String>,
-    pub(super) output: Option<String>,
+#[derive(Clone, Fieldwork)]
+#[fieldwork(option_set_some)]
+pub struct Edit<'editor, 'language> {
+    editor: &'editor Editor<'language>,
+    tree: Tree,
+    rope: Rope,
+    #[field(get, set, with, get_mut(deref = false), into)]
+    content: Cow<'editor, str>,
+    #[field(get, get_mut)]
+    position: EditPosition,
+    #[field(get = is_valid)]
+    valid: Option<bool>,
+    #[field(get, take)]
+    message: Option<String>,
+    #[field(get, take)]
+    output: Option<String>,
+    #[field(get, set, with, take)]
+    node: Option<Node<'editor>>,
+    #[field(with, get, set)]
+    annotation: Option<&'static str>,
+}
+
+impl PartialEq for Edit<'_, '_> {
+    fn eq(&self, other: &Edit<'_, '_>) -> bool {
+        std::ptr::eq(self.editor, other.editor)
+            && self.content == other.content
+            && self.position == other.position
+            && self.node == other.node
+    }
+}
+
+impl Eq for Edit<'_, '_> {}
+
+impl<'editor, 'language> Debug for Edit<'editor, 'language> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let alternate = f.alternate();
+        let mut s = f.debug_struct("Edit");
+        s.field("content", &self.content)
+            .field("anchor", &self.editor.selector.anchor)
+            .field("operation", &self.editor.selector.operation);
+
+        if let Some(valid) = self.valid {
+            s.field("valid", &valid);
+        }
+        if let Some(node) = self.node {
+            s.field("node_kind", &format_args!("{}", node.kind()));
+        }
+
+        if let Some(edit_region) = self.edit_region() {
+            s.field("edit_region", &edit_region);
+        } else {
+            let source_code = self.source_code();
+            let start_byte = self.position.start_byte;
+            let min = source_code[..start_byte]
+                .rmatch_indices('\n')
+                .nth(2)
+                .map(|(n, _)| n)
+                .unwrap_or(0);
+            let max = source_code[start_byte..]
+                .find('\n')
+                .map(|n| n + start_byte)
+                .unwrap_or(source_code.len());
+            s.field(
+                "insertion_point",
+                &format!(
+                    "{}<|>{}",
+                    &source_code[min..start_byte],
+                    &source_code[start_byte..max]
+                ),
+            );
+        }
+        if let Some(annotation) = self.annotation {
+            s.field("annotation", &format_args!("{annotation}"));
+        }
+
+        if let Some(message) = self.message() {
+            if alternate {
+                s.field("message", &format_args!("{message}"));
+            }
+        }
+
+        s.finish()
+    }
 }
 
 impl<'editor, 'language> Edit<'editor, 'language> {
@@ -26,24 +101,61 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             rope: editor.rope.clone(),
             position,
             content: Cow::Borrowed(&editor.content),
-            valid: false,
+            valid: None,
             message: None,
             output: None,
+            node: None,
+            annotation: None,
+        }
+    }
+
+    pub fn insert_before(mut self) -> Self {
+        if let Some(edit_region) = self.edit_region() {
+            if let Ok(positions) = find_positions(&self.content, edit_region) {
+                if let Some((start, _)) = positions.last() {
+                    match &mut self.content {
+                        Cow::Borrowed(borrowed) => *borrowed = &borrowed[..*start],
+                        Cow::Owned(owned) => *owned = owned[..*start].to_string(),
+                    };
+                }
+            }
+        }
+
+        self.position.end_byte = None;
+        self
+    }
+
+    pub fn insert_after(mut self) -> Option<Self> {
+        if let Some(edit_region) = self.edit_region() {
+            if let Ok(positions) = find_positions(&self.content, edit_region) {
+                if let Some((_, end)) = positions.first() {
+                    match &mut self.content {
+                        Cow::Borrowed(borrowed) => *borrowed = &borrowed[*end..],
+                        Cow::Owned(owned) => *owned = owned[*end..].to_string(),
+                    };
+                }
+            }
+        }
+
+        self.position.start_byte = self.position.end_byte.take()?;
+        Some(self)
+    }
+
+    pub fn edit_region(&self) -> Option<&'editor str> {
+        if let EditPosition {
+            start_byte,
+            end_byte: Some(end_byte),
+        } = self.position
+        {
+            self.editor.source_code.get(start_byte..end_byte)
+        } else {
+            None
         }
     }
 
     pub fn with_end_byte(mut self, end_byte: usize) -> Self {
         self.position.end_byte = Some(end_byte);
         self
-    }
-
-    pub fn with_content(mut self, content: String) -> Self {
-        self.content = Cow::Owned(content);
-        self
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.valid
     }
 
     fn byte_to_point(&self, byte_idx: usize) -> Point {
@@ -54,7 +166,11 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         Point { row: line, column }
     }
 
-    pub(crate) fn apply(&mut self) -> Result<()> {
+    pub(crate) fn apply(&mut self) -> bool {
+        if let Some(valid) = self.valid {
+            return valid;
+        }
+
         let content = &self.content;
 
         let EditPosition {
@@ -95,23 +211,34 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         if let Some(tree) = self.editor.parse(&output, Some(&self.tree)) {
             self.tree = tree;
         } else {
+            self.valid = Some(false);
             self.message = Some("Unable to parse result so no changes were made. The file is still in a good state. Try a different edit".into());
-            return Ok(());
+            return false;
         }
 
-        if let Some(message) = self.validate(&output) {
+        let valid = if let Some(message) = self.validate(&output) {
             self.message = Some(message);
+            false
         } else {
-            self.valid = true;
             self.message = Some(format!(
                 "Applied {} operation",
                 self.editor.selector.operation_name()
             ));
 
-            self.output = Some(self.editor.format_code(&output)?);
-        }
+            match self.editor.format_code(&output) {
+                Ok(formatted) => {
+                    self.output = Some(formatted);
+                    true
+                }
+                Err(err) => {
+                    self.message = Some(err);
+                    false
+                }
+            }
+        };
 
-        Ok(())
+        self.valid = Some(valid);
+        valid
     }
 
     fn validate(&mut self, output: &str) -> Option<String> {
@@ -125,11 +252,28 @@ Suggestion: Try a different change.\n
         ))
     }
 
-    pub(crate) fn message(&mut self) -> String {
-        self.message.take().unwrap_or_default()
+    pub(crate) fn source_code(&self) -> &'editor str {
+        self.editor.source_code()
     }
 
-    pub(crate) fn output(&mut self) -> Option<String> {
-        self.output.take()
+    pub(crate) fn start_byte(&self) -> usize {
+        self.position.start_byte
+    }
+
+    pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
+        self.position.start_byte = start_byte;
+        self
+    }
+
+    pub(crate) fn modify(mut fun: impl FnMut(&mut Self)) -> impl FnMut(Self) -> Self {
+        move |mut edit| {
+            fun(&mut edit);
+            edit
+        }
+    }
+
+    pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {
+        self.position.start_byte = start_byte;
+        self
     }
 }

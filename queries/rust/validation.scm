@@ -21,16 +21,6 @@
  body: (block
         (mod_item) @invalid.mod.in.function.body))
 
-;; Use declarations inside function bodies (should be at module level)
-(function_item
- body: (block
-        (use_declaration) @invalid.use.in.function.body))
-
-;; Static/const items inside function bodies
-(function_item
- body: (block
-        [(const_item) (static_item)] @invalid.const.in.function.body))
-
 
 (function_item
  body: (block
@@ -91,20 +81,6 @@
 
 
 ;; CRITICAL: Break/continue outside of loops
-
-((break_expression) @invalid.break.outside.loop
- (#not-has-ancestor? loop_expression)
- (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression)
- (#not-has-ancestor? match_expression)
- (#not-has-ancestor? block))
-
-((continue_expression) @invalid.continue.outside.loop
- (#not-has-ancestor? loop_expression)
- (#not-has-ancestor? while_expression)
- (#not-has-ancestor? for_expression)
- (#not-has-ancestor? match_expression)
- (#not-has-ancestor? block))
 
 ;; CRITICAL: Visibility modifiers on items inside functions
 (function_item

@@ -2,9 +2,9 @@
   {
     "arguments": {
       "content": "    fn get_value(&self) -> i32 {\n        println!(\"Getting value: {}\", self.value);\n        self.value\n    }",
-      "operation": "replace_node",
+      "operation": "replace",
       "anchor": "fn get_value(&self) -> i32 {"
     },
-    "name": "stage_operation"
+    "name": "preview_edit"
   }
 ]

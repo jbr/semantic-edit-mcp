@@ -1,0 +1,11 @@
+[
+  {
+    "name": "preview_edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "/// Represents a user in the system\n#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]\npub struct User {",
+      "content": "\n/// Administrative user with elevated privileges\n#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]\npub struct AdminUser {\n    pub user: User,\n    pub permissions: Vec<String>,\n}"
+    }
+  },
+  {"name": "persist_edit", "arguments": {}}
+]

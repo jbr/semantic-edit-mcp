@@ -1,16 +1,14 @@
 [
   {
     "arguments": {
-      "content": "\npub fn new_function() -> String {\n    \"inserted after existing_function\".to_string()\n}",
-      "anchor": "42\n}",
+      "content": "\n    eprintln!(\"here\");",
+      "anchor": "function\");",
       "operation": "insert_after"
     },
-    "name": "stage_operation"
+    "name": "preview_edit"
   },
   {
-    "arguments": {
-      "acknowledge": true
-    },
-    "name": "commit_staged"
+    "arguments": {},
+    "name": "persist_edit"
   }
 ]

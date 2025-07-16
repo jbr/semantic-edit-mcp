@@ -1,15 +1,11 @@
-use super::{traits::DefaultEditor, LanguageCommon, LanguageName};
-use anyhow::Result;
+use super::{ecma_editor::EcmaEditor, LanguageCommon, LanguageName};
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_javascript::LANGUAGE.into();
-    let editor = Box::new(DefaultEditor::new());
-
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Javascript,
-        file_extensions: &["js", "jsx"],
-        language,
-        editor,
+        file_extensions: &["js"],
+        language: tree_sitter_javascript::LANGUAGE.into(),
+        editor: Box::new(EcmaEditor),
         validation_query: None,
-    })
+    }
 }

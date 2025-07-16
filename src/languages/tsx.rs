@@ -1,31 +1,11 @@
-use crate::languages::{traits::LanguageEditor, LanguageCommon, LanguageName};
-use anyhow::Result;
+use crate::languages::{ecma_editor::EcmaEditor, LanguageCommon, LanguageName};
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_typescript::LANGUAGE_TSX.into();
-    let editor = Box::new(TypescriptEditor::new());
-
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Tsx,
         file_extensions: &["tsx"],
-        language,
-        editor,
+        language: tree_sitter_typescript::LANGUAGE_TSX.into(),
+        editor: Box::new(EcmaEditor),
         validation_query: None,
-    })
-}
-
-pub struct TypescriptEditor;
-
-impl Default for TypescriptEditor {
-    fn default() -> Self {
-        Self::new()
     }
 }
-
-impl TypescriptEditor {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl LanguageEditor for TypescriptEditor {}

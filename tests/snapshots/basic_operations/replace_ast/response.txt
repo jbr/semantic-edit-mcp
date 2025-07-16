@@ -1,5 +1,6 @@
-=== snapshot test tool call: stage_operation ===
-STAGED: replace node
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
  // Sample Rust code for testing
@@ -12,9 +13,9 @@ STAGED: replace node
  }
 
  pub fn other_function() -> String {
-=== snapshot test tool call: commit_staged ===
-replace node operation result:
-Applied replace node operation
+=== snapshot test tool call: persist_edit ===
+replace operation result:
+Applied replace operation
 
 ===DIFF===
  // Sample Rust code for testing

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "preview_edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "println!(\"hello world!\");",
+      "content": "println!(\"hello markdown!\");"
+    }
+  },
+  {
+    "name": "preview_edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "# title",
+      "content": "# Welcome"
+    }
+  },
+  {
+    "name": "preview_edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "* item",
+      "content": "\n* another item"
+    }
+  }
+]

@@ -1,20 +1,18 @@
-use super::{traits::LanguageEditor, LanguageCommon, LanguageName};
+use crate::{
+    editor::{Edit, EditIterator, Editor},
+    languages::{ecma_editor::EcmaEditor, LanguageCommon, LanguageEditor, LanguageName},
+};
 use anyhow::Result;
-use jsonformat::Indentation;
-use serde_json::Value;
-use std::collections::BTreeMap;
-use tree_sitter::Tree;
+use std::path::Path;
 
-pub fn language() -> Result<LanguageCommon> {
-    let language = tree_sitter_json::LANGUAGE.into();
-    let editor = Box::new(JsonEditor::new());
-    Ok(LanguageCommon {
+pub fn language() -> LanguageCommon {
+    LanguageCommon {
         name: LanguageName::Json,
         file_extensions: &["json"],
-        language,
+        language: tree_sitter_json::LANGUAGE.into(),
         validation_query: None,
-        editor,
-    })
+        editor: Box::new(JsonEditor::new()),
+    }
 }
 
 pub struct JsonEditor;
@@ -32,53 +30,29 @@ impl JsonEditor {
 }
 
 impl LanguageEditor for JsonEditor {
-    fn format_code(&self, source: &str) -> Result<String> {
-        let mut tab_count = 0;
-        let mut space_counts = BTreeMap::<usize, usize>::new();
-        let mut last_indentation = 0;
-        let mut last_change = 0;
-        for line in source.lines().take(100) {
-            if line.starts_with('\t') {
-                tab_count += 1;
-            } else {
-                let count = line.chars().take_while(|c| c == &' ').count();
-                let diff = count.abs_diff(last_indentation);
-                last_indentation = count;
-                if diff > 0 {
-                    last_change = diff;
-                }
-                let entry = space_counts.entry(last_change).or_default();
-                *entry += 1;
-            }
-        }
-
-        let custom;
-
-        let indentation_style = match space_counts
-            .into_iter()
-            .map(|(k, v)| (Some(k), v))
-            .chain(std::iter::once((None, tab_count)))
-            .max_by_key(|(_, count)| *count)
-        {
-            Some((Some(2), _)) => Indentation::TwoSpace,
-            Some((Some(4), _)) => Indentation::FourSpace,
-            Some((None, _)) => Indentation::Tab,
-            Some((Some(n), _)) => {
-                custom = " ".repeat(n);
-                Indentation::Custom(&custom)
-            }
-            None => Indentation::FourSpace,
-        };
-
-        Ok(jsonformat::format(source, indentation_style))
+    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
+        EcmaEditor.format_code(source, file_path)
     }
 
-    fn collect_errors(&self, _tree: &Tree, content: &str) -> Vec<usize> {
-        match serde_json::from_str::<Value>(content) {
-            Ok(_) => vec![],
-            Err(e) => {
-                vec![e.line().saturating_sub(1)]
-            }
-        }
+    fn build_edits<'language, 'editor>(
+        &self,
+        editor: &'editor Editor<'language>,
+    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        let mut edits = EditIterator::new(editor).find_edits()?;
+
+        let new_edits = edits
+            .iter()
+            .filter(|edit| !edit.content().ends_with(','))
+            .cloned()
+            .map(Edit::modify(|edit| {
+                edit.set_annotation("json: added trailing comma")
+                    .content_mut()
+                    .to_mut()
+                    .push(',')
+            }))
+            .collect::<Vec<_>>();
+
+        edits.extend(new_edits);
+        Ok(edits)
     }
 }

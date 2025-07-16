@@ -2,7 +2,7 @@
   "arguments": {
     "anchor": "    pub fn new",
     "content": "pub fn new(id: u64, username: String, email: String) -> Self {\n        Self {\n            id,\n            username,\n            email,\n            created_at: chrono::Utc::now(),\n            is_active: true,\n            phone_number: None,\n            profile: UserProfile::default(),\n        }\n        }",
-    "operation": "replace_node"
+    "operation": "replace"
   },
-  "name": "stage_operation"
+  "name": "preview_edit"
 }]

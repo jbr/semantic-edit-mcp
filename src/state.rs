@@ -1,36 +1,34 @@
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
+use crate::{
+    editor::EditPosition,
+    languages::{LanguageName, LanguageRegistry},
+    selector::Selector,
+};
 use anyhow::{anyhow, Result};
 use fieldwork::Fieldwork;
-use lru::LruCache;
-use serde::{Deserialize, Serialize};
-
-use crate::editor::EditPosition;
-use crate::languages::{LanguageName, LanguageRegistry};
-use crate::selector::Selector;
 use mcplease::session::SessionStore;
+use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{self, Debug, Formatter},
+    path::PathBuf,
+    sync::Arc,
+};
 
-// Explanation for the presence of session_id that is currently unused: The intent was initially to
-// have a conversation-unique identifier of some sort in order to isolate state between
-// conversations. However, MCP provides no mechanism to distinguish between conversations, so I
-// tried adding a session_id that was provided to every tool call in order to isolate state. This
-// presents a usability concern, so I've decided to just be extra careful about switching contexts
-// until we have a better solution. I still hope to iterate towards isolated sessions, so the code
-// is still written to support that.
+/// Shared context data that can be used across multiple MCP servers
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+pub struct SharedContextData {
+    /// Current working context path
+    context_path: Option<PathBuf>,
+}
 
 /// Session data specific to semantic editing operations
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct SemanticEditSessionData {
-    /// Current working context path
-    pub context_path: Option<PathBuf>,
     /// Currently staged operation
-    pub staged_operation: Option<StagedOperation>,
+    staged_operation: Option<StagedOperation>,
 }
 
 /// Represents a staged operation that can be previewed and committed
-#[derive(Debug, Clone, Fieldwork, Serialize, Deserialize)]
+#[derive(Debug, Clone, Fieldwork, Serialize, Deserialize, PartialEq, Eq)]
 #[fieldwork(get, set, get_mut, with)]
 pub struct StagedOperation {
     pub selector: Selector,
@@ -47,25 +45,26 @@ impl StagedOperation {
 }
 
 /// Semantic editing tools with session support
-#[derive(fieldwork::Fieldwork)]
-#[fieldwork(get)]
+#[derive(Fieldwork)]
+#[fieldwork(get, get_mut)]
 pub struct SemanticEditTools {
-    #[fieldwork(get_mut)]
+    /// Private session store for edit-specific state (staged operations, etc.)
     session_store: SessionStore<SemanticEditSessionData>,
+    /// Shared context store for cross-server communication
+    shared_context_store: SessionStore<SharedContextData>,
     language_registry: Arc<LanguageRegistry>,
-    file_cache: Arc<Mutex<LruCache<String, String>>>,
-    #[fieldwork(set, get_mut, option = false)]
-    commit_fn: Option<Box<(dyn Fn(PathBuf, String) + 'static)>>,
-    #[fieldwork(set, with)]
+    #[field(set, get_mut(option_borrow_inner = false))]
+    commit_fn: Option<Box<dyn Fn(PathBuf, String) + 'static>>,
+    #[field(set, with)]
     default_session_id: &'static str,
 }
 
-impl std::fmt::Debug for SemanticEditTools {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for SemanticEditTools {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("SemanticEditTools")
             .field("session_store", &self.session_store)
+            .field("shared_context_store", &self.shared_context_store)
             .field("language_registry", &self.language_registry)
-            .field("file_cache", &self.file_cache)
             .field("default_session_id", &self.default_session_id)
             .finish()
     }
@@ -74,30 +73,38 @@ impl std::fmt::Debug for SemanticEditTools {
 impl SemanticEditTools {
     /// Create a new SemanticEditTools instance
     pub fn new(storage_path: Option<&str>) -> Result<Self> {
-        let storage_path = storage_path.map(|s| PathBuf::from(&*shellexpand::tilde(s)));
-        let session_store = SessionStore::new(storage_path)?;
+        // Private session store for edit-specific state
+        let private_path = storage_path.map(|s| PathBuf::from(&*shellexpand::tilde(s)));
+        let session_store = SessionStore::new(private_path)?;
+
+        // Shared context store for cross-server communication
+        let mut shared_path = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        shared_path.push(".ai-tools");
+        shared_path.push("sessions");
+        shared_path.push("shared-context.json");
+        let shared_context_store = SessionStore::new(Some(shared_path))?;
+
         let language_registry = Arc::new(LanguageRegistry::new()?);
-        let file_cache = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(50).unwrap())));
 
         Ok(Self {
             session_store,
+            shared_context_store,
             language_registry,
-            file_cache,
             commit_fn: None,
             default_session_id: "default",
         })
     }
 
     /// Get context for a session
-    pub fn get_context(&self, session_id: Option<&str>) -> Result<Option<PathBuf>> {
+    pub fn get_context(&mut self, session_id: Option<&str>) -> Result<Option<PathBuf>> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
-        let session_data = self.session_store.get_or_create(session_id)?;
-        Ok(session_data.context_path)
+        let shared_data = self.shared_context_store.get_or_create(session_id)?;
+        Ok(shared_data.context_path.clone())
     }
 
     /// Stage a new operation, replacing any existing staged operation
-    pub fn stage_operation(
-        &self,
+    pub fn preview_edit(
+        &mut self,
         session_id: Option<&str>,
         staged_operation: Option<StagedOperation>,
     ) -> Result<()> {
@@ -109,17 +116,17 @@ impl SemanticEditTools {
 
     /// Get the currently staged operation, if any
     pub fn get_staged_operation(
-        &self,
+        &mut self,
         session_id: Option<&str>,
-    ) -> Result<Option<StagedOperation>> {
+    ) -> Result<Option<&StagedOperation>> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
         let session_data = self.session_store.get_or_create(session_id)?;
-        Ok(session_data.staged_operation)
+        Ok(session_data.staged_operation.as_ref())
     }
 
     /// Take the staged operation, removing it from storage
     pub fn take_staged_operation(
-        &self,
+        &mut self,
         session_id: Option<&str>,
     ) -> Result<Option<StagedOperation>> {
         let mut staged_op = None;
@@ -132,10 +139,10 @@ impl SemanticEditTools {
 
     /// Modify the staged operation in place
     pub fn modify_staged_operation<F>(
-        &self,
+        &mut self,
         session_id: Option<&str>,
         fun: F,
-    ) -> Result<Option<StagedOperation>>
+    ) -> Result<Option<&StagedOperation>>
     where
         F: FnOnce(&mut StagedOperation),
     {
@@ -149,16 +156,30 @@ impl SemanticEditTools {
     }
 
     /// Set context path for a session
-    pub fn set_context(&self, session_id: Option<&str>, path: PathBuf) -> Result<()> {
+    pub fn set_working_directory(&mut self, path: PathBuf, session_id: Option<&str>) -> Result<()> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
 
-        self.session_store.update(session_id, |data| {
+        self.shared_context_store_mut().update(session_id, |data| {
             data.context_path = Some(path);
         })
     }
 
+    #[allow(dead_code, reason = "used in tests")]
+    pub fn with_working_directory(
+        mut self,
+        path: PathBuf,
+        session_id: Option<&str>,
+    ) -> Result<Self> {
+        self.set_working_directory(path, session_id)?;
+        Ok(self)
+    }
+
     /// Resolve a path relative to session context if needed
-    pub(crate) fn resolve_path(&self, path_str: &str, session_id: Option<&str>) -> Result<PathBuf> {
+    pub(crate) fn resolve_path(
+        &mut self,
+        path_str: &str,
+        session_id: Option<&str>,
+    ) -> Result<PathBuf> {
         let path = PathBuf::from(&*shellexpand::tilde(path_str));
 
         if path.is_absolute() {
@@ -168,9 +189,7 @@ impl SemanticEditTools {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
 
         match self.get_context(Some(session_id))? {
-            Some(context) => {
-                Ok(std::fs::canonicalize(context.join(path_str))?)
-            },
+            Some(context) => Ok(std::fs::canonicalize(context.join(path_str))?),
             None => Err(anyhow!(
                 "No context found for `{session_id}`. Use set_context first or provide an absolute path.",
             )),

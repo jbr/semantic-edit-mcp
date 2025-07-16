@@ -1,0 +1,14 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+     }
+   }
+   getUserById(id) {
++    console.log("here");
++  }
++  getUserById(id) {
+     if (this.users.has(id)) {
+       return this.users.get(id);
+     }

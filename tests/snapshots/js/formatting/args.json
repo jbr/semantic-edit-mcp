@@ -1,0 +1,8 @@
+{
+  "name": "preview_edit",
+  "arguments": {
+    "anchor": "async refreshUser(id) {",
+    "operation": "insert_after",
+    "content": "getUserById(id) { console.log('here'); }"
+  }
+}

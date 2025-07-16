@@ -1,0 +1,32 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+
+ ```
+ fn main() {
+-    println!("hello world!");
++    println!("hello markdown!");
+ }
+ ```
+     
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+-# title
++# Welcome
+
+ ```
+ fn main() {
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ ## list
+
+ * item
++* another item

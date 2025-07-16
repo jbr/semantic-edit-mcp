@@ -1,7 +1,7 @@
-=== snapshot test tool call: stage_operation ===
-STAGED: replace node
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
 
-Edit efficiency: 0%
 💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration
 
 ===DIFF===

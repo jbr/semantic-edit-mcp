@@ -1,18 +1,26 @@
 #![allow(clippy::collapsible_if)]
+#![deny(dead_code)]
 
 mod editor;
+mod indentation;
 mod languages;
+mod searcher;
 mod selector;
 mod state;
 mod tools;
 mod validation;
+
+#[cfg(test)]
+mod tests;
 
 use mcplease::server_info;
 use state::SemanticEditTools;
 use std::env;
 use tools::Tools;
 
-const INSTRUCTIONS: &str = "Semantic code editing with tree-sitter. Use stage_operation to preview changes, retarget_staged to adjust targeting, and commit_staged to apply.";
+const INSTRUCTIONS: &str = r#"Use preview_edit to preview changes, retarget_edit to adjust targeting, and persist_edit to apply.
+The purpose of the preview/retarget/persist pattern is so you can review a diff and adjust placement prior to persisting your change to disk.
+"#;
 
 fn main() {
     let mut state = SemanticEditTools::new(

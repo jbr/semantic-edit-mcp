@@ -1,0 +1,26 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+     if True:
+         for i in range(3):
+             if i > 0:
+-                print(f"Bad indentation {i}")
++                print(f"Fixed indentation {i}")
+                 result = i * 2
+                 return result
+     return None
+=== snapshot test tool call: persist_edit ===
+replace operation result:
+Applied replace operation
+
+===DIFF===
+     if True:
+         for i in range(3):
+             if i > 0:
+-                print(f"Bad indentation {i}")
++                print(f"Fixed indentation {i}")
+                 result = i * 2
+                 return result
+     return None

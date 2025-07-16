@@ -1,20 +1,28 @@
-use std::iter::Iterator;
+use std::{borrow::Cow, iter::Iterator};
 
-use tree_sitter::Tree;
+use tree_sitter::{Node, Tree};
 
 use crate::{
     editor::EditPosition,
+    searcher::find_positions,
     selector::{Operation, Selector},
 };
 
 use super::{Edit, Editor};
 
-pub(super) struct EditIterator<'editor, 'language> {
+#[derive(fieldwork::Fieldwork)]
+#[fieldwork(get, into)]
+pub struct EditIterator<'editor, 'language> {
     editor: &'editor Editor<'language>,
-    selector: &'editor Selector,
+    #[field(with, get_mut, set)]
+    selector: Cow<'editor, Selector>,
     source_code: &'editor str,
+    #[field(with, get_mut, set)]
+    content: Cow<'editor, str>,
     tree: &'editor Tree,
+    #[field = false]
     staged_edit: Option<&'editor EditPosition>,
+    #[field(get_mut(deref = false))]
     edits: Option<Vec<Edit<'editor, 'language>>>,
     current_index: usize,
 }
@@ -26,11 +34,13 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             source_code,
             tree,
             staged_edit,
+            content,
             ..
         } = &editor;
         Self {
             editor,
-            selector,
+            selector: Cow::Borrowed(selector),
+            content: Cow::Borrowed(content),
             source_code,
             tree,
             staged_edit: staged_edit.as_ref(),
@@ -39,25 +49,20 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         }
     }
 
-    fn find_edits(&self) -> Result<Vec<Edit<'editor, 'language>>, String> {
+    pub(crate) fn find_edits(&self) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let source_code: &str = self.source_code;
         let tree: &Tree = self.tree;
         self.selector.validate()?;
-        let Selector {
-            operation,
-            anchor,
-            end,
-        } = &self.selector;
+        let Selector { operation, anchor } = &*self.selector;
 
         match operation {
-            Operation::InsertBefore => self.find_insert_positions(anchor, true, source_code),
-            Operation::InsertAfter => self.find_insert_positions(anchor, false, source_code),
-            Operation::InsertAfterNode => {
+            Operation::InsertAfter => {
                 self.find_after_ast_insert_positions(anchor, source_code, tree)
             }
-            Operation::ReplaceRange => self.find_range_matches(anchor, end.as_deref(), source_code),
-            Operation::ReplaceExact => self.find_exact_matches(anchor, source_code),
-            Operation::ReplaceNode => self.select_ast_node(anchor, source_code, tree),
+            Operation::InsertBefore => {
+                self.find_before_ast_insert_positions(anchor, source_code, tree)
+            }
+            Operation::Replace => self.select_ast_node(anchor, source_code, tree),
         }
     }
 
@@ -76,150 +81,86 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                 end_byte: None,
             },
         )
+        .with_content(self.content.clone())
     }
 
     fn find_after_ast_insert_positions(
         &self,
         anchor: &str,
         source_code: &str,
-        tree: &Tree,
+        tree: &'editor Tree,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let mut edits = self
             .select_ast_node(anchor, source_code, tree)?
             .into_iter()
-            .filter_map(|edit| {
-                edit.position
-                    .end_byte
-                    .map(|start_byte| self.build_edit(start_byte))
-            })
+            .filter_map(Edit::insert_after)
             .collect::<Vec<_>>();
 
         let mut additional = vec![];
         for edit in &edits {
-            additional.push(edit.clone().with_content(format!(" {}", &edit.content)));
-            additional.push(edit.clone().with_content(format!("\n{}", &edit.content)));
+            additional.push(edit.clone().with_content(format!(" {}", &edit.content())));
+            additional.push(edit.clone().with_content(format!("\n{}", &edit.content())));
         }
-        edits.extend_from_slice(&additional);
+        edits.extend(additional);
         Ok(edits)
     }
-
-    fn find_explicit_range(
+    fn find_before_ast_insert_positions(
         &self,
         anchor: &str,
-        end: &str,
         source_code: &str,
+        tree: &'editor Tree,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        let mut ranges = Vec::new();
-
-        for (from_byte, _) in from_positions(source_code, anchor)? {
-            for (to_byte, _) in to_positions(source_code, end)? {
-                if to_byte >= from_byte + anchor.len() {
-                    ranges.push(
-                        self.build_edit(from_byte)
-                            .with_end_byte(to_byte + end.len()),
-                    );
-                }
-            }
-        }
-
-        if ranges.is_empty() {
-            Err(format!(
-                "No valid range found from \"{anchor}\" to \"{end}\""
-            ))
-        } else {
-            Ok(ranges)
-        }
-    }
-
-    fn find_insert_positions(
-        &self,
-        anchor: &str,
-        before: bool,
-        source_code: &str,
-    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        let mut edits = source_code
-            .match_indices(anchor)
-            .map(|(byte_offset, _)| {
-                self.build_edit(if before {
-                    byte_offset
-                } else {
-                    byte_offset + anchor.len()
-                })
-            })
+        let mut edits = self
+            .select_ast_node(anchor, source_code, tree)?
+            .into_iter()
+            .map(Edit::insert_before)
             .collect::<Vec<_>>();
 
-        if edits.is_empty() {
-            Err(format!("Anchor text \"{anchor}\" not found in source"))
-        } else {
-            let mut additional = vec![];
-            for edit in &edits {
-                if before {
-                    additional.push(edit.clone().with_content(format!("{} ", &edit.content)));
-                    additional.push(edit.clone().with_content(format!("{}\n", &edit.content)));
-                } else {
-                    additional.push(edit.clone().with_content(format!(" {}", &edit.content)));
-                    additional.push(edit.clone().with_content(format!("\n{}", &edit.content)));
-                }
-            }
-            edits.extend_from_slice(&additional);
-            Ok(edits)
+        let mut additional = vec![];
+        for edit in &edits {
+            additional.push(edit.clone().with_content(format!("{}\n", edit.content())));
+            additional.push(edit.clone().with_content(format!("{} ", edit.content())));
         }
-    }
-
-    fn find_exact_matches(
-        &self,
-        exact_text: &str,
-        source_code: &str,
-    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        let positions = source_code
-            .match_indices(exact_text)
-            .map(|(start_byte, matched)| {
-                self.build_edit(start_byte)
-                    .with_end_byte(start_byte + matched.len())
-            })
-            .collect::<Vec<_>>();
-
-        if positions.is_empty() {
-            Err(format!("Exact text \"{exact_text}\" not found in source"))
-        } else {
-            Ok(positions)
-        }
-    }
-
-    fn find_range_matches(
-        &self,
-        anchor: &str,
-        end: Option<&str>,
-        source_code: &str,
-    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        if let Some(end) = end {
-            self.find_explicit_range(anchor, end, source_code)
-        } else {
-            Err("end is required for range replacement".to_string())
-        }
+        edits.extend(additional);
+        Ok(edits)
     }
 
     fn select_ast_node(
         &self,
         anchor: &str,
         source_code: &str,
-        tree: &Tree,
+        tree: &'editor Tree,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        let anchor = anchor.trim().lines().next().unwrap_or_default();
+        let anchor = anchor.trim();
+        let mut candidates = vec![];
+        for (start, end) in find_positions(source_code, anchor)? {
+            if let Some(parent) = tree.root_node().descendant_for_byte_range(start, end) {
+                let nodes = siblings_in_range(parent, start, end);
+                if !nodes.is_empty() {
+                    candidates.push(
+                        self.build_edit(nodes.first().as_ref().unwrap().start_byte())
+                            .with_end_byte(nodes.last().as_ref().unwrap().end_byte())
+                            .with_node(*nodes.first().unwrap())
+                            .with_annotation("node range"),
+                    );
+                }
 
-        Ok(from_positions(source_code, anchor.trim())?
-            .into_iter()
-            .filter_map(|(from, anchor)| {
-                let from_end = from + anchor.len();
-                tree.root_node()
-                    .named_descendant_for_byte_range(from, from_end)
-                    .or_else(|| tree.root_node().descendant_for_byte_range(from, from_end))
-                    .map(|node| {
-                        self.build_edit(node.start_byte())
-                            .with_end_byte(node.end_byte())
-                    })
-            })
-            .collect())
+                candidates.push(
+                    self.build_edit(parent.start_byte())
+                        .with_end_byte(parent.end_byte())
+                        .with_node(parent)
+                        .with_annotation("common parent"),
+                );
+            }
+
+            candidates.push(
+                self.build_edit(start)
+                    .with_end_byte(end)
+                    .with_annotation("exact"),
+            );
+        }
+
+        Ok(candidates)
     }
 }
 
@@ -250,18 +191,22 @@ impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
     }
 }
 
-fn from_positions<'a>(source_code: &'a str, anchor: &str) -> Result<Vec<(usize, &'a str)>, String> {
-    let from_positions: Vec<_> = source_code.match_indices(anchor).collect();
-    if from_positions.is_empty() {
-        return Err(format!("From text \"{anchor}\" not found in source"));
-    }
-    Ok(from_positions)
-}
+fn siblings_in_range<'tree>(parent: Node<'tree>, start: usize, end: usize) -> Vec<Node<'tree>> {
+    // Collect all named children that intersect the range
+    let mut result = Vec::new();
+    let mut cursor = parent.walk();
 
-fn to_positions<'a>(source_code: &'a str, end: &str) -> Result<Vec<(usize, &'a str)>, String> {
-    let to_positions: Vec<_> = source_code.match_indices(end).collect();
-    if to_positions.is_empty() {
-        return Err(format!("To text \"{end}\" not found in source"));
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            if child.is_named() && child.start_byte() < end && child.end_byte() > start {
+                result.push(child);
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
     }
-    Ok(to_positions)
+
+    result
 }

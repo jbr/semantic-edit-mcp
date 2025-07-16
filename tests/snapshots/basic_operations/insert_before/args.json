@@ -5,12 +5,12 @@
       "anchor": "pub fn target",
       "operation": "insert_before"
     },
-    "name": "stage_operation"
+    "name": "preview_edit"
   },
   {
     "arguments": {
-      "acknowledge": true
+      
     },
-    "name": "commit_staged"
+    "name": "persist_edit"
   }
 ]
