@@ -9,9 +9,21 @@
 [version-badge]: https://img.shields.io/crates/v/semantic-edit-mcp.svg?style=flat-square
 [crate]: https://crates.io/crates/semantic-edit-mcp
 
-
-
 A Model Context Protocol server for AST-aware code editing
+
+## Supported Languages and Important Language Notes
+
+* Rust
+  - Must have `rustfmt` available on the `PATH`
+  - Currently assumes edition 2024 for formatting, eventually this will be determined from context
+* Python
+  - Must have [`ruff`](https://docs.astral.sh/ruff/) available on the `PATH`
+* JavaScript/TypeScript/JSON/JSX/TSX
+  - Must have [`biome`](https://biomejs.dev/) available on the `PATH`
+* TOML
+  - No external dependencies, taplo formatting included
+* Plaintext / markdown / default editor
+  - No external dependencies
 
 ## Tools
 ```
