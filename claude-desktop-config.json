@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "semantic-edit-mcp": {
-      "command": "semantic-edit-mcp",
-      "args": ["serve"],
-      "env": {}
-    }
-  }
-}
