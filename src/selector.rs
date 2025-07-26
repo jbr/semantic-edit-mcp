@@ -65,6 +65,7 @@ pub struct Selector {
     /// - **Keep anchors short but unique** - "fn main" instead of the entire function signature
     /// - **Use distinctive text** - function names, keywords, or unique comments work well
     /// - **Test your anchor** - if it appears multiple times, the tool will attempt to find the best placement
+    /// - **Whitespace doesn't matter** - anchors are whitespace-insensitive, so you can omit spaces, newlines, and indentation
     ///
     /// # Examples
     /// - `"fn main"` - Targets a function definition
