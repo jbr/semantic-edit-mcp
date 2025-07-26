@@ -63,3 +63,34 @@ jobs:
 
     - name: Docs
       run: cargo doc --no-deps
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: cargo-expand
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview, rust-docs-json, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Setup Biome
+        uses: biomejs/setup-biome@v2
+
+      - name: Install ruff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "--version"
+      - name: Collect coverage data
+        run: cargo llvm-cov nextest --codecov --output-path codecov.json
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+
