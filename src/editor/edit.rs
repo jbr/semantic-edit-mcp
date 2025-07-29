@@ -25,7 +25,7 @@ pub struct Edit<'editor, 'language> {
     #[field(get, take)]
     output: Option<String>,
     #[field(get, set, with, take)]
-    node: Option<Node<'editor>>,
+    nodes: Option<Vec<Node<'editor>>>,
     #[field(with, get, set)]
     annotation: Option<&'static str>,
 }
@@ -35,7 +35,7 @@ impl PartialEq for Edit<'_, '_> {
         std::ptr::eq(self.editor, other.editor)
             && self.content == other.content
             && self.position == other.position
-            && self.node == other.node
+            && self.nodes == other.nodes
     }
 }
 
@@ -52,8 +52,15 @@ impl<'editor, 'language> Debug for Edit<'editor, 'language> {
         if let Some(valid) = self.valid {
             s.field("valid", &valid);
         }
-        if let Some(node) = self.node {
-            s.field("node_kind", &format_args!("{}", node.kind()));
+        if let Some(nodes) = &self.nodes {
+            s.field(
+                "node_kinds",
+                &nodes
+                    .iter()
+                    .map(|node| node.kind().to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
         }
 
         if let Some(edit_region) = self.edit_region() {
@@ -104,7 +111,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             valid: None,
             message: None,
             output: None,
-            node: None,
+            nodes: None,
             annotation: None,
         }
     }

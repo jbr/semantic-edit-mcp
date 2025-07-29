@@ -140,7 +140,7 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                     candidates.push(
                         self.build_edit(nodes.first().as_ref().unwrap().start_byte())
                             .with_end_byte(nodes.last().as_ref().unwrap().end_byte())
-                            .with_node(*nodes.first().unwrap())
+                            .with_nodes(nodes)
                             .with_annotation("node range"),
                     );
                 }
@@ -148,7 +148,7 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                 candidates.push(
                     self.build_edit(parent.start_byte())
                         .with_end_byte(parent.end_byte())
-                        .with_node(parent)
+                        .with_nodes(vec![parent])
                         .with_annotation("common parent"),
                 );
             }
