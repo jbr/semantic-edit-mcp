@@ -3,7 +3,7 @@ use crate::{
     languages::{LanguageName, LanguageRegistry},
     selector::Selector,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fieldwork::Fieldwork;
 use mcplease::session::SessionStore;
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-use crate::languages::{ecma_editor::EcmaEditor, LanguageCommon, LanguageName};
+use crate::languages::{LanguageCommon, LanguageName, ecma_editor::EcmaEditor};
 
 pub fn language() -> LanguageCommon {
     LanguageCommon {

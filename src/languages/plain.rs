@@ -1,6 +1,6 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    languages::{traits::LanguageEditor, LanguageCommon, LanguageName},
+    languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
 };
 use anyhow::Result;
 

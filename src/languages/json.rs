@@ -1,6 +1,6 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    languages::{ecma_editor::EcmaEditor, LanguageCommon, LanguageEditor, LanguageName},
+    languages::{LanguageCommon, LanguageEditor, LanguageName, ecma_editor::EcmaEditor},
 };
 use anyhow::Result;
 use std::path::Path;

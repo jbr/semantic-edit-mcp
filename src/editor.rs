@@ -8,7 +8,7 @@ use crate::{
     state::StagedOperation,
     validation::ContextValidator,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use diffy::{DiffOptions, Patch, PatchFormatter};
 use ropey::Rope;
 use std::{collections::BTreeSet, iter, path::PathBuf};
