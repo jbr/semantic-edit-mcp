@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/jbr/semantic-edit-mcp/compare/v0.2.0...v0.2.1) - 2025-07-29
+
+### Added
+
+- rust editor grouping improvements
+
+### Other
+
+- Merge pull request #29 from jbr/lockfile
+- *(lockfile)* lockfile maintenance
+- format
+- document external dependencies
+
 ## [0.2.0](https://github.com/jbr/semantic-edit-mcp/compare/v0.1.2...v0.2.0) - 2025-07-26
 
 ### Added
