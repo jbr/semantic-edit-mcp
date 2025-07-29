@@ -12,7 +12,7 @@ pub mod typescript;
 
 use anyhow::Result;
 use clap::ValueEnum;
-use enum_map::{enum_map, Enum, EnumMap};
+use enum_map::{Enum, EnumMap, enum_map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{

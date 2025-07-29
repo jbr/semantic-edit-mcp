@@ -1,6 +1,6 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    languages::{traits::LanguageEditor, LanguageCommon, LanguageName},
+    languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
 };
 use anyhow::Result;
 
@@ -31,7 +31,7 @@ impl LanguageEditor for PlainEditor {
         editor: &'editor Editor<'language>,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let mut edits = EditIterator::new(editor).find_edits()?;
-        edits.retain(|x| x.node().is_none());
+        edits.retain(|x| x.nodes().is_none());
 
         Ok(edits)
     }

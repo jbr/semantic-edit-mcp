@@ -34,11 +34,13 @@ mod python {
 
     #[test]
     fn no_self_outside_class() {
-        assert!(validate_code(
-            r#"def method_with_self(self):\n    return "this has self but is outside class"#,
-            LanguageName::Python
-        )
-        .is_some());
+        assert!(
+            validate_code(
+                r#"def method_with_self(self):\n    return "this has self but is outside class"#,
+                LanguageName::Python
+            )
+            .is_some()
+        );
     }
 
     #[test]

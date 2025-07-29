@@ -3,30 +3,32 @@ Previewing: insert after
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
- use serde::{Deserialize, Serialize};
-
+     pub id: u64,
+     pub username: String,
+ }
 +/// Administrative user with elevated privileges
 +#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 +pub struct AdminUser {
 +    pub user: User,
 +    pub permissions: Vec<String>,
 +}
- /// Represents a user in the system
+
+ /// User profile information
  #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
- pub struct User {
 === snapshot test tool call: persist_edit ===
 insert after operation result:
 Applied insert after operation
 
 ===DIFF===
- use serde::{Deserialize, Serialize};
-
+     pub id: u64,
+     pub username: String,
+ }
 +/// Administrative user with elevated privileges
 +#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 +pub struct AdminUser {
 +    pub user: User,
 +    pub permissions: Vec<String>,
 +}
- /// Represents a user in the system
+
+ /// User profile information
  #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
- pub struct User {

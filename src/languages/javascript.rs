@@ -1,4 +1,4 @@
-use super::{ecma_editor::EcmaEditor, LanguageCommon, LanguageName};
+use super::{LanguageCommon, LanguageName, ecma_editor::EcmaEditor};
 
 pub fn language() -> LanguageCommon {
     LanguageCommon {

@@ -1,5 +1,5 @@
 use crate::{indentation::Indentation, languages::LanguageEditor};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::{
     io::{Read, Write},
     path::Path,

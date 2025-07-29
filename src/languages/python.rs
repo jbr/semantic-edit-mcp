@@ -1,9 +1,9 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
     indentation::Indentation,
-    languages::{traits::LanguageEditor, LanguageCommon, LanguageName},
+    languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::{
     io::{Read, Write},
     path::Path,
@@ -41,19 +41,21 @@ impl LanguageEditor for PythonEditor {
         let additional_edits = edits
             .iter()
             .filter_map(|edit| {
-                edit.node()
-                    .and_then(|node| {
-                        node.children(&mut node.walk())
-                            .find(|node| node.kind() == "block")
+                edit.nodes()
+                    .and_then(|nodes| {
+                        nodes.iter().find_map(|node| {
+                            node.children(&mut node.walk())
+                                .find(|node| node.kind() == "block")
+                        })
                     })
                     .map(|block| {
                         [
                             edit.clone()
-                                .with_node(block)
+                                .with_nodes(vec![block])
                                 .with_start_byte(block.start_byte())
                                 .with_annotation("python: inside block"),
                             edit.clone()
-                                .with_node(block)
+                                .with_nodes(vec![block])
                                 .with_start_byte(block.start_byte())
                                 .with_content(format!("{}\n", edit.content()))
                                 .with_annotation("python: inside block with newline"),
@@ -118,10 +120,13 @@ impl PythonEditor {
         let file_indentation =
             Indentation::determine(source_code).unwrap_or(Indentation::Spaces(4));
 
-        let reference_region = if let Some(node) = edit.node() {
-            let line_start = find_line_start(source_code, node.start_byte());
+        let reference_region = if let Some(nodes) = edit.nodes()
+            && let Some(first) = nodes.first()
+            && let Some(last) = nodes.last()
+        {
+            let line_start = find_line_start(source_code, first.start_byte());
 
-            &source_code[line_start..node.end_byte()]
+            &source_code[line_start..last.end_byte()]
         } else {
             &source_code[line_start..line_end]
         };
