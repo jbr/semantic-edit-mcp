@@ -1,0 +1,22 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ #[inline]
+-#[must_use]
+ fn bar() -> u32 {
+-    1
++    2
+ }
+=== snapshot test tool call: persist_edit ===
+replace operation result:
+Applied replace operation
+
+===DIFF===
+ #[inline]
+-#[must_use]
+ fn bar() -> u32 {
+-    1
++    2
+ }

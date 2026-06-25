@@ -1,0 +1,22 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+-#[derive(Debug)]
+-/// The config
++#[derive(Debug, Clone)]
+ pub struct Config {
+     pub port: u16,
+ }
+=== snapshot test tool call: persist_edit ===
+replace operation result:
+Applied replace operation
+
+===DIFF===
+-#[derive(Debug)]
+-/// The config
++#[derive(Debug, Clone)]
+ pub struct Config {
+     pub port: u16,
+ }

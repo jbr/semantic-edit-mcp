@@ -1,0 +1,8 @@
+[
+  {"name": "preview_edit", "arguments": {
+    "operation": "replace",
+    "anchor": "pub struct Config",
+    "content": "#[derive(Debug, Clone)]\npub struct Config {\n    pub port: u16,\n}"
+  }},
+  {"name": "persist_edit", "arguments": {}}
+]

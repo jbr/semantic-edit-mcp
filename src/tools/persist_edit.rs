@@ -47,7 +47,9 @@ impl Tool<SemanticEditTools> for PersistEdit {
         let (message, output, output_path) = editor.commit()?;
 
         if let Some(output) = output {
-            if let Some(commit) = state.commit_fn_mut().take() {
+            // Borrow (don't `take`) the commit hook so it survives across multiple
+            // persists — embedders set it once and persist many times.
+            if let Some(commit) = state.commit_fn_mut() {
                 commit(output_path, output);
             } else {
                 std::fs::write(output_path, output)?;

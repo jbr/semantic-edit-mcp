@@ -1,0 +1,8 @@
+[
+  {"name": "preview_edit", "arguments": {
+    "operation": "replace",
+    "anchor": "fn foo",
+    "content": "/// New documentation\nfn foo() {\n    new();\n}"
+  }},
+  {"name": "persist_edit", "arguments": {}}
+]

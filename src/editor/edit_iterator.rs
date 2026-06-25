@@ -98,8 +98,8 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
 
         let mut additional = vec![];
         for edit in &edits {
-            additional.push(edit.clone().with_content(format!(" {}", &edit.content())));
-            additional.push(edit.clone().with_content(format!("\n{}", &edit.content())));
+            additional.push(edit.clone().with_content(format!(" {}", edit.content())));
+            additional.push(edit.clone().with_content(format!("\n{}", edit.content())));
         }
         edits.extend(additional);
         Ok(edits)
@@ -132,6 +132,10 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         tree: &'editor Tree,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let anchor = anchor.trim();
+        let is_insert = matches!(
+            self.selector.operation,
+            Operation::InsertAfter | Operation::InsertBefore
+        );
         let mut candidates = vec![];
         for (start, end) in find_positions(source_code, anchor)? {
             if let Some(parent) = tree.root_node().descendant_for_byte_range(start, end) {
@@ -145,12 +149,23 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                     );
                 }
 
-                candidates.push(
-                    self.build_edit(parent.start_byte())
-                        .with_end_byte(parent.end_byte())
-                        .with_nodes(vec![parent])
-                        .with_annotation("common parent"),
-                );
+                // The "common parent" candidate inserts/replaces relative to the
+                // whole `parent`. For an **insert**, when `parent` begins before the
+                // anchor (`parent.start < start`), the anchor sits *interior* to
+                // `parent`, so inserting after/before `parent` would escape a
+                // container the anchor was merely inside (e.g. dropping a new
+                // interface member after the closing `}`). Skip it in that case so
+                // the in-container candidates win or the edit fails safe, instead of
+                // a structurally-distant placement coincidentally parsing.
+                let escapes_container = is_insert && parent.start_byte() < start;
+                if !escapes_container {
+                    candidates.push(
+                        self.build_edit(parent.start_byte())
+                            .with_end_byte(parent.end_byte())
+                            .with_nodes(vec![parent])
+                            .with_annotation("common parent"),
+                    );
+                }
             }
 
             candidates.push(

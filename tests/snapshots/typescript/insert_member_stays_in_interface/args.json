@@ -1,0 +1,8 @@
+[
+  {"name": "preview_edit", "arguments": {
+    "operation": "insert_after",
+    "anchor": "name: string;",
+    "content": "email: string;"
+  }},
+  {"name": "persist_edit", "arguments": {}}
+]

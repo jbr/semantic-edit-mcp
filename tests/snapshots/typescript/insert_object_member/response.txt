@@ -1,0 +1,20 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ const config = {
+     name: "app",
++    author: "jbr",
+     version: "1.0",
+ };
+=== snapshot test tool call: persist_edit ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+ const config = {
+     name: "app",
++    author: "jbr",
+     version: "1.0",
+ };

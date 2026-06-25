@@ -67,20 +67,9 @@
  body: (declaration_list
         (impl_item) @invalid.impl.in.impl))
 
-;; CRITICAL: Const functions with non-const operations in const contexts
-;; This catches some obvious cases like mutable references in const fn
-(function_item
- (function_modifiers
-  "const")
- body: (block
-        (let_declaration
-         pattern: (_)
-         type: (reference_type
-                (mutable_specifier)) @invalid.mut.ref.in.const.fn)))
-
-
-
-;; CRITICAL: Break/continue outside of loops
+;; NOTE: removed a `mut.ref.in.const.fn` rule that flagged `&mut` locals in a
+;; `const fn` — that has been valid since `const_mut_refs` stabilized (Rust 1.83),
+;; so the rule produced false positives on modern code.
 
 ;; CRITICAL: Visibility modifiers on items inside functions
 (function_item
@@ -98,12 +87,10 @@
     (type_item
       type_parameters: (type_parameters)) @invalid.generic.type.alias.in.function))
 
-;; CRITICAL: Mutable static items without unsafe
-(static_item
- (mutable_specifier)
- value: (_) @invalid.mut.static.without.unsafe
- (#not-has-ancestor? unsafe_block))
-
+;; NOTE: removed a `mut.static.without.unsafe` rule that flagged the *declaration*
+;; of a mutable static outside an `unsafe` block. Declaring `static mut` is always
+;; legal — only *access* requires `unsafe` — so the rule rejected valid code (and,
+;; via prevalidate, blocked editing any file that merely contained one).
 
 ;; CRITICAL: Await expressions outside async functions/blocks
 ((await_expression) @invalid.await.outside.async

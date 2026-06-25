@@ -102,7 +102,7 @@ impl SnapshotRunner {
         let snapshots_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots");
         let mut tests = Vec::new();
 
-        Self::discover_tests_recursive(&snapshots_dir, &mut tests)?;
+        Self::discover_tests_recursive(&snapshots_dir, &snapshots_dir, &mut tests)?;
 
         tests.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tests)
@@ -138,7 +138,11 @@ impl SnapshotRunner {
         }
     }
 
-    fn discover_tests_recursive(dir: &Path, tests: &mut Vec<SnapshotTest>) -> Result<()> {
+    fn discover_tests_recursive(
+        base: &Path,
+        dir: &Path,
+        tests: &mut Vec<SnapshotTest>,
+    ) -> Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -170,7 +174,7 @@ impl SnapshotRunner {
                     });
 
                     let test_name = path
-                        .strip_prefix("tests/snapshots")
+                        .strip_prefix(base)
                         .unwrap_or(&path)
                         .to_string_lossy()
                         .replace('/', "::");
@@ -185,7 +189,7 @@ impl SnapshotRunner {
                     });
                 } else {
                     // Recurse into subdirectories
-                    Self::discover_tests_recursive(&path, tests)?;
+                    Self::discover_tests_recursive(base, &path, tests)?;
                 }
             }
         }

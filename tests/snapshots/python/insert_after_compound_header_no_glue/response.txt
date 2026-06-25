@@ -1,0 +1,20 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ def handler(items):
+     for item in items:
+         process(item)
++    log(item)
+     cleanup()
+=== snapshot test tool call: persist_edit ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+ def handler(items):
+     for item in items:
+         process(item)
++    log(item)
+     cleanup()

@@ -95,6 +95,27 @@ impl SemanticEditTools {
         })
     }
 
+    /// Construct for in-process embedding (e.g. the efference harness): both
+    /// session stores **in memory** (no disk, no cross-process sharing), the
+    /// language registry built, and the working directory pre-seeded so relative
+    /// paths resolve. Unlike [`new`](Self::new) it never touches the shared
+    /// `~/.ai-tools` store.
+    #[allow(
+        dead_code,
+        reason = "used by library consumers (embedding), not the bin"
+    )]
+    pub fn embedded(working_directory: PathBuf) -> Result<Self> {
+        let mut tools = Self {
+            session_store: SessionStore::new(None)?,
+            shared_context_store: SessionStore::new(None)?,
+            language_registry: Arc::new(LanguageRegistry::new()?),
+            commit_fn: None,
+            default_session_id: "default",
+        };
+        tools.set_working_directory(working_directory, None)?;
+        Ok(tools)
+    }
+
     /// Get context for a session
     pub fn get_context(&mut self, session_id: Option<&str>) -> Result<Option<PathBuf>> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
@@ -182,17 +203,30 @@ impl SemanticEditTools {
     ) -> Result<PathBuf> {
         let path = PathBuf::from(&*shellexpand::tilde(path_str));
 
-        if path.is_absolute() {
-            return Ok(std::fs::canonicalize(path)?);
-        }
+        let absolute = if path.is_absolute() {
+            path
+        } else {
+            let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+            match self.get_context(Some(session_id))? {
+                Some(context) => context.join(path_str),
+                None => {
+                    return Err(anyhow!(
+                        "No context found for `{session_id}`. Use set_working_directory first or provide an absolute path.",
+                    ));
+                }
+            }
+        };
 
-        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
-
-        match self.get_context(Some(session_id))? {
-            Some(context) => Ok(std::fs::canonicalize(context.join(path_str))?),
-            None => Err(anyhow!(
-                "No context found for `{session_id}`. Use set_context first or provide an absolute path.",
-            )),
-        }
+        // Canonicalize requires the file to exist, so a missing path surfaces here.
+        // Give an actionable error instead of a bare OS message: this tool edits
+        // *existing* files (it needs a parse tree to target), so creating a new file
+        // is a separate concern.
+        std::fs::canonicalize(&absolute).map_err(|e| {
+            anyhow!(
+                "Could not open `{}`: {e}. semantic-edit operates on existing files; \
+                 create the file before editing it.",
+                absolute.display()
+            )
+        })
     }
 }

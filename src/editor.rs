@@ -78,13 +78,17 @@ impl<'language> Editor<'language> {
     }
 
     fn prevalidate(&self) -> Option<String> {
-        self.validate_tree(&self.tree, &self.source_code)
-            .map(|errors| {
-                format!(
-                    "Syntax error found prior to edit, not attempting.
+        // Only gate *entry* on genuine syntax errors (ERROR/MISSING nodes). The
+        // heuristic context-validation queries describe whether the *result* of an
+        // edit is well-formed, not the pre-existing file — running them here would
+        // let any pre-existing flagged-but-valid construct (e.g. a module-level
+        // `static mut`) block every edit to the file.
+        Self::syntax_errors(self.language, &self.tree, &self.source_code).map(|errors| {
+            format!(
+                "Syntax error found prior to edit, not attempting.
 Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
-                )
-            })
+            )
+        })
     }
 
     fn validate_tree(&self, tree: &Tree, content: &str) -> Option<String> {
@@ -92,16 +96,27 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     pub fn validate(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
+        if let Some(errors) = Self::syntax_errors(language, tree, content) {
+            return Some(errors);
+        }
+
+        if let Some(query) = language.validation_query() {
+            let validation_result = ContextValidator::validate_tree(tree, query, content);
+            if !validation_result.is_valid {
+                return Some(validation_result.format_errors());
+            }
+        }
+
+        None
+    }
+
+    /// Render a context-annotated report of tree-sitter ERROR/MISSING nodes, or
+    /// `None` if the tree parses cleanly. This is the pure-syntax half of
+    /// [`validate`](Self::validate) — used by [`prevalidate`](Self::prevalidate) to
+    /// gate edits without invoking the heuristic context queries.
+    fn syntax_errors(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
         let errors = language.editor().collect_errors(tree, content);
         if errors.is_empty() {
-            if let Some(query) = language.validation_query() {
-                let validation_result = ContextValidator::validate_tree(tree, query, content);
-
-                if !validation_result.is_valid {
-                    return Some(validation_result.format_errors());
-                }
-            }
-
             return None;
         }
 
@@ -166,14 +181,18 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
         log::trace!("{edits:#?}");
 
-        Ok((
-            edits
-                .first_mut()
-                .unwrap()
-                .take_message()
-                .unwrap_or_default(),
-            None,
-        ))
+        // No candidate applied cleanly. Report the first candidate's failure
+        // message (it explains why the edit was rejected). If there were no
+        // candidates at all, the anchor matched no editable location — surface that
+        // rather than panicking (this runs in-process in the host harness).
+        let message = match edits.first_mut() {
+            Some(edit) => edit.take_message().unwrap_or_default(),
+            None => format!(
+                "No editable location found for anchor {:?}. The file was not modified.",
+                self.selector.anchor
+            ),
+        };
+        Ok((message, None))
     }
 
     pub fn preview(mut self) -> Result<(String, Option<StagedOperation>)> {
@@ -265,7 +284,9 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     fn parse(&self, output: &str, old_tree: Option<&Tree>) -> Option<Tree> {
-        let mut parser = self.language.tree_sitter_parser().unwrap();
+        // A parser-construction failure (e.g. a tree-sitter ABI mismatch) folds into
+        // the existing "couldn't parse" path rather than panicking the host process.
+        let mut parser = self.language.tree_sitter_parser().ok()?;
         parser.parse(output, old_tree)
     }
 }

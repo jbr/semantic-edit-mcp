@@ -165,6 +165,33 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         self
     }
 
+    /// Reject a candidate whose content would fuse directly onto an adjacent
+    /// identifier/keyword character — e.g. inserting `log(item)` after `items` to
+    /// make `itemslog(item)`, or `self.x` after `name` to make `nameself.x`. Such a
+    /// glue frequently re-parses as *different* valid code and would otherwise be
+    /// silently accepted; rejecting it lets the whitespace-separated candidate
+    /// variants (which the iterator also generates) win instead.
+    fn would_merge_identifiers(&self) -> bool {
+        let is_word = |c: char| c.is_alphanumeric() || c == '_';
+        let source = self.source_code();
+        let EditPosition {
+            start_byte,
+            end_byte,
+        } = self.position;
+
+        let before = source.get(..start_byte).and_then(|s| s.chars().next_back());
+        let after = source
+            .get(end_byte.unwrap_or(start_byte)..)
+            .and_then(|s| s.chars().next());
+
+        let glues_left = matches!((before, self.content.chars().next()),
+            (Some(b), Some(c)) if is_word(b) && is_word(c));
+        let glues_right = matches!((self.content.chars().last(), after),
+            (Some(c), Some(a)) if is_word(c) && is_word(a));
+
+        glues_left || glues_right
+    }
+
     fn byte_to_point(&self, byte_idx: usize) -> Point {
         let line = self.rope.byte_to_line(byte_idx);
         let line_start_byte = self.rope.line_to_byte(line);
@@ -176,6 +203,13 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     pub(crate) fn apply(&mut self) -> bool {
         if let Some(valid) = self.valid {
             return valid;
+        }
+
+        if self.would_merge_identifiers() {
+            self.valid = Some(false);
+            self.message =
+                Some("This placement would fuse the content onto an adjacent identifier".into());
+            return false;
         }
 
         let content = &self.content;
@@ -270,13 +304,6 @@ Suggestion: Try a different change.\n
     pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
         self.position.start_byte = start_byte;
         self
-    }
-
-    pub(crate) fn modify(mut fun: impl FnMut(&mut Self)) -> impl FnMut(Self) -> Self {
-        move |mut edit| {
-            fun(&mut edit);
-            edit
-        }
     }
 
     pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {

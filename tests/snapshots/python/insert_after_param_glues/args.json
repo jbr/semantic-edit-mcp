@@ -1,0 +1,8 @@
+[
+  {"name": "preview_edit", "arguments": {
+    "operation": "insert_after",
+    "anchor": "def add(a",
+    "content": ", c"
+  }},
+  {"name": "persist_edit", "arguments": {}}
+]
