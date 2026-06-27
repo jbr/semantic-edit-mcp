@@ -1,5 +1,6 @@
 use super::{EditPosition, Editor};
 use crate::searcher::find_positions;
+use crate::selector::Operation;
 use fieldwork::Fieldwork;
 use ropey::Rope;
 use std::{
@@ -163,6 +164,14 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     pub fn with_end_byte(mut self, end_byte: usize) -> Self {
         self.position.end_byte = Some(end_byte);
         self
+    }
+
+    /// The operation this edit is performing (insert-after/before or replace).
+    /// Language-specific node grouping needs this to place an insertion point
+    /// correctly: an `insert_after` edit's position is anchored to the *end* of
+    /// the target node, so expanding the selection must not drag it backward.
+    pub fn operation(&self) -> Operation {
+        self.editor.selector.operation
     }
 
     /// Reject a candidate whose content would fuse directly onto an adjacent

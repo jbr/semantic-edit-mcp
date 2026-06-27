@@ -1,0 +1,4 @@
+[
+  {"name":"preview_edit","arguments":{"operation":"replace","anchor":"fn alpha","content":"    /// Alpha rewritten.\n    pub async unsafe fn alpha() -> u32 {\n        11\n    }"}},
+  {"name":"persist_edit","arguments":{}}
+]

@@ -1,0 +1,30 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ mod m {
+-    /// Alpha.
++    /// Alpha rewritten.
+     #[inline]
+     fn alpha() -> u32 {
+-        1
++        11
+     }
+
+     /// Beta.
+=== snapshot test tool call: persist_edit ===
+replace operation result:
+Applied replace operation
+
+===DIFF===
+ mod m {
+-    /// Alpha.
++    /// Alpha rewritten.
+     #[inline]
+     fn alpha() -> u32 {
+-        1
++        11
+     }
+
+     /// Beta.

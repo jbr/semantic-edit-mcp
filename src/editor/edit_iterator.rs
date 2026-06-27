@@ -157,7 +157,19 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                 // interface member after the closing `}`). Skip it in that case so
                 // the in-container candidates win or the edit fails safe, instead of
                 // a structurally-distant placement coincidentally parsing.
-                let escapes_container = is_insert && parent.start_byte() < start;
+                //
+                // BUT an anchor can also sit interior to its *own* target node by
+                // landing in that node's header rather than its body — `fn alpha`
+                // matches past the `pub async ` modifiers of `pub async fn alpha`, so
+                // `parent` (the `function_item`) starts before the anchor even though
+                // it *is* the node we mean to target. Only treat the anchor as
+                // escaping when it falls inside the parent's `body` (after the
+                // signature); an anchor in the header keeps the common-parent
+                // candidate so we don't fall back to splitting the signature.
+                let anchor_in_body = parent
+                    .child_by_field_name("body")
+                    .is_none_or(|body| start >= body.start_byte());
+                let escapes_container = is_insert && parent.start_byte() < start && anchor_in_body;
                 if !escapes_container {
                     candidates.push(
                         self.build_edit(parent.start_byte())

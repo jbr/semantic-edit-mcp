@@ -1,4 +1,5 @@
 use crate::editor::{Edit, EditIterator, Editor};
+use crate::selector::Operation;
 
 use super::{LanguageCommon, LanguageName, traits::LanguageEditor};
 use anyhow::{Result, anyhow};
@@ -271,12 +272,23 @@ fn apply_expansion<'editor, 'language>(
     expanded_nodes: Vec<Node<'editor>>,
     expansion_type: ExpansionType,
 ) {
+    // An `insert_after` edit's position is an end-anchored insertion point
+    // (`start_byte == end_byte == node.end`, see `Edit::insert_after`). Expanding
+    // the selection to group preceding doc-comments/attributes must keep that point
+    // at the *end* of the group (after the primary's `}`), not drag it back to the
+    // group's start — otherwise "insert after the function" silently inserts before
+    // its doc-comment. `insert_before` and `replace` anchor on the group's start.
+    let operation = edit.operation();
     let position = edit.position_mut();
 
     if let (Some(first), Some(last)) = (expanded_nodes.first(), expanded_nodes.last()) {
-        position.set_start_byte(first.start_byte());
-        if position.end_byte.is_some() {
-            position.end_byte = Some(last.end_byte());
+        if matches!(operation, Operation::InsertAfter) {
+            position.set_start_byte(last.end_byte());
+        } else {
+            position.set_start_byte(first.start_byte());
+            if position.end_byte.is_some() {
+                position.end_byte = Some(last.end_byte());
+            }
         }
     }
 

@@ -1,0 +1,4 @@
+[
+  {"name":"preview_edit","arguments":{"operation":"insert_after","anchor":"fn alpha","content":"\n    /** Gamma doc. */\n    #[test]\n    fn gamma() {\n        assert!(true);\n    }"}},
+  {"name":"persist_edit","arguments":{}}
+]

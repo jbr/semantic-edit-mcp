@@ -1,0 +1,4 @@
+[
+  {"name":"preview_edit","arguments":{"operation":"insert_after","anchor":"fn only","content":"\n    /// Inserted test.\n    #[test]\n    fn inserted() {\n        assert!(true);\n    }"}},
+  {"name":"persist_edit","arguments":{}}
+]

@@ -57,10 +57,11 @@
          (function_modifiers
           "async")) @invalid.async.in.trait))
 
-;; CRITICAL: Functions cannot be defined inside other functions (nested functions)
-(function_item
- body: (block
-        (function_item) @invalid.function.in.function))
+;; NOTE: removed a `function.in.function` rule that flagged a `fn` defined inside
+;; another `fn`'s body. Nested/local functions are valid, idiomatic Rust (a private
+;; helper scoped to its caller), so the rule produced false positives — and because
+;; it runs at result-validation time, it rejected *every* edit to any file that
+;; merely contained a nested fn.
 
 ;; CRITICAL: Impl blocks cannot be inside other impl blocks
 (impl_item

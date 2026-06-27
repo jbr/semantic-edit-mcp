@@ -1,0 +1,34 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert before
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+         assert!(true);
+     }
+
++    /// Inserted test.
++    #[test]
++    fn inserted() {
++        assert!(true);
++    }
++
+     /// Second test.
+     #[test]
+     fn second() {
+=== snapshot test tool call: persist_edit ===
+insert before operation result:
+Applied insert before operation
+
+===DIFF===
+         assert!(true);
+     }
+
++    /// Inserted test.
++    #[test]
++    fn inserted() {
++        assert!(true);
++    }
++
+     /// Second test.
+     #[test]
+     fn second() {

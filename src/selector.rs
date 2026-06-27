@@ -56,9 +56,8 @@ pub struct Selector {
 
     /// Text to locate in the source code as the target for the operation.
     ///
-    /// Should be a short, distinctive piece of text that uniquely identifies the location.
-    /// For range operations, this marks the start of the range.
-    /// For node operations, this should cover the start of the ast node.
+    /// Should be a short, distinctive piece of text that uniquely identifies the
+    /// location, covering the start of the target AST node.
     ///
     /// Tips for Good Anchors
     ///
@@ -66,12 +65,6 @@ pub struct Selector {
     /// - **Use distinctive text** - function names, keywords, or unique comments work well
     /// - **Test your anchor** - if it appears multiple times, the tool will attempt to find the best placement
     /// - **Whitespace doesn't matter** - anchors are whitespace-insensitive, so you can omit spaces, newlines, and indentation
-    ///
-    /// # Examples
-    /// - `"fn main"` - Targets a function definition
-    /// - `"struct User"` - Targets a struct definition  
-    /// - `"// TODO: implement"` - Targets a specific comment
-    /// - `"import React"` - Targets an import statement
     pub anchor: String,
 }
 
