@@ -3,6 +3,7 @@ use crate::state::SemanticEditTools;
 mcplease::tools!(
     SemanticEditTools,
     (PreviewEdit, preview_edit, "preview_edit"),
+    (ReadNode, read_node, "read_node"),
     (RetargetEdit, retarget_edit, "retarget_edit"),
     (PersistEdit, persist_edit, "persist_edit"),
     (

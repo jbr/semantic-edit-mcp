@@ -211,6 +211,61 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
             Ok((message, None))
         }
     }
+    pub fn read_node(self) -> Result<String> {
+        // Build edits to find nodes matching the anchor
+        let mut edits = match self.build_edits() {
+            Ok(all_edits) => all_edits,
+            Err(message) => return Ok(message),
+        };
+
+        if edits.is_empty() {
+            return Ok(format!(
+                "No node found for anchor {:?}",
+                self.selector.anchor
+            ));
+        }
+
+        // Use the first edit to get node information
+        let edit = edits.remove(0);
+        let position = edit.position();
+
+        // Get the text of the node
+        let start_byte = position.start_byte();
+        let end_byte = position.end_byte().unwrap_or(start_byte);
+        let node_text = self.source_code.get(start_byte..end_byte).unwrap_or("");
+
+        // Calculate line numbers for context
+        let line_count = self.source_code[..start_byte].lines().count();
+        let start_line = line_count;
+        let end_line = start_line + node_text.lines().count() - 1;
+
+        // Get surrounding context (5 lines before and after)
+        let context_lines = 5;
+        let all_lines: Vec<&str> = self.source_code.lines().collect();
+
+        let context_start = start_line.saturating_sub(context_lines);
+        let context_end = (end_line + context_lines + 1).min(all_lines.len());
+
+        let mut output = String::new();
+        output.push_str(&format!(
+            "Found node at lines {}-{}\n\n",
+            start_line + 1,
+            end_line + 1
+        ));
+        output.push_str("===CONTEXT===\n");
+
+        for (idx, line) in all_lines[context_start..context_end].iter().enumerate() {
+            let line_num = context_start + idx + 1;
+            let marker = if line_num > start_line && line_num <= end_line + 1 {
+                ">>>"
+            } else {
+                "   "
+            };
+            output.push_str(&format!("{} {:4} | {}\n", marker, line_num, line));
+        }
+
+        Ok(output)
+    }
 
     fn diff(&self, output: &str) -> String {
         let source_code: &str = &self.source_code;
