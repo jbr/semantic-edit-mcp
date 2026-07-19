@@ -1,4 +1,4 @@
-=== snapshot test tool call: read_node ===
+=== snapshot test tool call: find_anchor ===
 Anchor matched at 2 locations
 
 === match 1: lines 2-2 ===

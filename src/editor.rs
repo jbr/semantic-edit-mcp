@@ -371,7 +371,7 @@ target's surrounding text to disambiguate.",
     /// disagree with what a later edit picks. Match locations, by contrast,
     /// use the same [`find_positions`] search the editor uses, so what this
     /// shows is exactly what an edit will find.
-    pub fn read_node(self) -> Result<String> {
+    pub fn find_anchor(self) -> Result<String> {
         let anchor = self.selector.anchor.trim();
         let positions = match find_positions(&self.source_code, anchor) {
             Ok(positions) => positions,

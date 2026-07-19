@@ -1,4 +1,4 @@
-{"name": "read_node", "arguments": {
+{"name": "find_anchor", "arguments": {
   "file_path": "input.rs",
   "anchor": "pub fn timeout() -> u64 {"
 }}

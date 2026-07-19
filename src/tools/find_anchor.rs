@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 /// making any changes — useful for checking that an anchor matches where you
 /// mean it to, and that it matches only once, before editing.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
-#[serde(rename = "read_node")]
+#[serde(rename = "find_anchor")]
 #[group(skip)]
-pub struct ReadNode {
+pub struct FindAnchor {
     /// Path to the source file
     #[serde(rename = "file_path")]
     pub file_path: String,
@@ -31,7 +31,7 @@ pub struct ReadNode {
     pub language: Option<LanguageName>,
 }
 
-impl WithExamples for ReadNode {
+impl WithExamples for FindAnchor {
     fn examples() -> Vec<Example<Self>> {
         vec![
             Example {
@@ -62,7 +62,7 @@ impl WithExamples for ReadNode {
     }
 }
 
-impl Tool<SemanticEditTools> for ReadNode {
+impl Tool<SemanticEditTools> for FindAnchor {
     fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
@@ -76,7 +76,7 @@ impl Tool<SemanticEditTools> for ReadNode {
             .language_registry()
             .get_language_with_hint(&file_path, language)?;
 
-        // The operation and content are irrelevant here: read_node reports
+        // The operation and content are irrelevant here: find_anchor reports
         // where the anchor text matches, nothing more.
         let selector = crate::selector::Selector {
             operation: crate::selector::Operation::Replace,
@@ -85,6 +85,6 @@ impl Tool<SemanticEditTools> for ReadNode {
 
         let editor = Editor::new(String::new(), selector, language, file_path, None)?;
 
-        editor.read_node()
+        editor.find_anchor()
     }
 }
