@@ -4,6 +4,7 @@ mod edit_position;
 
 use crate::{
     languages::{LanguageCommon, LanguageRegistry},
+    searcher::find_positions,
     selector::Selector,
     state::StagedOperation,
     validation::{ContextValidator, format_violations},
@@ -215,14 +216,17 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         self.language.editor().build_edits(self)
     }
 
-    fn edit(&mut self) -> Result<(String, Option<String>)> {
+    /// Returns `(message, output, ambiguity_note)` — `output` is `Some` only when
+    /// a candidate applied cleanly, and `ambiguity_note` is `Some` only when the
+    /// winning candidate's anchor also matched elsewhere in the file.
+    fn edit(&mut self) -> Result<(String, Option<String>, Option<String>)> {
         if let Some(prevalidation_failure) = self.prevalidate() {
-            return Ok((prevalidation_failure, None));
+            return Ok((prevalidation_failure, None, None));
         };
 
         let mut edits = match self.build_edits() {
             Ok(all_edits) => all_edits,
-            Err(message) => return Ok((message, None)),
+            Err(message) => return Ok((message, None, None)),
         };
 
         // let count = edits.len();
@@ -239,7 +243,12 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
                 if let Some(annotation) = edit.annotation() {
                     log::info!("used {annotation}");
                 }
-                return Ok((edit.take_message().unwrap_or_default(), edit.take_output()));
+                let note = self.ambiguity_note(edit);
+                return Ok((
+                    edit.take_message().unwrap_or_default(),
+                    edit.take_output(),
+                    note,
+                ));
             }
         }
 
@@ -271,11 +280,42 @@ item you mean to target.",
                 self.selector.anchor
             ),
         };
-        Ok((message, None))
+        Ok((message, None, None))
+    }
+
+    /// When the winning edit's anchor matched at more than one location, describe
+    /// the alternatives so a first-match resolution never happens silently: the
+    /// caller can see at a glance whether the edit landed where they meant it to,
+    /// and knows to extend the anchor if it didn't.
+    fn ambiguity_note(&self, edit: &Edit) -> Option<String> {
+        let (hit_start, _) = *edit.anchor_hit()?;
+        let hits = find_positions(&self.source_code, self.selector.anchor.trim()).ok()?;
+        if hits.len() < 2 {
+            return None;
+        }
+        let line_of = |byte: usize| {
+            self.source_code[..byte]
+                .bytes()
+                .filter(|b| *b == b'\n')
+                .count()
+                + 1
+        };
+        let lines = hits
+            .iter()
+            .map(|(start, _)| line_of(*start).to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(format!(
+            "Note: the anchor matched at {} locations (lines {lines}); this edit targeted the \
+match at line {}. If a different location was intended, extend the anchor with more of the \
+target's surrounding text to disambiguate.",
+            hits.len(),
+            line_of(hit_start),
+        ))
     }
 
     pub fn preview(mut self) -> Result<(String, Option<StagedOperation>)> {
-        let (message, output) = self.edit()?;
+        let (message, output, note) = self.edit()?;
         if let Some(output) = &output {
             let mut preview = String::new();
 
@@ -284,6 +324,10 @@ item you mean to target.",
                 self.selector.operation_name()
             ));
             preview.push_str(&self.diff(output));
+            if let Some(note) = note {
+                preview.push_str("\n\n");
+                preview.push_str(&note);
+            }
 
             Ok((preview, Some(self.into())))
         } else {
@@ -404,7 +448,7 @@ item you mean to target.",
     }
 
     pub fn commit(mut self) -> Result<(String, Option<String>, PathBuf)> {
-        let (mut message, output) = self.edit()?;
+        let (mut message, output, note) = self.edit()?;
         if let Some(output) = &output {
             let diff = self.diff(output);
 
@@ -413,6 +457,10 @@ item you mean to target.",
                 self.selector.operation_name(),
                 message,
             );
+            if let Some(note) = note {
+                message.push_str("\n\n");
+                message.push_str(&note);
+            }
         }
         Ok((message, output, self.file_path))
     }

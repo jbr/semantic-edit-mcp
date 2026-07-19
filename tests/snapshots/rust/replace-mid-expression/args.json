@@ -1,0 +1,5 @@
+{"name": "preview_edit", "arguments":{
+  "operation": "replace",
+  "anchor": "users.insert",
+  "content": "self.users.entry(id).or_insert(name);"
+}}

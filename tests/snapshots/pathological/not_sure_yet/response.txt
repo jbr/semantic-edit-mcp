@@ -12,3 +12,5 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
              profile: UserProfile::default(),
          }
      }
+
+Note: the anchor matched at 2 locations (lines 81, 247); this edit targeted the match at line 81. If a different location was intended, extend the anchor with more of the target's surrounding text to disambiguate.

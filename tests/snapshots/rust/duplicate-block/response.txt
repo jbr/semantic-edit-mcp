@@ -1,0 +1,14 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ pub mod client {
+     pub fn timeout() -> u64 {
+-        30
++        60
+     }
+ }
+
+
+Note: the anchor matched at 2 locations (lines 2, 8); this edit targeted the match at line 2. If a different location was intended, extend the anchor with more of the target's surrounding text to disambiguate.

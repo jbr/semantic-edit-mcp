@@ -1,0 +1,5 @@
+{"name": "preview_edit", "arguments":{
+  "operation": "insert_before",
+  "anchor": "pub struct User",
+  "content": "/// Marker trait.\npub trait Entity {}\n"
+}}

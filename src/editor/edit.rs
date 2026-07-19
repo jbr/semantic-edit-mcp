@@ -29,6 +29,11 @@ pub struct Edit<'editor, 'language> {
     nodes: Option<Vec<Node<'editor>>>,
     #[field(with, get, set)]
     annotation: Option<&'static str>,
+    /// The `(start, end)` byte range of the anchor occurrence this candidate was
+    /// built from — used after a candidate wins to report when the anchor also
+    /// matched elsewhere. Absent on staged-position edits, which bypass search.
+    #[field(with, get)]
+    anchor_hit: Option<(usize, usize)>,
     /// Whether this candidate's result parsed cleanly — a candidate can be
     /// structurally valid yet still rejected (context-query violation, formatter
     /// error). When every candidate fails, the editor prefers reporting a
@@ -121,6 +126,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             output: None,
             nodes: None,
             annotation: None,
+            anchor_hit: None,
             structurally_valid: false,
         }
     }

@@ -1,0 +1,5 @@
+{"name": "preview_edit", "arguments":{
+  "operation": "replace",
+  "anchor": "}\n\npub fn mul(a: i32, b: i32) -> i32 {\n    let result = a * b;\n    result\n}",
+  "content": "pub fn mul(a: i32, b: i32) -> i32 {\n    a * b\n}"
+}}
