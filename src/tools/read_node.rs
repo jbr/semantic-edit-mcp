@@ -9,10 +9,11 @@ use mcplease::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Show the code an anchor targets, with surrounding context
+/// Show every location an anchor matches in a file, with surrounding context
 ///
-/// Uses the same anchor matching as `preview_edit`, without making any
-/// changes — useful for checking what an anchor resolves to before editing.
+/// Uses the same whitespace-insensitive matching as `preview_edit`, without
+/// making any changes — useful for checking that an anchor matches where you
+/// mean it to, and that it matches only once, before editing.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "read_node")]
 #[group(skip)]
@@ -75,25 +76,15 @@ impl Tool<SemanticEditTools> for ReadNode {
             .language_registry()
             .get_language_with_hint(&file_path, language)?;
 
-        let source_code = std::fs::read_to_string(&file_path)?;
-
-        // Create a selector with Operation::Replace to use for node finding
-        // We won't actually perform the operation, just use it to locate the node
+        // The operation and content are irrelevant here: read_node reports
+        // where the anchor text matches, nothing more.
         let selector = crate::selector::Selector {
             operation: crate::selector::Operation::Replace,
             anchor,
         };
 
-        let editor = Editor::new(
-            source_code.clone(),
-            selector,
-            language,
-            file_path,
-            None,
-        )?;
+        let editor = Editor::new(String::new(), selector, language, file_path, None)?;
 
-        let output = editor.read_node()?;
-
-        Ok(output)
+        editor.read_node()
     }
 }

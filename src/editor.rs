@@ -363,57 +363,65 @@ target's surrounding text to disambiguate.",
             Ok((message, None))
         }
     }
+    /// Show every location the anchor matches, with surrounding context.
+    ///
+    /// This deliberately reports *text matches*, not nodes: the node an edit
+    /// ultimately operates on depends on the operation and content of that
+    /// edit, which this tool doesn't have — so any node it displayed could
+    /// disagree with what a later edit picks. Match locations, by contrast,
+    /// use the same [`find_positions`] search the editor uses, so what this
+    /// shows is exactly what an edit will find.
     pub fn read_node(self) -> Result<String> {
-        // Build edits to find nodes matching the anchor
-        let mut edits = match self.build_edits() {
-            Ok(all_edits) => all_edits,
+        let anchor = self.selector.anchor.trim();
+        let positions = match find_positions(&self.source_code, anchor) {
+            Ok(positions) => positions,
             Err(message) => return Ok(message),
         };
 
-        if edits.is_empty() {
-            return Ok(format!(
-                "No node found for anchor {:?}",
-                self.selector.anchor
+        // 0-indexed line containing `byte`
+        let line_of = |byte: usize| {
+            self.source_code[..byte]
+                .bytes()
+                .filter(|b| *b == b'\n')
+                .count()
+        };
+        let all_lines: Vec<&str> = self.source_code.lines().collect();
+        let context = 3;
+
+        let mut output = format!(
+            "Anchor matched at {} location{}\n",
+            positions.len(),
+            if positions.len() == 1 { "" } else { "s" }
+        );
+
+        for (index, (start, end)) in positions.iter().enumerate() {
+            let start_line = line_of(*start);
+            let end_line = line_of(end.saturating_sub(1).max(*start));
+            output.push_str(&format!(
+                "\n=== match {}: lines {}-{} ===\n",
+                index + 1,
+                start_line + 1,
+                end_line + 1
             ));
+
+            let context_start = start_line.saturating_sub(context);
+            let context_end = (end_line + context + 1).min(all_lines.len());
+            for (offset, line) in all_lines[context_start..context_end].iter().enumerate() {
+                let line_index = context_start + offset;
+                let marker = if (start_line..=end_line).contains(&line_index) {
+                    ">>>"
+                } else {
+                    "   "
+                };
+                output.push_str(&format!("{} {:4} | {}\n", marker, line_index + 1, line));
+            }
         }
 
-        // Use the first edit to get node information
-        let edit = edits.remove(0);
-        let position = edit.position();
-
-        // Get the text of the node
-        let start_byte = position.start_byte();
-        let end_byte = position.end_byte().unwrap_or(start_byte);
-        let node_text = self.source_code.get(start_byte..end_byte).unwrap_or("");
-
-        // Calculate line numbers for context
-        let line_count = self.source_code[..start_byte].lines().count();
-        let start_line = line_count;
-        let end_line = start_line + node_text.lines().count() - 1;
-
-        // Get surrounding context (5 lines before and after)
-        let context_lines = 5;
-        let all_lines: Vec<&str> = self.source_code.lines().collect();
-
-        let context_start = start_line.saturating_sub(context_lines);
-        let context_end = (end_line + context_lines + 1).min(all_lines.len());
-
-        let mut output = String::new();
-        output.push_str(&format!(
-            "Found node at lines {}-{}\n\n",
-            start_line + 1,
-            end_line + 1
-        ));
-        output.push_str("===CONTEXT===\n");
-
-        for (idx, line) in all_lines[context_start..context_end].iter().enumerate() {
-            let line_num = context_start + idx + 1;
-            let marker = if line_num > start_line && line_num <= end_line + 1 {
-                ">>>"
-            } else {
-                "   "
-            };
-            output.push_str(&format!("{} {:4} | {}\n", marker, line_num, line));
+        if positions.len() > 1 {
+            output.push_str(
+                "\nEdits use the first match. To target a different one, extend the anchor \
+with more of the target's own text until it is unique.",
+            );
         }
 
         Ok(output)
