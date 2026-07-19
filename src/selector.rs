@@ -48,23 +48,28 @@ impl Display for Operation {
 pub struct Selector {
     /// The type of edit operation to perform.
     ///
-    /// - **`insert_after`** - Insert content after the complete AST node containing the anchor
-    /// - **`insert_before`** - Insert content before the complete AST node containing the anchor
-    /// - **`replace`** - Replace the entire AST node that starts with the anchor text
+    /// - **`replace`** - Replace the code matched by `anchor` with `content` (omit `content` to delete it)
+    /// - **`insert_after`** - Insert `content` immediately after the code matched by `anchor`
+    /// - **`insert_before`** - Insert `content` immediately before the code matched by `anchor`
     #[arg(value_enum)]
     pub operation: Operation,
 
-    /// Text to locate in the source code as the target for the operation.
+    /// The text to target, copied from the file.
     ///
-    /// Should be a short, distinctive piece of text that uniquely identifies the
-    /// location, covering the start of the target AST node.
+    /// Provide the complete text of the code you're operating on — for
+    /// `replace`, the whole item or statement being replaced; for inserts, the
+    /// whole item the new code goes next to (a complete function, field,
+    /// entry, statement, …).
     ///
-    /// Tips for Good Anchors
+    /// Matching is whitespace-insensitive: differences in line breaks and
+    /// indentation are ignored, so the anchor doesn't need to reproduce the
+    /// file's formatting exactly.
     ///
-    /// - **Keep anchors short but unique** - "fn main" instead of the entire function signature
-    /// - **Use distinctive text** - function names, keywords, or unique comments work well
-    /// - **Test your anchor** - if it appears multiple times, the tool will attempt to find the best placement
-    /// - **Whitespace doesn't matter** - anchors are whitespace-insensitive, so you can omit spaces, newlines, and indentation
+    /// If the anchor matches in more than one place, the first match is edited
+    /// and the response lists every match location — extend the anchor with
+    /// more of the target's own text if the wrong one was chosen. If the
+    /// anchor isn't found, or doesn't line up with complete syntax nodes,
+    /// nothing is changed.
     pub anchor: String,
 }
 

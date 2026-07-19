@@ -8,7 +8,7 @@ use mcplease::types::Example;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Execute the currently staged operation
+/// Write the currently staged edit to its file
 #[derive(Serialize, Deserialize, Debug, clap::Args)]
 #[serde(rename = "persist_edit")]
 #[group(skip)]
@@ -21,7 +21,7 @@ impl JsonSchema for PersistEdit {
 
     fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
         schemars::json_schema!({
-            "description": "Execute the currently staged operation",
+            "description": "Write the currently staged edit to its file",
             "type": "object",
             "properties": {}
         })
@@ -31,7 +31,7 @@ impl JsonSchema for PersistEdit {
 impl WithExamples for PersistEdit {
     fn examples() -> Vec<Example<Self>> {
         vec![Example {
-            description: "Commit the currently staged operation",
+            description: "Write the staged edit to disk",
             item: Self {},
         }]
     }

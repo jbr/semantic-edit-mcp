@@ -10,11 +10,16 @@ use mcplease::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Stage an operation and see a preview of the changes
+/// Stage an edit and preview the resulting diff
 ///
-/// The Selector uses a simple but powerful approach: find text with `anchor` (and optionally
-/// `end`), then perform the specified `operation`. All operations are AST-aware and respect
-/// language syntax. No changes are persisted to disk until you `commit_operation`
+/// Find the `anchor` text in the file and apply `operation` at that location.
+/// Nothing is written to disk until you follow up with `persist_edit`.
+///
+/// Every edit is validated before it is accepted: the result must still parse
+/// in the file's language and pass its formatter, or the edit is rejected and
+/// the file is untouched. The whole file is reformatted with the language's
+/// standard formatter, so the diff may include formatting fixes beyond the
+/// edit itself.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "preview_edit")]
 #[group(skip)]
@@ -33,8 +38,11 @@ pub struct PreviewEdit {
     #[clap(flatten)]
     pub selector: Selector,
 
-    /// The new content to insert or replace
-    /// IMPORTANT TIP: To remove code, omit `content`
+    /// The new code.
+    ///
+    /// For `replace`, this takes the place of the anchored code; omit it to
+    /// delete the anchored code instead. For inserts, include any blank lines
+    /// you want between the new code and its neighbors.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }
@@ -42,74 +50,57 @@ pub struct PreviewEdit {
 impl WithExamples for PreviewEdit {
     fn examples() -> Vec<Example<Self>> {
         vec![
-            // more examples to add
-            //
-            // ```json
-            // // Add a new import
-            // {
-            //   "operation": "insert_after",
-            //   "anchor": "use std::collections::HashMap;",
-            //   "content": "use std::fs::File;"
-            // }
-            //
-            // // Replace a function body
-            // {
-            //   "operation": "replace",
-            //   "anchor": "fn old_function() {",
-            //   "content": "fn new_function() {\n    println!(\"Updated!\");\n}"
-            // }
-            //
-            // // Change a section of code
-            // {
-            //   "operation": "replace_range",
-            //   "anchor": "// TODO: implement this",
-            //   "end": "return None;",
-            //   "content": "let result = calculate_value();\nreturn Some(result);"
-            // }
-            //
             Example {
-                description: "Insert content after a function declaration",
+                description: "Replace a function with a new implementation",
                 item: Self {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
-                        anchor: "fn main() {".into(),
+                        operation: Operation::Replace,
+                        anchor: "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
+                            .into(),
+                    },
+                    content: Some(
+                        "fn greet(name: &str) {\n    println!(\"Hi there, {name}!\");\n}"
+                            .to_string(),
+                    ),
+                    language: None,
+                },
+            },
+            Example {
+                description: "Insert a new function after an existing one",
+                item: Self {
+                    file_path: "src/main.rs".into(),
+                    selector: Selector {
                         operation: Operation::InsertAfter,
+                        anchor: "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
+                            .into(),
                     },
-                    content: Some("\n    println!(\"Hello, world!\");".to_string()),
+                    content: Some(
+                        "\n\nfn farewell(name: &str) {\n    println!(\"Goodbye, {name}\");\n}"
+                            .to_string(),
+                    ),
                     language: None,
                 },
             },
             Example {
-                description: "Replace a function with new implementation",
+                description: "Replace a single statement",
                 item: Self {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
-                        anchor: "fn hello()".to_string(),
                         operation: Operation::Replace,
+                        anchor: "let name = args.next().unwrap();".to_string(),
                     },
-                    content: Some("fn hello() { println!(\"Hello, world!\"); }".to_string()),
+                    content: Some(r#"let name = args.next().unwrap_or_default();"#.to_string()),
                     language: None,
                 },
             },
             Example {
-                description: "Replace an if statement",
+                description: "Delete a function by omitting content",
                 item: Self {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         operation: Operation::Replace,
-                        anchor: "if let Some(user) = user {".to_string(),
-                    },
-                    content: Some("user.map(User::name)".into()),
-                    language: None,
-                },
-            },
-            Example {
-                description: "Removing a function by omitting replacement content",
-                item: Self {
-                    file_path: "src/main.rs".into(),
-                    selector: Selector {
-                        operation: Operation::Replace,
-                        anchor: "fn main() {".to_string(),
+                        anchor: "fn unused_helper() {\n    todo!()\n}".to_string(),
                     },
                     content: None,
                     language: None,

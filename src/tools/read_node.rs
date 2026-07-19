@@ -9,10 +9,10 @@ use mcplease::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Read an AST node and its surrounding context
+/// Show the code an anchor targets, with surrounding context
 ///
-/// Uses the same anchor mechanism as `preview_edit` to locate a node,
-/// then displays the node and surrounding context without making any changes.
+/// Uses the same anchor matching as `preview_edit`, without making any
+/// changes — useful for checking what an anchor resolves to before editing.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "read_node")]
 #[group(skip)]
@@ -21,10 +21,8 @@ pub struct ReadNode {
     #[serde(rename = "file_path")]
     pub file_path: String,
 
-    /// Text to locate in the source code
-    ///
-    /// A short, distinctive piece of text that uniquely identifies the location
-    /// (whitespace-insensitive). See `preview_edit` for anchor tips.
+    /// Text to locate in the source code, matched whitespace-insensitively, as
+    /// in `preview_edit`.
     pub anchor: String,
 
     /// Optional language hint (e.g., "rust", "javascript")
