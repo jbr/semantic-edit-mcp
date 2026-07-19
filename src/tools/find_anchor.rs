@@ -35,7 +35,7 @@ impl WithExamples for FindAnchor {
     fn examples() -> Vec<Example<Self>> {
         vec![
             Example {
-                description: "Read a function definition",
+                description: "Check where a function anchor matches",
                 item: Self {
                     file_path: "src/main.rs".into(),
                     anchor: "fn main() {".into(),
@@ -43,7 +43,7 @@ impl WithExamples for FindAnchor {
                 },
             },
             Example {
-                description: "Read a struct definition",
+                description: "Check that a struct anchor is unique",
                 item: Self {
                     file_path: "src/lib.rs".into(),
                     anchor: "struct User".into(),
@@ -51,7 +51,7 @@ impl WithExamples for FindAnchor {
                 },
             },
             Example {
-                description: "Read a comment section",
+                description: "Locate a comment before anchoring an edit to it",
                 item: Self {
                     file_path: "src/utils.rs".into(),
                     anchor: "// Helper function".into(),
