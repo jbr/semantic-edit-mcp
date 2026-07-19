@@ -1,0 +1,4 @@
+name = "app"
+version = "2"
+[deps]
+foo = "1"

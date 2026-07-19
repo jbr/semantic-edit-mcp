@@ -1,32 +1,16 @@
 ;; Tree-sitter validation queries for Rust semantic editing
 ;; Focus on realistic problematic patterns we've actually encountered
 
-;; CRITICAL: Type definitions cannot be inside function bodies
-(function_item 
- body: (block
-        [(struct_item) (enum_item) (union_item)] @invalid.type.in.function.body))
-
-;; CRITICAL: Impl blocks cannot be inside function bodies  
-(function_item
- body: (block
-        (impl_item) @invalid.impl.in.function.body))
-
-;; CRITICAL: Trait definitions cannot be inside function bodies
-(function_item
- body: (block
-        (trait_item) @invalid.trait.in.function.body))
-
-;; Module declarations inside function bodies are invalid
-(function_item
- body: (block
-        (mod_item) @invalid.mod.in.function.body))
-
-
-(function_item
- body: (block
-        (trait_item) @invalid.trait.in.function.body))
-
-
+;; NOTE: removed the `*.in.function.body` family — struct/enum/union, impl, trait,
+;; and mod items declared inside a `fn` body are all valid Rust (local items are a
+;; normal pattern, e.g. `#[derive(Deserialize)] struct Response { … }` scoped to
+;; the one fn that parses it). Likewise removed `visibility.in.function.body`
+;; (`pub` on a local item compiles) and `generic.type.alias.in.function`
+;; (`type Alias<T> = …;` in a fn body compiles). Every one of those rules flagged
+;; legal code, and because validation runs against the whole result file, a single
+;; pre-existing local item rejected *every* edit to the file (see
+;; BUG-anchor-inserts-mid-node-and-error-misdiagnoses.md — the real blocker behind
+;; all six failed edits was a legal local struct elsewhere in the file).
 
 ;; CRITICAL: Methods with self parameters must be inside impl blocks
 (source_file
@@ -46,16 +30,8 @@
  (#eq? @self_param "self")
  (#not-has-ancestor? impl_item))
 
-
-
-
-
-;; CRITICAL: Async functions cannot be inside trait definitions (unless async trait)
-(trait_item
- body: (declaration_list
-        (function_item
-         (function_modifiers
-          "async")) @invalid.async.in.trait))
+;; NOTE: removed an `async.in.trait` rule — `async fn` in trait definitions has
+;; been stable since Rust 1.75, so the rule flagged valid modern code.
 
 ;; NOTE: removed a `function.in.function` rule that flagged a `fn` defined inside
 ;; another `fn`'s body. Nested/local functions are valid, idiomatic Rust (a private
@@ -72,22 +48,6 @@
 ;; `const fn` — that has been valid since `const_mut_refs` stabilized (Rust 1.83),
 ;; so the rule produced false positives on modern code.
 
-;; CRITICAL: Visibility modifiers on items inside functions
-(function_item
- body: (block
-        [(struct_item (visibility_modifier))
-         (enum_item (visibility_modifier))
-         (function_item (visibility_modifier))
-         (const_item (visibility_modifier))
-         (static_item (visibility_modifier))] @invalid.visibility.in.function.body))
-
-
-;; Type aliases with generics inside function bodies might be questionable
-(function_item
-  body: (block
-    (type_item
-      type_parameters: (type_parameters)) @invalid.generic.type.alias.in.function))
-
 ;; NOTE: removed a `mut.static.without.unsafe` rule that flagged the *declaration*
 ;; of a mutable static outside an `unsafe` block. Declaring `static mut` is always
 ;; legal — only *access* requires `unsafe` — so the rule rejected valid code (and,
@@ -98,5 +58,3 @@
  (#not-has-ancestor? function_item)
  (#not-has-ancestor? async_block)
  (#not-has-ancestor? closure_expression))
-
-

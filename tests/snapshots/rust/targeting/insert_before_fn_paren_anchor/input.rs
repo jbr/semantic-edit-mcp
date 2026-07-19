@@ -1,0 +1,2 @@
+/// doc
+fn target() {}

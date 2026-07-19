@@ -29,6 +29,13 @@ pub struct Edit<'editor, 'language> {
     nodes: Option<Vec<Node<'editor>>>,
     #[field(with, get, set)]
     annotation: Option<&'static str>,
+    /// Whether this candidate's result parsed cleanly — a candidate can be
+    /// structurally valid yet still rejected (context-query violation, formatter
+    /// error). When every candidate fails, the editor prefers reporting a
+    /// structurally-valid one: its failure describes what blocked the edit,
+    /// rather than the syntax wreckage of an inner-node splice.
+    #[field(get)]
+    structurally_valid: bool,
 }
 
 impl PartialEq for Edit<'_, '_> {
@@ -114,6 +121,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             output: None,
             nodes: None,
             annotation: None,
+            structurally_valid: false,
         }
     }
 
@@ -270,6 +278,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             self.message = Some(message);
             false
         } else {
+            self.structurally_valid = true;
             self.message = Some(format!(
                 "Applied {} operation",
                 self.editor.selector.operation_name()
@@ -292,7 +301,9 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     }
 
     fn validate(&mut self, output: &str) -> Option<String> {
-        let errors = self.editor.validate_tree(&self.tree, output)?;
+        let failure = self.editor.validate_tree(&self.tree, output)?;
+        self.structurally_valid = !failure.syntax;
+        let errors = failure.message;
         let diff = self.editor.diff(output);
         Some(format!(
             "This edit would result in invalid syntax, but the file is still in a valid state. \

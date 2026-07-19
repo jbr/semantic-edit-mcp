@@ -1,0 +1,8 @@
+{
+  "name": "preview_edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "/// The request envelope, shared source for both renderers.",
+    "content": "/// Render just the projected messages array.\npub fn render_messages_pretty(model: &str) -> String {\n    request_value(model, 2)\n}\n\n/// Render the messages as YAML.\npub fn render_messages_yaml(model: &str) -> String {\n    request_value(model, 3)\n}\n\n/// The request envelope, shared source for both renderers.\nfn request_value(\n    model: &str,\n    limit: usize,\n) -> String {\n    format!(\"{model}-{limit}\")\n}"
+  }
+}

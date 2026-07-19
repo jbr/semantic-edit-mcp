@@ -138,8 +138,23 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         );
         let mut candidates = vec![];
         for (start, end) in find_positions(source_code, anchor)? {
-            if let Some(parent) = tree.root_node().descendant_for_byte_range(start, end) {
-                let nodes = siblings_in_range(parent, start, end);
+            if let Some(mut parent) = tree.root_node().descendant_for_byte_range(start, end) {
+                // An anchor matching inside a comment resolves to the comment's
+                // inner trivia (e.g. rust's `///` marker / `doc_comment` text
+                // tokens); climb to the comment node itself so candidates target
+                // it whole rather than splicing mid-token.
+                while let Some(outer) = parent.parent().filter(|outer| outer.is_extra()) {
+                    parent = outer;
+                }
+                // For the same reason, never descend *into* a comment for the
+                // node-range candidate: its children are sub-token trivia, and an
+                // edit relative to them lands inside the comment's own text
+                // (`//<content>/ rest-of-comment`).
+                let nodes = if parent.is_extra() {
+                    vec![]
+                } else {
+                    siblings_in_range(parent, start, end)
+                };
                 if !nodes.is_empty() {
                     candidates.push(
                         self.build_edit(nodes.first().as_ref().unwrap().start_byte())

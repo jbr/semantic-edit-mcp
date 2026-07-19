@@ -1,0 +1,9 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert before
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ /// doc
++fn inserted() {}
++
+ fn target() {}

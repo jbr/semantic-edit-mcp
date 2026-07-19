@@ -6,17 +6,29 @@ use crate::{
     languages::{LanguageCommon, LanguageRegistry},
     selector::Selector,
     state::StagedOperation,
-    validation::ContextValidator,
+    validation::{ContextValidator, format_violations},
 };
 use anyhow::{Result, anyhow};
 use diffy::{DiffOptions, Patch, PatchFormatter};
 use ropey::Rope;
-use std::{collections::BTreeSet, iter, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter,
+    path::PathBuf,
+};
 use tree_sitter::Tree;
 
 pub(crate) use edit::Edit;
 pub(crate) use edit_iterator::EditIterator;
 pub(crate) use edit_position::EditPosition;
+
+/// Why a candidate's result tree was rejected. `syntax: true` means the result
+/// didn't even parse cleanly (the placement itself is structural nonsense);
+/// `syntax: false` means it parsed but introduced a context-query violation.
+pub(crate) struct ValidationFailure {
+    pub(crate) message: String,
+    pub(crate) syntax: bool,
+}
 
 #[derive(fieldwork::Fieldwork)]
 #[fieldwork(get)]
@@ -91,10 +103,62 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         })
     }
 
-    fn validate_tree(&self, tree: &Tree, content: &str) -> Option<String> {
-        Self::validate(self.language, tree, content)
+    /// Validate a candidate result tree, relative to the file being edited.
+    ///
+    /// Unlike the absolute [`validate`](Self::validate), context-query violations
+    /// are compared against the *original* source: a violation that already
+    /// exists in the unedited file is pre-existing code, not something this edit
+    /// introduced, so it never fails the candidate. Without this, one imperfect
+    /// heuristic match anywhere in a file makes the whole file uneditable — and
+    /// the resulting error points at code the caller never touched.
+    fn validate_tree(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
+        if let Some(errors) = Self::syntax_errors(self.language, tree, content) {
+            return Some(ValidationFailure {
+                message: errors,
+                syntax: true,
+            });
+        }
+
+        let query = self.language.validation_query()?;
+        let result = ContextValidator::validate_tree(tree, query, content);
+        if result.is_valid {
+            return None;
+        }
+
+        let baseline = ContextValidator::validate_tree(&self.tree, query, &self.source_code);
+        let mut preexisting = BTreeMap::new();
+        for violation in &baseline.violations {
+            *preexisting.entry(violation.message.as_str()).or_insert(0) += 1;
+        }
+        let introduced = result
+            .violations
+            .iter()
+            .filter(
+                |violation| match preexisting.get_mut(violation.message.as_str()) {
+                    Some(count) if *count > 0 => {
+                        *count -= 1;
+                        false
+                    }
+                    _ => true,
+                },
+            )
+            .collect::<Vec<_>>();
+        if introduced.is_empty() {
+            return None;
+        }
+
+        Some(ValidationFailure {
+            message: format_violations(introduced.into_iter(), content),
+            syntax: false,
+        })
     }
 
+    /// Absolute validation of a standalone tree — syntax plus *all* context-query
+    /// violations, with no baseline to compare against. Candidate edits go
+    /// through [`validate_tree`](Self::validate_tree) instead, which only fails
+    /// on violations the edit introduced; this absolute form remains the
+    /// semantic-validation test surface.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn validate(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
         if let Some(errors) = Self::syntax_errors(language, tree, content) {
             return Some(errors);
@@ -181,12 +245,27 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
 
         log::trace!("{edits:#?}");
 
-        // No candidate applied cleanly. Report the first candidate's failure
-        // message (it explains why the edit was rejected). If there were no
-        // candidates at all, the anchor matched no editable location — surface that
-        // rather than panicking (this runs in-process in the host harness).
-        let message = match edits.first_mut() {
-            Some(edit) => edit.take_message().unwrap_or_default(),
+        // No candidate applied cleanly. Prefer reporting a candidate whose result
+        // at least *parsed* (its placement was plausible, so its failure explains
+        // what actually blocked the edit) over one that produced structural
+        // nonsense — the first candidate is often an inner-node splice whose
+        // syntax dump misleads more than it informs. If there were no candidates
+        // at all, the anchor matched no editable location — surface that rather
+        // than panicking (this runs in-process in the host harness).
+        let index = edits.iter().position(Edit::structurally_valid).unwrap_or(0);
+        let message = match edits.get_mut(index) {
+            Some(edit) => {
+                let mut message = edit.take_message().unwrap_or_default();
+                if index == 0 && !edit.structurally_valid() {
+                    message.push_str(
+                        "\n\nNone of the candidate placements for this anchor produced a \
+valid file. The diff above shows one failed attempt — if the placement looks wrong, the anchor \
+is likely resolving to a different node than intended; try anchoring on the first line of the \
+item you mean to target.",
+                    );
+                }
+                message
+            }
             None => format!(
                 "No editable location found for anchor {:?}. The file was not modified.",
                 self.selector.anchor

@@ -1,0 +1,24 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+
+ def target():
+     return factory()
++
++
++def inserted():
++    return 1
+=== snapshot test tool call: persist_edit ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+
+ def target():
+     return factory()
++
++
++def inserted():
++    return 1

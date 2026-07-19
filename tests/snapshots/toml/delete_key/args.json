@@ -1,0 +1,4 @@
+[
+  {"name": "preview_edit", "arguments": {"operation": "replace", "anchor": "port = 8080"}},
+  {"name": "persist_edit", "arguments": {}}
+]

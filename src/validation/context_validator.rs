@@ -182,17 +182,26 @@ impl ValidationResult<'_, '_> {
             return "✅ All validations passed".to_string();
         }
 
-        let mut response = String::new();
-        response.push_str("❌ Invalid placement detected:\n\n");
-
-        for violation in &self.violations {
-            response.push_str(&format!("• {}:\n", violation.message));
-            let parent = violation.node.parent().unwrap_or(violation.node);
-            response.push_str(&self.source_code[parent.byte_range()]);
-            response.push_str("\n\n");
-            response.push_str(&format!("  💡 Suggestion: {}\n", violation.suggestion));
-        }
-
-        response
+        format_violations(self.violations.iter(), self.source_code)
     }
+}
+
+/// Render a set of violations (not necessarily all of a [`ValidationResult`]'s —
+/// the editor reports only the violations an edit *introduced*).
+pub fn format_violations<'tree>(
+    violations: impl Iterator<Item = &'tree ContextViolation<'tree>>,
+    source_code: &str,
+) -> String {
+    let mut response = String::new();
+    response.push_str("❌ Invalid placement detected:\n\n");
+
+    for violation in violations {
+        response.push_str(&format!("• {}:\n", violation.message));
+        let parent = violation.node.parent().unwrap_or(violation.node);
+        response.push_str(&source_code[parent.byte_range()]);
+        response.push_str("\n\n");
+        response.push_str(&format!("  💡 Suggestion: {}\n", violation.suggestion));
+    }
+
+    response
 }

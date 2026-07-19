@@ -1,0 +1,22 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert before
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ [a]
+ x = 1
++[ab]
++z = 3
+ [b]
+ y = 2
+=== snapshot test tool call: persist_edit ===
+insert before operation result:
+Applied insert before operation
+
+===DIFF===
+ [a]
+ x = 1
++[ab]
++z = 3
+ [b]
+ y = 2

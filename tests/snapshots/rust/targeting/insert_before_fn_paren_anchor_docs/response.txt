@@ -1,0 +1,24 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert before
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
++/// Render just the projected messages array.
++pub fn render_messages_pretty(model: &str) -> String {
++    request_value(model, 2)
++}
++
++/// Render the messages as YAML.
++pub fn render_messages_yaml(model: &str) -> String {
++    request_value(model, 3)
++}
++
+ /// The request envelope, shared source for both renderers.
+-fn request_value(
+-    model: &str,
+-    limit: usize,
+-) -> String {
++fn request_value(model: &str, limit: usize) -> String {
+     format!("{model}-{limit}")
+ }
+

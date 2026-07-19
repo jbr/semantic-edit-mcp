@@ -1,0 +1,24 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: insert after
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ scope = "..."
+ [commands]
++[logging]
++level = "info"
+ ls = true
+ [paths]
+ "." = true
+=== snapshot test tool call: persist_edit ===
+insert after operation result:
+Applied insert after operation
+
+===DIFF===
+ scope = "..."
+ [commands]
++[logging]
++level = "info"
+ ls = true
+ [paths]
+ "." = true
