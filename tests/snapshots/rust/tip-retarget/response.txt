@@ -1,0 +1,30 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+-pub fn alpha(x: i32) -> i32 {
+-    x + 1
++pub fn omega(x: i32, y: i32) -> i32 {
++    let doubled = x * 2;
++    doubled + y
+ }
+
+ pub fn beta(x: i32) -> i32 {
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+     x + 1
+ }
+
+-pub fn beta(x: i32) -> i32 {
+-    x + 2
++pub fn omega(x: i32, y: i32) -> i32 {
++    let doubled = x * 2;
++    doubled + y
+ }
+
+===TIP===
+This edit's content was identical to the already-staged edit. When only the targeting needs to change, `retarget_edit` re-aims the staged edit at a new anchor without resending the content.

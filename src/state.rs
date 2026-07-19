@@ -1,5 +1,6 @@
 use crate::{
     editor::EditPosition,
+    education::EducationState,
     languages::{LanguageName, LanguageRegistry},
     selector::Selector,
 };
@@ -20,11 +21,21 @@ pub struct SharedContextData {
     context_path: Option<PathBuf>,
 }
 
-/// Session data specific to semantic editing operations
+/// Session data specific to semantic editing operations.
+///
+/// This struct is the tool's *complete* per-session state, and it is plain
+/// serializable data on purpose: an embedder that doesn't persist the session
+/// store (e.g. efference's in-memory embedding) can snapshot it via
+/// [`SemanticEditTools::session_snapshot`] and restore it via
+/// [`SemanticEditTools::restore_session`] so a resumed session picks up
+/// identical tool state — staged edit and education progress alike.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct SemanticEditSessionData {
     /// Currently staged operation
     staged_operation: Option<StagedOperation>,
+    /// Within-session teaching progress (see [`crate::education`])
+    #[serde(default)]
+    education: EducationState,
 }
 
 /// Represents a staged operation that can be previewed and committed
@@ -176,9 +187,60 @@ impl SemanticEditTools {
         self.get_staged_operation(Some(session_id))
     }
 
+    /// A copy of the session's education state.
+    pub fn education(&mut self, session_id: Option<&str>) -> Result<EducationState> {
+        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+        Ok(self
+            .session_store
+            .get_or_create(session_id)?
+            .education
+            .clone())
+    }
+
+    /// Update the session's education state in place.
+    pub fn update_education<F>(&mut self, session_id: Option<&str>, fun: F) -> Result<()>
+    where
+        F: FnOnce(&mut EducationState),
+    {
+        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+        self.session_store
+            .update(session_id, |data| fun(&mut data.education))
+    }
+
+    /// Snapshot the complete per-session tool state, for embedders that manage
+    /// persistence themselves (e.g. serializing into a session log so
+    /// resumption restores identical tool state).
+    #[allow(dead_code, reason = "embedding API, used by library consumers")]
+    pub fn session_snapshot(
+        &mut self,
+        session_id: Option<&str>,
+    ) -> Result<SemanticEditSessionData> {
+        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+        Ok(self.session_store.get_or_create(session_id)?.clone())
+    }
+
+    /// Restore per-session tool state captured by [`session_snapshot`](Self::session_snapshot).
+    #[allow(dead_code, reason = "embedding API, used by library consumers")]
+    pub fn restore_session(
+        &mut self,
+        session_id: Option<&str>,
+        snapshot: SemanticEditSessionData,
+    ) -> Result<()> {
+        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+        self.session_store
+            .update(session_id, |data| *data = snapshot)
+    }
+
     /// Set context path for a session
     pub fn set_working_directory(&mut self, path: PathBuf, session_id: Option<&str>) -> Result<()> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
+
+        // Setting the working directory is the closest signal available for "a
+        // new session began", so within-session teaching restarts from zero
+        // here — every session starts untaught by design.
+        self.session_store.update(session_id, |data| {
+            data.education = EducationState::default();
+        })?;
 
         self.shared_context_store_mut().update(session_id, |data| {
             data.context_path = Some(path);

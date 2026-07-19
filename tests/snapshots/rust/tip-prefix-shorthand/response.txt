@@ -1,0 +1,68 @@
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ pub fn alpha(x: i32) -> i32 {
+-    x + 1
++    x + 10
+ }
+
+ pub fn beta(x: i32) -> i32 {
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ }
+
+ pub fn beta(x: i32) -> i32 {
+-    x + 2
++    x + 20
+ }
+
+ pub fn gamma(x: i32) -> i32 {
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ }
+
+ pub fn gamma(x: i32) -> i32 {
+-    x + 3
++    x + 30
+ }
+
+ pub fn delta(x: i32) -> i32 {
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ }
+
+ pub fn delta(x: i32) -> i32 {
+-    x + 4
++    x + 40
+ }
+
+ pub fn epsilon(x: i32) -> i32 {
+=== snapshot test tool call: preview_edit ===
+Previewing: replace
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ }
+
+ pub fn epsilon(x: i32) -> i32 {
+-    x + 5
++    x + 50
+ }
+
+===TIP===
+This edit would have produced the identical result with a shorter anchor:
+
+  anchor: "pub fn epsilon(x: i32) -> i32 {"
+
+An anchor only needs to be unique in the file and to cover the start of the code it targets — the rest of the target's text can be omitted. This is especially useful for deletes: a one-line anchor with `content` omitted removes the whole item it begins.

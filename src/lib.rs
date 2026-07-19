@@ -16,6 +16,7 @@
 #![allow(dead_code)]
 
 pub mod editor;
+pub mod education;
 pub mod indentation;
 pub mod languages;
 pub mod searcher;

@@ -1,4 +1,5 @@
 use crate::editor::Editor;
+use crate::education;
 use crate::languages::LanguageName;
 use crate::selector::{Operation, Selector};
 use crate::state::SemanticEditTools;
@@ -121,19 +122,78 @@ impl Tool<SemanticEditTools> for PreviewEdit {
 
         let file_path = state.resolve_path(&file_path, None)?;
 
+        // Observations for the education layer, taken before this call
+        // replaces the staged operation.
+        let education = state.education(None)?;
+        let resent_content = matches!(
+            (state.get_staged_operation(None)?, content.as_deref()),
+            (Some(prev), Some(new)) if *prev.file_path() == file_path
+                && prev.selector() != &selector
+                && prev.content() == new
+        );
+
+        let content = content.unwrap_or_default();
         let language = state
             .language_registry()
             .get_language_with_hint(&file_path, language)?;
 
         let editor = Editor::new(
-            content.unwrap_or_default(),
-            selector,
+            content.clone(),
+            selector.clone(),
             language,
-            file_path,
+            file_path.clone(),
             None,
         )?;
-        let (message, staged_operation) = editor.preview()?;
+        let shorthand = editor.shorthand_suggestion();
+        let (mut message, staged_operation) = editor.preview()?;
+        let success = staged_operation.is_some();
+
+        // Never teach an unverified shorthand: re-run the edit with the
+        // shortened anchor and only offer it if the diff is identical.
+        let verified_shorthand = if success && education.prefix_tip_due() {
+            shorthand.filter(|short| {
+                Editor::new(
+                    content.clone(),
+                    Selector {
+                        operation: selector.operation,
+                        anchor: short.clone(),
+                    },
+                    language,
+                    file_path.clone(),
+                    None,
+                )
+                .and_then(Editor::preview)
+                .map(|(short_message, _)| Editor::equivalent_diffs(&message, &short_message))
+                .unwrap_or(false)
+            })
+        } else {
+            None
+        };
+
         state.preview_edit(None, staged_operation)?;
+
+        if success {
+            let tip = if resent_content && education.retarget_tip_due(content.len()) {
+                state.update_education(None, |education| {
+                    education.record_success();
+                    education.record_retarget_tip_emitted();
+                })?;
+                Some(education::retarget_tip())
+            } else if let Some(short) = verified_shorthand {
+                state.update_education(None, |education| {
+                    education.record_success();
+                    education.record_prefix_tip_emitted();
+                })?;
+                Some(education::prefix_tip(&short))
+            } else {
+                state.update_education(None, |education| education.record_success())?;
+                None
+            };
+            if let Some(tip) = tip {
+                message.push_str("\n\n");
+                message.push_str(&tip);
+            }
+        }
 
         Ok(message)
     }

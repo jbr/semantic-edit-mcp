@@ -314,6 +314,35 @@ target's surrounding text to disambiguate.",
         ))
     }
 
+    /// A candidate shorter anchor for the same target: the first line of the
+    /// current anchor, offered only when the anchor is multi-line and the
+    /// first line alone matches exactly once in the file. This is a
+    /// *candidate* — callers teaching it as equivalent must verify it by
+    /// re-running the edit and comparing diffs (see
+    /// [`equivalent_diffs`](Self::equivalent_diffs)).
+    pub fn shorthand_suggestion(&self) -> Option<String> {
+        let anchor = self.selector.anchor.trim();
+        let first_line = anchor.lines().next()?.trim();
+        if first_line == anchor || first_line.is_empty() {
+            return None;
+        }
+        let hits = find_positions(&self.source_code, first_line).ok()?;
+        (hits.len() == 1).then(|| first_line.to_string())
+    }
+
+    /// Whether two preview messages describe the identical change: their
+    /// `===DIFF===` sections match, ignoring any trailing ambiguity note.
+    pub fn equivalent_diffs(a: &str, b: &str) -> bool {
+        fn diff_section(message: &str) -> Option<&str> {
+            let section = &message[message.find("===DIFF===")?..];
+            let end = section
+                .find("\n\nNote: the anchor matched")
+                .unwrap_or(section.len());
+            Some(&section[..end])
+        }
+        matches!((diff_section(a), diff_section(b)), (Some(a), Some(b)) if a == b)
+    }
+
     pub fn preview(mut self) -> Result<(String, Option<StagedOperation>)> {
         let (message, output, note) = self.edit()?;
         if let Some(output) = &output {
