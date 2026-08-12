@@ -14,7 +14,7 @@ mod validation;
 #[cfg(test)]
 mod tests;
 
-use mcplease::server_info;
+use mcplease::{ServerConfig, server_info};
 use state::SemanticEditTools;
 use std::env;
 use tools::Tools;
@@ -31,5 +31,9 @@ fn main() {
     )
     .unwrap();
 
-    mcplease::run::<Tools, _>(&mut state, server_info!(), Some(INSTRUCTIONS)).unwrap()
+    mcplease::run::<Tools, _>(
+        &mut state,
+        ServerConfig::new(server_info!()).with_instructions(INSTRUCTIONS),
+    )
+    .unwrap()
 }

@@ -3,8 +3,8 @@ use crate::languages::LanguageName;
 use crate::state::SemanticEditTools;
 use anyhow::Result;
 use mcplease::{
-    traits::{Tool, WithExamples},
-    types::Example,
+    traits::{Tool, ToolMeta},
+    types::{Example, RequestContext, ToolAnnotations},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,19 @@ pub struct FindAnchor {
     pub language: Option<LanguageName>,
 }
 
-impl WithExamples for FindAnchor {
+impl ToolMeta for FindAnchor {
+    fn title() -> Option<&'static str> {
+        Some("Find anchor matches")
+    }
+
+    fn annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations {
+            read_only_hint: Some(true),
+            open_world_hint: Some(false),
+            ..Default::default()
+        })
+    }
+
     fn examples() -> Vec<Example<Self>> {
         vec![
             Example {
@@ -63,7 +75,9 @@ impl WithExamples for FindAnchor {
 }
 
 impl Tool<SemanticEditTools> for FindAnchor {
-    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+    type Output = String;
+
+    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
         let Self {
             file_path,
             anchor,

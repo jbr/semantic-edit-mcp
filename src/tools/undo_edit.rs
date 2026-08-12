@@ -4,8 +4,8 @@ use std::path::Path;
 use crate::editor::clean_diff;
 use crate::state::SemanticEditTools;
 use anyhow::{Result, anyhow};
-use mcplease::traits::{Tool, WithExamples};
-use mcplease::types::Example;
+use mcplease::traits::{Tool, ToolMeta};
+use mcplease::types::{Example, RequestContext, ToolAnnotations};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,24 @@ impl JsonSchema for UndoEdit {
     }
 }
 
-impl WithExamples for UndoEdit {
+impl ToolMeta for UndoEdit {
+    fn title() -> Option<&'static str> {
+        Some("Undo last edit")
+    }
+
+    fn annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations {
+            read_only_hint: Some(false),
+            // Discards the last edit's changes.
+            destructive_hint: Some(true),
+            // Undo is single-level: a second call has nothing left to revert
+            // and fails rather than reverting further.
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+            ..Default::default()
+        })
+    }
+
     fn examples() -> Vec<Example<Self>> {
         vec![Example {
             description: "Revert the edit that was just applied",
@@ -44,7 +61,9 @@ impl WithExamples for UndoEdit {
 }
 
 impl Tool<SemanticEditTools> for UndoEdit {
-    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+    type Output = String;
+
+    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
         let record = state
             .last_edit(None)?
             .cloned()

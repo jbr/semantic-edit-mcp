@@ -2,7 +2,8 @@ use crate::state::SemanticEditTools;
 use crate::tools::Tools;
 use anyhow::{Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
-use mcplease::traits::Tool;
+use mcplease::traits::Dispatch;
+use mcplease::types::RequestContext;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -365,7 +366,7 @@ impl SnapshotRunner {
             snapshot_execution_result.response.push_str(tool.name());
             snapshot_execution_result.response.push_str(" ===\n");
 
-            match tool.execute(&mut self.state) {
+            match tool.call_to_text(&mut self.state, &RequestContext::default()) {
                 Ok(response) => snapshot_execution_result.response.push_str(&response),
                 Err(err) => snapshot_execution_result
                     .response

@@ -1,6 +1,7 @@
 //! Integration tests for the in-process embedding surface (`lib.rs`).
 
-use mcplease::traits::Tool;
+use mcplease::traits::Dispatch;
+use mcplease::types::RequestContext;
 use semantic_edit_mcp::{SemanticEditTools, Tools};
 use std::{
     path::PathBuf,
@@ -39,7 +40,7 @@ fn commit_fn_persists_across_multiple_edits() {
                 "content": content,
             }
         }))
-        .execute(&mut state)
+        .call_to_text(&mut state, &RequestContext::default())
         .unwrap();
     }
 
@@ -68,7 +69,7 @@ fn missing_file_is_an_error_not_a_panic() {
             "content": "fn main() {}",
         }
     }))
-    .execute(&mut state);
+    .call_to_text(&mut state, &RequestContext::default());
 
     std::fs::remove_dir_all(&dir).ok();
     let err = result.expect_err("editing a missing file should be an error");

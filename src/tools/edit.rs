@@ -5,8 +5,8 @@ use crate::selector::{Operation, Selector};
 use crate::state::{AppliedEdit, SemanticEditTools};
 use anyhow::Result;
 use mcplease::{
-    traits::{Tool, WithExamples},
-    types::Example,
+    traits::{Tool, ToolMeta},
+    types::{Example, RequestContext, ToolAnnotations},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,26 @@ pub struct Edit {
     pub content: Option<String>,
 }
 
-impl WithExamples for Edit {
+impl ToolMeta for Edit {
+    fn title() -> Option<&'static str> {
+        Some("Edit code")
+    }
+
+    fn annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations {
+            read_only_hint: Some(false),
+            // Replaces or deletes existing code, though `undo_edit` reverts the
+            // most recent one.
+            destructive_hint: Some(true),
+            // Re-sending the same edit is guarded against, but an insert
+            // repeated after another edit intervenes does duplicate content.
+            idempotent_hint: Some(false),
+            // Only touches files in the session's working directory.
+            open_world_hint: Some(false),
+            ..Default::default()
+        })
+    }
+
     fn examples() -> Vec<Example<Self>> {
         vec![
             Example {
@@ -167,7 +186,9 @@ fn duplicate_of_last_edit(
 }
 
 impl Tool<SemanticEditTools> for Edit {
-    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+    type Output = String;
+
+    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
         let Self {
             file_path,
             selector,

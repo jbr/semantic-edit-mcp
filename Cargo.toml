@@ -1,7 +1,6 @@
 [package]
 name = "semantic-edit-mcp"
-version = "0.2.1"
-authors = ["Jacob Rothstein <hi@jbr.me>", "Anthropic Claude Sonnet 4"]
+version = "0.2.0"
 edition = "2024"
 description = "MCP server for semantic code editing with tree-sitter"
 readme = "README.md"
@@ -19,7 +18,7 @@ dirs = "6.0"
 enum-map = "2.7.3"
 fieldwork = "0.4.6"
 log = "0.4.27"
-mcplease = { version = "0.3.0", path = "../mcplease" }
+mcplease = "0.3"
 ropey = "1.6"
 schemars = "1.0.4"
 serde = { version = "1.0", features = ["derive"] }
@@ -37,6 +36,3 @@ tree-sitter-toml-ng = "0.7.0"
 tree-sitter-typescript = "0.23.2"
 walkdir = "2.5"
 
-
-# [patch.crates-io]
-# mcplease = { path = "../mcplease" }

@@ -2,8 +2,8 @@ use crate::{editor::Editor, selector::Selector, state::SemanticEditTools};
 
 use anyhow::{Result, anyhow};
 use mcplease::{
-    traits::{Tool, WithExamples},
-    types::Example,
+    traits::{Tool, ToolMeta},
+    types::{Example, RequestContext, ToolAnnotations},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,14 +24,32 @@ pub struct RetargetEdit {
     pub selector: Selector,
 }
 
-impl WithExamples for RetargetEdit {
+impl ToolMeta for RetargetEdit {
+    fn title() -> Option<&'static str> {
+        Some("Retarget last edit")
+    }
+
+    fn annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations {
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            // Re-running with the same selector reports that the edit is
+            // already there and leaves the file alone.
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+            ..Default::default()
+        })
+    }
+
     fn examples() -> Vec<Example<Self>> {
         vec![]
     }
 }
 
 impl Tool<SemanticEditTools> for RetargetEdit {
-    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+    type Output = String;
+
+    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
         let Self { selector } = self;
 
         let record = state
