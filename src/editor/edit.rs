@@ -31,7 +31,7 @@ pub struct Edit<'editor, 'language> {
     annotation: Option<&'static str>,
     /// The `(start, end)` byte range of the anchor occurrence this candidate was
     /// built from — used after a candidate wins to report when the anchor also
-    /// matched elsewhere. Absent on staged-position edits, which bypass search.
+    /// matched elsewhere.
     #[field(with, get)]
     anchor_hit: Option<(usize, usize)>,
     /// Whether this candidate's result parsed cleanly — a candidate can be

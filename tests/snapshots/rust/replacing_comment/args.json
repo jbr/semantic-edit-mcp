@@ -1,5 +1,10 @@
-[{"name": "preview_edit", "arguments":{
-  "operation": "replace",
-  "anchor": "/// this is a multiline comment\n/// line 2\n",
-  "content": "/// just one line and no trailing newline"
-}}]
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "/// this is a multiline comment\n/// line 2\n",
+      "content": "/// just one line and no trailing newline"
+    }
+  }
+]

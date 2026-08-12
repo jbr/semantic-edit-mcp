@@ -1,8 +1,10 @@
 [
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "ls = true\n[paths]",
-    "content": "ls = true\nfind = true\n[paths]"
-  }},
-  {"name": "persist_edit", "arguments": {}}
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "ls = true\n[paths]",
+      "content": "ls = true\nfind = true\n[paths]"
+    }
+  }
 ]

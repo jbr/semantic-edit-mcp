@@ -1,5 +1,5 @@
 {
-  "name": "preview_edit",
+  "name": "edit",
   "arguments": {
     "operation": "insert_after",
     "anchor": "pub fn render_request_yaml(",

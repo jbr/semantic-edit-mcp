@@ -1,8 +1,10 @@
 [
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "fn bar",
-    "content": "#[must_use]\n#[inline]\nfn bar() -> u32 {\n    2\n}"
-  }},
-  {"name": "persist_edit", "arguments": {}}
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "fn bar",
+      "content": "#[must_use]\n#[inline]\nfn bar() -> u32 {\n    2\n}"
+    }
+  }
 ]

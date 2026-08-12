@@ -1,4 +1,10 @@
 [
-  {"name": "preview_edit", "arguments": {"operation": "replace", "anchor": "targets", "content": "targets = [\"linux\", \"mac\", \"windows\"]"}},
-  {"name": "persist_edit", "arguments": {}}
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "targets",
+      "content": "targets = [\"linux\", \"mac\", \"windows\"]"
+    }
+  }
 ]

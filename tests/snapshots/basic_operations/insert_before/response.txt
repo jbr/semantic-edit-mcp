@@ -1,18 +1,6 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: insert before
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
-
-===DIFF===
- // Test file for insert before node
- use std::collections::HashMap;
-
-+// This comment is inserted before the target function
- pub fn target_function() {
-     println!("This function will have content inserted before it");
- }
-=== snapshot test tool call: persist_edit ===
-insert before operation result:
-Applied insert before operation
 
 ===DIFF===
  // Test file for insert before node

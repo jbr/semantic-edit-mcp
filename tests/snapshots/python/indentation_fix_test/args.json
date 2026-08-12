@@ -5,10 +5,6 @@
       "anchor": "                                print(f\"Bad indentation {i}\")",
       "operation": "replace"
     },
-    "name": "preview_edit"
-  },
-  {
-    "arguments": {},
-    "name": "persist_edit"
+    "name": "edit"
   }
 ]

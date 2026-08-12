@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::education;
 use crate::languages::LanguageName;
 use crate::selector::{Operation, Selector};
-use crate::state::SemanticEditTools;
+use crate::state::{AppliedEdit, SemanticEditTools};
 use anyhow::Result;
 use mcplease::{
     traits::{Tool, WithExamples},
@@ -11,20 +11,22 @@ use mcplease::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Stage an edit and preview the resulting diff
+/// Apply an edit to a file and see the resulting diff
 ///
 /// Find the `anchor` text in the file and apply `operation` at that location.
-/// Nothing is written to disk until you follow up with `persist_edit`.
-///
-/// Every edit is validated before it is accepted: the result must still parse
+/// Every edit is validated before it is written: the result must still parse
 /// in the file's language and pass its formatter, or the edit is rejected and
-/// the file is untouched. The whole file is reformatted with the language's
-/// standard formatter, so the diff may include formatting fixes beyond the
-/// edit itself.
+/// the file is untouched. A valid edit is written to disk immediately —
+/// review the returned diff, and if the edit landed somewhere other than
+/// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
+/// reverts it.
+///
+/// The whole file is reformatted with the language's standard formatter, so
+/// the diff may include formatting fixes beyond the edit itself.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
-#[serde(rename = "preview_edit")]
+#[serde(rename = "edit")]
 #[group(skip)]
-pub struct PreviewEdit {
+pub struct Edit {
     /// Path to the source file.
     /// If a session has been configured, this can be a relative path to the session root.
     pub file_path: String,
@@ -48,7 +50,7 @@ pub struct PreviewEdit {
     pub content: Option<String>,
 }
 
-impl WithExamples for PreviewEdit {
+impl WithExamples for Edit {
     fn examples() -> Vec<Example<Self>> {
         vec![
             Example {
@@ -111,7 +113,60 @@ impl WithExamples for PreviewEdit {
     }
 }
 
-impl Tool<SemanticEditTools> for PreviewEdit {
+/// How this request relates to the last applied edit, when that record still
+/// describes the file's current contents. Because edits persist immediately,
+/// re-sending an already-applied edit is no longer harmless the way
+/// re-previewing was: it would double the change on disk.
+enum DuplicateOfLastEdit {
+    /// Identical selector and content: applying again would apply the change
+    /// twice, and the file already contains it.
+    ExactResend,
+    /// Identical non-empty content re-sent as a `replace` at a different
+    /// anchor: almost certainly an attempt to *move* the previous edit, and
+    /// applying it would both duplicate the content and overwrite the undo
+    /// record — losing the only copy of whatever the first replace clobbered.
+    MovedReplace,
+    /// Identical non-empty content inserted at a different location: possibly
+    /// intentional duplication, so it proceeds, but with a warning that the
+    /// earlier placement is still in the file.
+    DuplicatedInsert,
+}
+
+fn duplicate_of_last_edit(
+    last_edit: Option<&AppliedEdit>,
+    file_path: &std::path::Path,
+    selector: &Selector,
+    content: Option<&str>,
+    owns_persistence: bool,
+) -> Option<DuplicateOfLastEdit> {
+    let last = last_edit?;
+    let op = last.operation();
+    if op.file_path() != file_path {
+        return None;
+    }
+    // Only compare against a record that still describes the file's current
+    // contents; if the file has moved on (or the record is stale), a repeated
+    // edit is a fresh edit. When an embedder owns persistence the disk isn't
+    // observable, so the record is trusted as current.
+    if owns_persistence && !last.is_current_on_disk().unwrap_or(false) {
+        return None;
+    }
+
+    let content = content.unwrap_or_default();
+    if op.selector() == selector && op.content() == content {
+        return Some(DuplicateOfLastEdit::ExactResend);
+    }
+    if content.is_empty() || op.content() != content {
+        return None;
+    }
+    if op.selector().operation == Operation::Replace && selector.operation == Operation::Replace {
+        Some(DuplicateOfLastEdit::MovedReplace)
+    } else {
+        Some(DuplicateOfLastEdit::DuplicatedInsert)
+    }
+}
+
+impl Tool<SemanticEditTools> for Edit {
     fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
@@ -121,16 +176,32 @@ impl Tool<SemanticEditTools> for PreviewEdit {
         } = self;
 
         let file_path = state.resolve_path(&file_path, None)?;
-
-        // Observations for the education layer, taken before this call
-        // replaces the staged operation.
         let education = state.education(None)?;
-        let resent_content = matches!(
-            (state.get_staged_operation(None)?, content.as_deref()),
-            (Some(prev), Some(new)) if *prev.file_path() == file_path
-                && prev.selector() != &selector
-                && prev.content() == new
+
+        let owns_persistence = state.owns_persistence();
+        let duplicate = duplicate_of_last_edit(
+            state.last_edit(None)?,
+            &file_path,
+            &selector,
+            content.as_deref(),
+            owns_persistence,
         );
+        match duplicate {
+            Some(DuplicateOfLastEdit::ExactResend) => {
+                return Ok("This exact edit was already applied — the file already contains \
+this change, so it was not applied again. If the previous application was unintended, \
+`undo_edit` reverts it."
+                    .to_string());
+            }
+            Some(DuplicateOfLastEdit::MovedReplace) => {
+                return Ok("The file was not modified: this content is identical to the \
+`replace` just applied to this file at a different anchor. If that edit landed on the wrong \
+target, use `retarget_edit` with the corrected anchor — it reverts the earlier placement and \
+re-applies the content there in one step. (`undo_edit` also reverts it.)"
+                    .to_string());
+            }
+            Some(DuplicateOfLastEdit::DuplicatedInsert) | None => {}
+        }
 
         let content = content.unwrap_or_default();
         let language = state
@@ -142,15 +213,14 @@ impl Tool<SemanticEditTools> for PreviewEdit {
             selector.clone(),
             language,
             file_path.clone(),
-            None,
         )?;
         let shorthand = editor.shorthand_suggestion();
-        let (mut message, staged_operation) = editor.preview()?;
-        let success = staged_operation.is_some();
+        let (mut message, applied) = editor.apply()?;
 
         // Never teach an unverified shorthand: re-run the edit with the
-        // shortened anchor and only offer it if the diff is identical.
-        let verified_shorthand = if success && education.prefix_tip_due() {
+        // shortened anchor and only offer it if the diff is identical. This
+        // runs before the edit is persisted, so both runs see the same file.
+        let verified_shorthand = if applied.is_some() && education.prefix_tip_due() {
             shorthand.filter(|short| {
                 Editor::new(
                     content.clone(),
@@ -160,9 +230,8 @@ impl Tool<SemanticEditTools> for PreviewEdit {
                     },
                     language,
                     file_path.clone(),
-                    None,
                 )
-                .and_then(Editor::preview)
+                .and_then(Editor::apply)
                 .map(|(short_message, _)| Editor::equivalent_diffs(&message, &short_message))
                 .unwrap_or(false)
             })
@@ -170,28 +239,22 @@ impl Tool<SemanticEditTools> for PreviewEdit {
             None
         };
 
-        state.preview_edit(None, staged_operation)?;
+        if let Some(applied) = applied {
+            state.persist_output(file_path, applied.post_edit_source.clone())?;
+            message = format!(
+                "Applied {} — the file has been updated.\n{message}",
+                applied.operation().selector().operation_name()
+            );
+            state.set_last_edit(None, Some(applied))?;
+            state.update_education(None, |education| education.record_success())?;
 
-        if success {
-            let tip = if resent_content && education.retarget_tip_due(content.len()) {
-                state.update_education(None, |education| {
-                    education.record_success();
-                    education.record_retarget_tip_emitted();
-                })?;
-                Some(education::retarget_tip())
-            } else if let Some(short) = verified_shorthand {
-                state.update_education(None, |education| {
-                    education.record_success();
-                    education.record_prefix_tip_emitted();
-                })?;
-                Some(education::prefix_tip(&short))
-            } else {
-                state.update_education(None, |education| education.record_success())?;
-                None
-            };
-            if let Some(tip) = tip {
+            if matches!(duplicate, Some(DuplicateOfLastEdit::DuplicatedInsert)) {
                 message.push_str("\n\n");
-                message.push_str(&tip);
+                message.push_str(education::duplicate_insert_warning());
+            } else if let Some(short) = verified_shorthand {
+                state.update_education(None, |education| education.record_prefix_tip_emitted())?;
+                message.push_str("\n\n");
+                message.push_str(&education::prefix_tip(&short));
             }
         }
 

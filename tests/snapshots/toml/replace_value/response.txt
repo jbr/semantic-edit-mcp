@@ -1,15 +1,6 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: replace
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
-
-===DIFF===
- [server]
- host = "localhost"
--port = 8080
-+port = 9090
-=== snapshot test tool call: persist_edit ===
-replace operation result:
-Applied replace operation
 
 ===DIFF===
  [server]

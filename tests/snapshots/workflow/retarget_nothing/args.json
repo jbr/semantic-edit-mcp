@@ -1,0 +1,6 @@
+[
+  {"name": "retarget_edit", "arguments": {
+    "operation": "insert_after",
+    "anchor": "pub fn alpha(x: i32) -> i32 {"
+  }}
+]

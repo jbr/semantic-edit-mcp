@@ -1,5 +1,5 @@
 {
-  "name": "preview_edit",
+  "name": "edit",
   "arguments": {
     "operation": "replace",
     "anchor": "/// The request envelope, shared source for both renderers.",

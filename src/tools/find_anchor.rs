@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 
 /// Show every location an anchor matches in a file, with surrounding context
 ///
-/// Uses the same whitespace-insensitive matching as `preview_edit`, without
-/// making any changes — useful for checking that an anchor matches where you
-/// mean it to, and that it matches only once, before editing.
+/// Uses the same whitespace-insensitive matching as `edit`, without making
+/// any changes — useful for checking that an anchor matches where you mean it
+/// to, and that it matches only once, before editing.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "find_anchor")]
 #[group(skip)]
@@ -23,7 +23,7 @@ pub struct FindAnchor {
     pub file_path: String,
 
     /// Text to locate in the source code, matched whitespace-insensitively, as
-    /// in `preview_edit`.
+    /// in `edit`.
     pub anchor: String,
 
     /// Optional language hint (e.g., "rust", "javascript")
@@ -83,7 +83,7 @@ impl Tool<SemanticEditTools> for FindAnchor {
             anchor,
         };
 
-        let editor = Editor::new(String::new(), selector, language, file_path, None)?;
+        let editor = Editor::new(String::new(), selector, language, file_path)?;
 
         editor.find_anchor()
     }

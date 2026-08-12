@@ -49,22 +49,23 @@ The core flow lives in `src/editor.rs` (`Editor`) and `src/editor/edit.rs` (`Edi
 1. **Locate candidates.** `EditIterator` (`src/editor/edit_iterator.rs`) turns a `Selector` (operation + anchor) into an *ordered list of candidate edits*. `searcher::find_positions` finds the anchor whitespace-insensitively; for each hit it produces several candidates at different AST granularities (exact byte range, the sibling nodes in range, the common parent) plus, for inserts, whitespace variants. This is a **try-in-order** strategy, not a single deterministic target.
 2. **Apply + validate each candidate** until one succeeds (`Edit::apply`). Applying edits a `ropey::Rope` + incremental tree-sitter `Tree`, then re-parses. A candidate is rejected if the result fails to parse, contains tree-sitter ERROR/MISSING nodes (`LanguageEditor::collect_errors`), fails the language's context-validation query, or the formatter errors. The first candidate that survives all checks wins.
 3. **Format the whole file** with the language formatter. Note: the entire file is reformatted, not just the edited region — diffs may show formatting changes beyond your edit.
-4. **Preview vs. commit.** `Editor::preview` returns a cleaned diff and a `StagedOperation` without writing; `Editor::commit` writes (or hands the output to `commit_fn`).
+4. **Report + record.** `Editor::apply` runs the edit against the in-memory source and, on success, returns the diff report plus an `AppliedEdit` record — it never writes; the calling *tool* persists the record's `post_edit_source` (via `SemanticEditTools::persist_output`) and stores the record for undo.
 
-### Tools and the preview/persist workflow (`src/tools/`)
+### Tools and the optimistic-persist workflow (`src/tools/`)
 
-Tools are registered through the `mcplease::tools!` macro in `src/tools.rs`. The intended agent workflow is **stage → review → adjust → write**:
+Tools are registered through the `mcplease::tools!` macro in `src/tools.rs`. The workflow is **edit → review the diff → (if mistargeted) retarget or undo**; a validated edit is written immediately, so recovery is first-class:
 
-- `preview_edit` — stage an operation and return a diff (writes nothing). Omitting `content` means *delete*.
-- `retarget_edit` — re-aim the staged operation's selector without resending content; failed retargets leave the prior staged op in place.
-- `persist_edit` — write the staged operation to disk.
+- `edit` — apply an edit; if it validates it is persisted at once and the diff is returned for review. Omitting `content` means *delete*. Because persistence is immediate, `edit` guards against re-sends of the just-applied content: an identical resend is a no-op, an identical `replace` at a different anchor is refused (it would duplicate the content *and* overwrite the undo record), and an identical insert elsewhere applies but warns.
+- `retarget_edit` — move the last edit to a corrected anchor in one step: it re-runs the edit's content against the recorded *pre-edit* source and only rewrites the file if the new placement validates, so a failed retarget leaves the previous placement applied.
+- `undo_edit` — restore the file's exact pre-edit content. Single-level: each edit replaces the undo record.
+- `find_anchor` — report every location an anchor matches, without editing.
 - `set_working_directory` — set the session's root so later `file_path`s can be relative.
 
-`StagedOperation` (in `src/state.rs`) is the serializable unit passed between these calls — it round-trips through `Editor`'s `From`/`from_staged_operation` conversions. `edit_position` on a staged op lets `persist_edit` reapply the *exact* chosen position (the `EditIterator` yields it first, bypassing re-search).
+`AppliedEdit` (in `src/state.rs`) is the serializable undo/retarget record: the `EditOperation` (selector + content + file + language) plus the full pre- and post-edit file content. Storing both sides makes undo a byte-exact restore (no reverse-diff application) and lets undo/retarget verify the file on disk still matches `post_edit_source` before acting — a stale record refuses rather than clobbering outside changes. That freshness check is skipped when a `commit_fn` is injected, because then the embedder owns persistence and disk isn't observable.
 
 ### State and sessions (`src/state.rs`)
 
-`SemanticEditTools` is the shared tool state. It holds two `mcplease` `SessionStore`s: a **private** one for the staged operation (path from `MCP_SESSION_STORAGE_PATH`, default `~/.ai-tools/sessions/semantic-edit.json`) and a **shared** cross-server one at `~/.ai-tools/sessions/shared-context.json` for the working directory. `commit_fn` is an injectable write hook — `None` means write to disk; the snapshot runner and embedders set it to capture output instead.
+`SemanticEditTools` is the shared tool state. It holds two `mcplease` `SessionStore`s: a **private** one for the undo record and education state (path from `MCP_SESSION_STORAGE_PATH`, default `~/.ai-tools/sessions/semantic-edit.json` — so the undo record survives a server restart) and a **shared** cross-server one at `~/.ai-tools/sessions/shared-context.json` for the working directory. `commit_fn` is an injectable write hook — `None` means the tool writes to disk itself; embedders set it to capture output instead. The snapshot runner does **not** use `commit_fn`: it copies each test's input into a scratch dir under `target/snapshot-scratch/` and lets edits write for real, so sequential edits accumulate and undo/retarget freshness checks are exercised (`output.<ext>` is the scratch file's final content, omitted when the calls left no net change).
 
 ### Languages (`src/languages/`)
 

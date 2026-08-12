@@ -1,5 +1,5 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: replace
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===

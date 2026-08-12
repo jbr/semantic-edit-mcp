@@ -16,7 +16,6 @@ pub struct SnapshotRunner {
 #[derive(Debug, Clone)]
 pub struct SnapshotTest {
     pub name: String,
-    pub base_path: PathBuf,
     pub input_path: Option<PathBuf>,
     pub args_path: PathBuf,
     pub response_path: PathBuf,
@@ -52,7 +51,7 @@ impl ArgsDotJson {
         };
 
         for tool in &mut tool_calls {
-            if tool["name"] == "preview_edit" {
+            if tool["name"] == "edit" {
                 if let Some(input_path) = &input_path {
                     tool.get_mut("arguments")
                         .unwrap()
@@ -185,7 +184,6 @@ impl SnapshotRunner {
                         args_path,
                         response_path,
                         output_path,
-                        base_path: path,
                     });
                 } else {
                     // Recurse into subdirectories
@@ -319,10 +317,33 @@ impl SnapshotRunner {
         result
     }
 
-    /// Execute a single test and return the tool output
-    #[allow(unused_assignments)]
+    /// Execute a single test and return the tool output.
+    ///
+    /// Runs against a scratch copy of the input file: edits persist on
+    /// success, so running in place would mutate the checked-in inputs, and
+    /// capturing writes instead of performing them would diverge from
+    /// production behavior (sequential edits accumulate on disk, and undo and
+    /// retarget verify the file's current content before acting).
     fn execute_test(&mut self, test: &SnapshotTest) -> Result<SnapshotExecutionResult> {
-        self.reset_state(test.base_path.clone())?;
+        let scratch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target/snapshot-scratch")
+            .join(test.name.replace("::", "/"));
+        if scratch_dir.exists() {
+            fs::remove_dir_all(&scratch_dir)?;
+        }
+        fs::create_dir_all(&scratch_dir)?;
+
+        let input = match &test.input_path {
+            Some(input_path) => {
+                let file_name = input_path.file_name().unwrap();
+                let content = fs::read_to_string(input_path)?;
+                fs::write(scratch_dir.join(file_name), &content)?;
+                Some((scratch_dir.join(file_name), content))
+            }
+            None => None,
+        };
+
+        self.reset_state(scratch_dir)?;
 
         // Read the arguments
         let args_content = fs::read_to_string(&test.args_path)?;
@@ -343,10 +364,6 @@ impl SnapshotRunner {
                 .push_str("=== snapshot test tool call: ");
             snapshot_execution_result.response.push_str(tool.name());
             snapshot_execution_result.response.push_str(" ===\n");
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.state.set_commit_fn(Some(Box::new(move |_, content| {
-                tx.send(content).unwrap();
-            })));
 
             match tool.execute(&mut self.state) {
                 Ok(response) => snapshot_execution_result.response.push_str(&response),
@@ -355,8 +372,18 @@ impl SnapshotRunner {
                     .push_str(&err.to_string()),
             }
             snapshot_execution_result.response.push('\n');
-            snapshot_execution_result.output = rx.try_recv().ok();
         }
+
+        // The test's output is the scratch file's final content — but only
+        // when the tool calls left a net change, so no-op and fully-reverted
+        // sequences assert "no output file" exactly like failed edits do.
+        if let Some((scratch_path, input_content)) = input {
+            let final_content = fs::read_to_string(scratch_path)?;
+            if final_content != input_content {
+                snapshot_execution_result.output = Some(final_content);
+            }
+        }
+
         Ok(snapshot_execution_result)
     }
 

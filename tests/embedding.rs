@@ -11,9 +11,9 @@ fn tool(json: serde_json::Value) -> Tools {
     serde_json::from_value(json).expect("valid tool call")
 }
 
-/// A `commit_fn` set once must be invoked for *every* `persist_edit`, not just the
-/// first. (Regression: `persist_edit` used to `.take()` the closure, so the second
-/// and later persists silently bypassed the hook and wrote to disk instead.)
+/// A `commit_fn` set once must be invoked for *every* successful `edit`, not just
+/// the first. (Regression: the persist path used to `.take()` the closure, so the
+/// second and later persists silently bypassed the hook and wrote to disk instead.)
 #[test]
 fn commit_fn_persists_across_multiple_edits() {
     let dir = std::env::temp_dir().join(format!("sem-edit-embed-{}", std::process::id()));
@@ -31,7 +31,7 @@ fn commit_fn_persists_across_multiple_edits() {
 
     for content in ["\n    println!(\"b\");", "\n    println!(\"c\");"] {
         tool(serde_json::json!({
-            "name": "preview_edit",
+            "name": "edit",
             "arguments": {
                 "file_path": "demo.rs",
                 "operation": "insert_after",
@@ -41,17 +41,13 @@ fn commit_fn_persists_across_multiple_edits() {
         }))
         .execute(&mut state)
         .unwrap();
-
-        tool(serde_json::json!({ "name": "persist_edit", "arguments": {} }))
-            .execute(&mut state)
-            .unwrap();
     }
 
     let count = captured.lock().unwrap().len();
     std::fs::remove_dir_all(&dir).ok();
     assert_eq!(
         count, 2,
-        "commit_fn should be invoked once per persist_edit, got {count}"
+        "commit_fn should be invoked once per successful edit, got {count}"
     );
 }
 
@@ -64,7 +60,7 @@ fn missing_file_is_an_error_not_a_panic() {
     let mut state = SemanticEditTools::embedded(dir.clone()).unwrap();
 
     let result = tool(serde_json::json!({
-        "name": "preview_edit",
+        "name": "edit",
         "arguments": {
             "file_path": "does_not_exist.rs",
             "operation": "replace",

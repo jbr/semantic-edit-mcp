@@ -1,27 +1,42 @@
 [
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "pub fn alpha(x: i32) -> i32 {\n    x + 1\n}",
-    "content": "pub fn alpha(x: i32) -> i32 {\n    x + 10\n}"
-  }},
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "pub fn beta(x: i32) -> i32 {\n    x + 2\n}",
-    "content": "pub fn beta(x: i32) -> i32 {\n    x + 20\n}"
-  }},
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "pub fn gamma(x: i32) -> i32 {\n    x + 3\n}",
-    "content": "pub fn gamma(x: i32) -> i32 {\n    x + 30\n}"
-  }},
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "pub fn delta(x: i32) -> i32 {\n    x + 4\n}",
-    "content": "pub fn delta(x: i32) -> i32 {\n    x + 40\n}"
-  }},
-  {"name": "preview_edit", "arguments": {
-    "operation": "replace",
-    "anchor": "pub fn epsilon(x: i32) -> i32 {\n    x + 5\n}",
-    "content": "pub fn epsilon(x: i32) -> i32 {\n    x + 50\n}"
-  }}
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn alpha(x: i32) -> i32 {\n    x + 1\n}",
+      "content": "pub fn alpha(x: i32) -> i32 {\n    x + 10\n}"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn beta(x: i32) -> i32 {\n    x + 2\n}",
+      "content": "pub fn beta(x: i32) -> i32 {\n    x + 20\n}"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn gamma(x: i32) -> i32 {\n    x + 3\n}",
+      "content": "pub fn gamma(x: i32) -> i32 {\n    x + 30\n}"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn delta(x: i32) -> i32 {\n    x + 4\n}",
+      "content": "pub fn delta(x: i32) -> i32 {\n    x + 40\n}"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn epsilon(x: i32) -> i32 {\n    x + 5\n}",
+      "content": "pub fn epsilon(x: i32) -> i32 {\n    x + 50\n}"
+    }
+  }
 ]

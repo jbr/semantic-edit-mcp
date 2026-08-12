@@ -27,11 +27,16 @@ A Model Context Protocol server for AST-aware code editing
 
 ## Tools
 ```
-  preview-edit           Stage an operation and see a preview of the changes
-  retarget-edit          Change the targeting of an already-staged operation without rewriting the content
-  persist-edit           Execute the currently staged operation
+  edit                   Apply a validated edit to a file and see the resulting diff
+  retarget-edit          Move the most recent edit to a corrected anchor without resending its content
+  undo-edit              Revert the most recent edit, restoring the file's prior content
+  find-anchor            Show every location an anchor matches in a file, with context
   set-working-directory  Set the working context path for a session
 ```
+
+Edits persist immediately when they validate (parse + formatter). The returned
+diff is for review-after-the-fact: if the edit landed somewhere other than
+intended, `retarget-edit` moves it and `undo-edit` (single-level) reverts it.
 
 ## Installation
 

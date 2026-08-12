@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+ pub fn alpha(x: i32) -> i32 {
+-    x + 1
++    x + 100
+ }
+
+ pub fn beta(x: i32) -> i32 {
+=== snapshot test tool call: edit ===
+This exact edit was already applied — the file already contains this change, so it was not applied again. If the previous application was unintended, `undo_edit` reverts it.

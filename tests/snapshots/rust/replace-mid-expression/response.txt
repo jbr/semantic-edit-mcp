@@ -1,3 +1,3 @@
-=== snapshot test tool call: preview_edit ===
+=== snapshot test tool call: edit ===
 The anchor "users.insert" was found, but it does not line up with the boundaries of any complete syntax node — it starts or ends partway through a node (for example, by including a closing brace or other text from a neighboring item). No change was performed.
 Anchor the text of the node you mean to target, starting from its first token.

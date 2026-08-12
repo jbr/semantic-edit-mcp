@@ -1,4 +1,7 @@
-{"name": "find_anchor", "arguments": {
-  "file_path": "input.rs",
-  "anchor": "pub fn timeout() -> u64 {"
-}}
+{
+  "name": "find_anchor",
+  "arguments": {
+    "file_path": "input.rs",
+    "anchor": "pub fn timeout() -> u64 {"
+  }
+}

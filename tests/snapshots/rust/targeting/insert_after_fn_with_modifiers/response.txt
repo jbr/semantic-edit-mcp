@@ -1,19 +1,6 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: insert after
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
-
-===DIFF===
-     pub async unsafe fn alpha() -> u32 {
-         1
-     }
-+    /// Gamma.
-+    fn gamma() {}
-
-     /// Beta.
-     fn beta() {}
-=== snapshot test tool call: persist_edit ===
-insert after operation result:
-Applied insert after operation
 
 ===DIFF===
      pub async unsafe fn alpha() -> u32 {

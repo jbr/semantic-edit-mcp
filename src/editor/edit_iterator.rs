@@ -20,8 +20,6 @@ pub struct EditIterator<'editor, 'language> {
     #[field(with, get_mut, set)]
     content: Cow<'editor, str>,
     tree: &'editor Tree,
-    #[field = false]
-    staged_edit: Option<&'editor EditPosition>,
     #[field(get_mut(deref = false))]
     edits: Option<Vec<Edit<'editor, 'language>>>,
     current_index: usize,
@@ -33,7 +31,6 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             selector,
             source_code,
             tree,
-            staged_edit,
             content,
             ..
         } = &editor;
@@ -43,7 +40,6 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             content: Cow::Borrowed(content),
             source_code,
             tree,
-            staged_edit: staged_edit.as_ref(),
             edits: None,
             current_index: 0,
         }
@@ -301,11 +297,6 @@ impl<'editor, 'language> Iterator for EditIterator<'editor, 'language> {
     type Item = Result<Edit<'editor, 'language>, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // If we have a staged edit, return it first and only once
-        if let Some(edit_position) = self.staged_edit.take() {
-            return Some(Ok(Edit::new(self.editor, *edit_position)));
-        }
-
         // Ensure text ranges are loaded
         if let Err(e) = self.ensure_text_ranges_loaded() {
             return Some(Err(e));

@@ -1,0 +1,8 @@
+[
+  {"name": "edit", "arguments": {
+    "operation": "replace",
+    "anchor": "pub fn alpha(x: i32) -> i32 {\n    x + 1\n}",
+    "content": "pub fn alpha(x: i32) -> i32 {\n    x + 100\n}"
+  }},
+  {"name": "undo_edit", "arguments": {}}
+]

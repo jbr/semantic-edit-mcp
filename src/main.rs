@@ -19,8 +19,7 @@ use state::SemanticEditTools;
 use std::env;
 use tools::Tools;
 
-const INSTRUCTIONS: &str = r#"Use preview_edit to preview changes, retarget_edit to adjust targeting, and persist_edit to apply.
-The purpose of the preview/retarget/persist pattern is so you can review a diff and adjust placement prior to persisting your change to disk.
+const INSTRUCTIONS: &str = r#"Use edit to make a change: when the edit validates, it is written to disk immediately and the response shows the resulting diff. Review that diff — if the edit landed somewhere other than intended, retarget_edit moves it to a corrected anchor in one step, and undo_edit reverts it (single-level). find_anchor checks where an anchor matches before editing.
 "#;
 
 fn main() {

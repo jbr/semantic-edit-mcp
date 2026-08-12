@@ -3,14 +3,14 @@ mod edit_iterator;
 mod edit_position;
 
 use crate::{
-    languages::{LanguageCommon, LanguageRegistry},
+    languages::LanguageCommon,
     searcher::find_positions,
     selector::Selector,
-    state::StagedOperation,
+    state::{AppliedEdit, EditOperation},
     validation::{ContextValidator, format_violations},
 };
 use anyhow::{Result, anyhow};
-use diffy::{DiffOptions, Patch, PatchFormatter};
+use diffy::{DiffOptions, PatchFormatter};
 use ropey::Rope;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -41,7 +41,6 @@ pub struct Editor<'language> {
     source_code: String,
     tree: Tree,
     rope: Rope,
-    staged_edit: Option<EditPosition>,
 }
 
 impl<'language> Editor<'language> {
@@ -50,9 +49,22 @@ impl<'language> Editor<'language> {
         selector: Selector,
         language: &'language LanguageCommon,
         file_path: PathBuf,
-        staged_edit: Option<EditPosition>,
     ) -> Result<Self> {
         let source_code = std::fs::read_to_string(&file_path)?;
+        Self::from_source(content, selector, language, file_path, source_code)
+    }
+
+    /// Construct against an explicit source text instead of reading
+    /// `file_path` from disk. Retargeting uses this to re-run an edit against
+    /// the recorded *pre-edit* source while the file on disk already contains
+    /// the edit being moved.
+    pub fn from_source(
+        content: String,
+        selector: Selector,
+        language: &'language LanguageCommon,
+        file_path: PathBuf,
+        source_code: String,
+    ) -> Result<Self> {
         let mut parser = language.tree_sitter_parser()?;
         let tree = parser.parse(&source_code, None).ok_or_else(|| {
             anyhow!(
@@ -71,23 +83,7 @@ impl<'language> Editor<'language> {
             file_path,
             source_code,
             rope,
-            staged_edit,
         })
-    }
-
-    pub fn from_staged_operation(
-        staged_operation: StagedOperation,
-        language_registry: &'language LanguageRegistry,
-    ) -> Result<Self> {
-        let StagedOperation {
-            selector,
-            content,
-            file_path,
-            language_name,
-            edit_position,
-        } = staged_operation;
-        let language = language_registry.get_language(language_name);
-        Self::new(content, selector, language, file_path, edit_position)
     }
 
     fn prevalidate(&self) -> Option<String> {
@@ -343,22 +339,42 @@ target's surrounding text to disambiguate.",
         matches!((diff_section(a), diff_section(b)), (Some(a), Some(b)) if a == b)
     }
 
-    pub fn preview(mut self) -> Result<(String, Option<StagedOperation>)> {
+    /// Run the edit against the in-memory source. Nothing is written here: on
+    /// success the report (formatting note, diff, ambiguity note) comes back
+    /// with the [`AppliedEdit`] record, and the *caller* persists the record's
+    /// `post_edit_source` and prepends its own headline. On failure the
+    /// failure report comes back alone and there is nothing to persist.
+    pub fn apply(mut self) -> Result<(String, Option<AppliedEdit>)> {
         let (message, output, note) = self.edit()?;
-        if let Some(output) = &output {
-            let mut preview = String::new();
-
-            preview.push_str(&format!(
-                "Previewing: {}\nNote: the editor applies a consistent formatting style to the entire file, including your edit\n\n",
-                self.selector.operation_name()
-            ));
-            preview.push_str(&self.diff(output));
+        if let Some(output) = output {
+            let mut report = String::from(
+                "Note: the editor applies a consistent formatting style to the entire file, including your edit\n\n",
+            );
+            report.push_str(&self.diff(&output));
             if let Some(note) = note {
-                preview.push_str("\n\n");
-                preview.push_str(&note);
+                report.push_str("\n\n");
+                report.push_str(&note);
             }
 
-            Ok((preview, Some(self.into())))
+            let Self {
+                content,
+                selector,
+                file_path,
+                language,
+                source_code,
+                ..
+            } = self;
+            let record = AppliedEdit {
+                operation: EditOperation {
+                    selector,
+                    content,
+                    file_path,
+                    language_name: language.name(),
+                },
+                pre_edit_source: source_code,
+                post_edit_source: output,
+            };
+            Ok((report, Some(record)))
         } else {
             Ok((message, None))
         }
@@ -429,42 +445,8 @@ with more of the target's own text until it is unique.",
 
     fn diff(&self, output: &str) -> String {
         let source_code: &str = &self.source_code;
-        let content_patch = &self.content;
-        let diff_patch = DiffOptions::new().create_patch(source_code, output);
-        let formatter = PatchFormatter::new().missing_newline_message(false);
-
-        // Get the diff string and clean it up for AI consumption
-        let diff_output = formatter.fmt_patch(&diff_patch).to_string();
-        let lines: Vec<&str> = diff_output.lines().collect();
         let mut cleaned_diff = String::new();
-
-        let content_line_count = content_patch.lines().count();
-        if content_line_count > 10 {
-            let changed_lines = changed_lines(&diff_patch, content_line_count);
-
-            let changed_fraction = (changed_lines * 100) / content_line_count;
-
-            if changed_fraction < 30 {
-                cleaned_diff.push_str("💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration\n");
-            };
-            cleaned_diff.push('\n');
-        }
-
-        cleaned_diff.push_str("===DIFF===\n");
-        for line in lines {
-            // Skip ALL diff headers: file headers, hunk headers (line numbers), and any metadata
-            if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@") {
-                // Skip "\ No newline at end of file" messages
-                continue;
-            }
-            cleaned_diff.push_str(line);
-            cleaned_diff.push('\n');
-        }
-
-        // Remove trailing newline to avoid extra spacing
-        if cleaned_diff.ends_with('\n') {
-            cleaned_diff.pop();
-        }
+        cleaned_diff.push_str(&clean_diff(source_code, output));
         cleaned_diff
     }
 
@@ -484,24 +466,6 @@ with more of the target's own text until it is unique.",
             })
     }
 
-    pub fn commit(mut self) -> Result<(String, Option<String>, PathBuf)> {
-        let (mut message, output, note) = self.edit()?;
-        if let Some(output) = &output {
-            let diff = self.diff(output);
-
-            message = format!(
-                "{} operation result:\n{}\n\n{diff}",
-                self.selector.operation_name(),
-                message,
-            );
-            if let Some(note) = note {
-                message.push_str("\n\n");
-                message.push_str(&note);
-            }
-        }
-        Ok((message, output, self.file_path))
-    }
-
     fn parse(&self, output: &str, old_tree: Option<&Tree>) -> Option<Tree> {
         // A parser-construction failure (e.g. a tree-sitter ABI mismatch) folds into
         // the existing "couldn't parse" path rather than panicking the host process.
@@ -510,36 +474,25 @@ with more of the target's own text until it is unique.",
     }
 }
 
-impl From<Editor<'_>> for StagedOperation {
-    fn from(value: Editor) -> Self {
-        let Editor {
-            content,
-            selector,
-            file_path,
-            language,
-            staged_edit,
-            ..
-        } = value;
-        Self {
-            selector,
-            content,
-            file_path,
-            language_name: language.name(),
-            edit_position: staged_edit,
-        }
-    }
-}
+/// A `===DIFF===` section between two versions of a file, cleaned for AI
+/// consumption: file headers, hunk headers, and newline metadata are stripped.
+pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
+    let diff_patch = DiffOptions::new().create_patch(original, modified);
+    let formatter = PatchFormatter::new().missing_newline_message(false);
+    let diff_output = formatter.fmt_patch(&diff_patch).to_string();
 
-pub fn changed_lines(patch: &Patch<'_, str>, content_line_count: usize) -> usize {
-    let mut changed_line_numbers = BTreeSet::new();
-
-    for hunk in patch.hunks() {
-        // old_range().range() returns a std::ops::Range<usize> that's properly 0-indexed
-        for line_num in hunk.old_range().range() {
-            if line_num < content_line_count {
-                changed_line_numbers.insert(line_num);
-            }
+    let mut cleaned_diff = String::from("===DIFF===\n");
+    for line in diff_output.lines() {
+        if line.starts_with("---") || line.starts_with("+++") || line.starts_with("@@") {
+            continue;
         }
+        cleaned_diff.push_str(line);
+        cleaned_diff.push('\n');
     }
-    changed_line_numbers.len()
+
+    // Remove trailing newline to avoid extra spacing
+    if cleaned_diff.ends_with('\n') {
+        cleaned_diff.pop();
+    }
+    cleaned_diff
 }

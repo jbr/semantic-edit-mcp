@@ -1,5 +1,8 @@
-{"name": "preview_edit", "arguments":{
-  "operation": "insert_after",
-  "anchor": "pub fn",
-  "content": "\n    pub fn is_empty(&self) -> bool { self.users.is_empty() }"
-}}
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "insert_after",
+    "anchor": "pub fn",
+    "content": "\n    pub fn is_empty(&self) -> bool { self.users.is_empty() }"
+  }
+}

@@ -1,5 +1,4 @@
 use crate::{
-    editor::EditPosition,
     education::EducationState,
     languages::{LanguageName, LanguageRegistry},
     selector::Selector,
@@ -28,30 +27,51 @@ pub struct SharedContextData {
 /// store (e.g. efference's in-memory embedding) can snapshot it via
 /// [`SemanticEditTools::session_snapshot`] and restore it via
 /// [`SemanticEditTools::restore_session`] so a resumed session picks up
-/// identical tool state — staged edit and education progress alike.
+/// identical tool state — undo record and education progress alike.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct SemanticEditSessionData {
-    /// Currently staged operation
-    staged_operation: Option<StagedOperation>,
+    /// The most recently applied edit, retained for undo and retargeting
+    #[serde(default)]
+    last_edit: Option<AppliedEdit>,
     /// Within-session teaching progress (see [`crate::education`])
     #[serde(default)]
     education: EducationState,
 }
 
-/// Represents a staged operation that can be previewed and committed
+/// What an edit does: the targeting ([`Selector`]), the replacement content,
+/// and the file and language it applies to.
 #[derive(Debug, Clone, Fieldwork, Serialize, Deserialize, PartialEq, Eq)]
 #[fieldwork(get, set, get_mut, with)]
-pub struct StagedOperation {
+pub struct EditOperation {
     pub selector: Selector,
     pub content: String,
     pub file_path: PathBuf,
     pub language_name: LanguageName,
-    pub edit_position: Option<EditPosition>,
 }
 
-impl StagedOperation {
-    pub fn retarget(&mut self, selector: Selector) {
-        self.selector = selector;
+/// Record of the most recently applied edit, held per session for single-level
+/// undo and retargeting.
+///
+/// The record stores the complete file content on both sides of the edit
+/// rather than a reverse diff: undo is then a byte-exact restore with no
+/// patch-application failure modes, and the whole record round-trips through
+/// the JSON session store, so an undo survives a server restart.
+#[derive(Debug, Clone, Fieldwork, Serialize, Deserialize, PartialEq, Eq)]
+#[fieldwork(get)]
+pub struct AppliedEdit {
+    pub operation: EditOperation,
+    /// Full file content from before the edit was applied
+    pub pre_edit_source: String,
+    /// Full file content the edit wrote
+    pub post_edit_source: String,
+}
+
+impl AppliedEdit {
+    /// Whether the file on disk still contains exactly what this edit wrote.
+    /// Undo and retarget refuse to act on a stale record — reverting over
+    /// someone else's changes would silently discard them.
+    pub fn is_current_on_disk(&self) -> std::io::Result<bool> {
+        Ok(std::fs::read_to_string(&self.operation.file_path)? == self.post_edit_source)
     }
 }
 
@@ -59,7 +79,7 @@ impl StagedOperation {
 #[derive(Fieldwork)]
 #[fieldwork(get, get_mut)]
 pub struct SemanticEditTools {
-    /// Private session store for edit-specific state (staged operations, etc.)
+    /// Private session store for edit-specific state (undo record, education)
     session_store: SessionStore<SemanticEditSessionData>,
     /// Shared context store for cross-server communication
     shared_context_store: SessionStore<SharedContextData>,
@@ -134,57 +154,44 @@ impl SemanticEditTools {
         Ok(shared_data.context_path.clone())
     }
 
-    /// Stage a new operation, replacing any existing staged operation
-    pub fn preview_edit(
+    /// Record the most recently applied edit (or clear it with `None`),
+    /// replacing any previous record — undo is single-level by design.
+    pub fn set_last_edit(
         &mut self,
         session_id: Option<&str>,
-        staged_operation: Option<StagedOperation>,
+        last_edit: Option<AppliedEdit>,
     ) -> Result<()> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
         self.session_store.update(session_id, |data| {
-            data.staged_operation = staged_operation;
+            data.last_edit = last_edit;
         })
     }
 
-    /// Get the currently staged operation, if any
-    pub fn get_staged_operation(
-        &mut self,
-        session_id: Option<&str>,
-    ) -> Result<Option<&StagedOperation>> {
+    /// The most recently applied edit, if any
+    pub fn last_edit(&mut self, session_id: Option<&str>) -> Result<Option<&AppliedEdit>> {
         let session_id = session_id.unwrap_or_else(|| self.default_session_id());
         let session_data = self.session_store.get_or_create(session_id)?;
-        Ok(session_data.staged_operation.as_ref())
+        Ok(session_data.last_edit.as_ref())
     }
 
-    /// Take the staged operation, removing it from storage
-    pub fn take_staged_operation(
-        &mut self,
-        session_id: Option<&str>,
-    ) -> Result<Option<StagedOperation>> {
-        let mut staged_op = None;
-        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
-        self.session_store.update(session_id, |data| {
-            staged_op = data.staged_operation.take();
-        })?;
-        Ok(staged_op)
+    /// Persist edited file content: through the injected commit hook when one
+    /// is set (embedders own persistence), otherwise straight to disk.
+    pub fn persist_output(&mut self, path: PathBuf, content: String) -> Result<()> {
+        // Borrow (don't `take`) the commit hook so it survives across multiple
+        // persists — embedders set it once and persist many times.
+        if let Some(commit) = self.commit_fn_mut() {
+            commit(path, content);
+            Ok(())
+        } else {
+            std::fs::write(path, content).map_err(Into::into)
+        }
     }
 
-    /// Modify the staged operation in place
-    pub fn modify_staged_operation<F>(
-        &mut self,
-        session_id: Option<&str>,
-        fun: F,
-    ) -> Result<Option<&StagedOperation>>
-    where
-        F: FnOnce(&mut StagedOperation),
-    {
-        let session_id = session_id.unwrap_or_else(|| self.default_session_id());
-        self.session_store.update(session_id, |data| {
-            if let Some(ref mut op) = data.staged_operation {
-                fun(op);
-            }
-        })?;
-        self.get_staged_operation(Some(session_id))
+    /// Whether this instance writes files itself. When an embedder has
+    /// injected a commit hook it owns persistence, so the tool cannot verify
+    /// disk state against the [`AppliedEdit`] record and skips those checks.
+    pub fn owns_persistence(&self) -> bool {
+        self.commit_fn.is_none()
     }
 
     /// A copy of the session's education state.

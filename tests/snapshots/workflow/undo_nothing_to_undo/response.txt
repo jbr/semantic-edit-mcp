@@ -1,0 +1,2 @@
+=== snapshot test tool call: undo_edit ===
+No edit to undo. Only the most recent edit is undoable.

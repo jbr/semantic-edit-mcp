@@ -1,4 +1,4 @@
-=== snapshot test tool call: preview_edit ===
+=== snapshot test tool call: edit ===
 This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
 Suggestion: Try a different change.
 

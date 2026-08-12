@@ -1,5 +1,5 @@
 {
-  "name": "preview_edit",
+  "name": "edit",
   "arguments": {
     "operation": "insert_before",
     "anchor": "fn request_value(\n    model: &str,",
