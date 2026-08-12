@@ -19,7 +19,7 @@ dirs = "6.0"
 enum-map = "2.7.3"
 fieldwork = "0.4.6"
 log = "0.4.27"
-mcplease = "0.2.3"
+mcplease = { version = "0.3.0", path = "../mcplease" }
 ropey = "1.6"
 schemars = "1.0.4"
 serde = { version = "1.0", features = ["derive"] }
