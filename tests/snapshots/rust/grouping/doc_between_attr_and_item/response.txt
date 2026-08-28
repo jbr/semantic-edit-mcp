@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -1,5 +1,4 @@
 -#[derive(Debug)]
 -/// The config
 +#[derive(Debug, Clone)]

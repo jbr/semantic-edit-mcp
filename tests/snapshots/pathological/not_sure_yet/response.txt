@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -85,6 +85,7 @@
              email,
              created_at: chrono::Utc::now(),
              is_active: true,

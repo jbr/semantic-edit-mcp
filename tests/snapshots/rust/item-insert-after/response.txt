@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+Item target: function `alpha` at lines 1-1, no leading attributes or doc comments. Inserted below it — between function `alpha` and function `prose_still_reaches_the_sink_as_text`.
+
+===DIFF===
+@@ -1,5 +1,7 @@
+ fn alpha() {}
+
++fn beta() {}
++
+ /// Prose still streams as before, and is typed as prose.
+ #[test]
+ fn prose_still_reaches_the_sink_as_text() {

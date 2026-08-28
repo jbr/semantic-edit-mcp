@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -8,6 +8,7 @@
      }
 
      fn get_value(&self) -> i32 {

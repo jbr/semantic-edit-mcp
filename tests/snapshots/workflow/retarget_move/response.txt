@@ -3,6 +3,7 @@ Applied insert after — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -2,6 +2,10 @@
      x + 1
  }
 
@@ -18,6 +19,7 @@ Retargeted insert after: the previous placement was reverted and the edit was re
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -5,3 +5,7 @@
  pub fn beta(x: i32) -> i32 {
      x + 2
  }

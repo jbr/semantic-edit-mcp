@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Changed
+
+- `edit`'s success report shows a focused diff: hunks that differ only in whitespace are
+  dropped and counted, so whole-file formatting no longer buries the change. Any hunk that
+  changes a token is kept wherever it sits. Failure reports still show the full diff.
+- Diffs carry `@@` hunk headers.
+- A selector may target a named item (`item: {kind, name}`) instead of anchor text; the
+  item resolves together with its leading attributes and doc comments, and the result
+  names the resolved item and its neighbors.
+
 ## [0.2.1](https://github.com/jbr/semantic-edit-mcp/compare/v0.2.0...v0.2.1) - 2025-07-29
 
 ### Added

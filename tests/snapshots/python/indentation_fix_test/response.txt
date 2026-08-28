@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -2,7 +2,7 @@
      if True:
          for i in range(3):
              if i > 0:

@@ -49,7 +49,16 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         let source_code: &str = self.source_code;
         let tree: &Tree = self.tree;
         self.selector.validate()?;
-        let Selector { operation, anchor } = &*self.selector;
+        let Selector {
+            operation,
+            anchor,
+            item,
+        } = &*self.selector;
+
+        if let Some(item) = item {
+            return self.find_item_edits(item, source_code, tree);
+        }
+        let anchor = anchor.as_deref().unwrap_or_default();
 
         match operation {
             Operation::InsertAfter => {
@@ -78,6 +87,51 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
             },
         )
         .with_content(self.content.clone())
+    }
+
+    /// Candidates for an item-targeted selector.
+    ///
+    /// One resolved range instead of the text search's several: the item plus its
+    /// leading attributes and doc comments (`crate::item`). `insert_before` places
+    /// content above that whole range and `insert_after` below it, which is the
+    /// boundary an anchor on the item's first line cannot express. The whitespace
+    /// variants are the same ones the textual path offers, so an insertion still
+    /// gets a separating newline when the formatter needs one.
+    ///
+    /// The node set carries the decorations too, so a language's grouping pass
+    /// sees a selection that is already complete and leaves it alone.
+    fn find_item_edits(
+        &self,
+        item: &crate::item::ItemRef,
+        source_code: &str,
+        tree: &'editor Tree,
+    ) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        let resolved = crate::item::resolve(tree, source_code, item)?;
+        let base = self
+            .build_edit(resolved.start)
+            .with_end_byte(resolved.end)
+            .with_nodes(resolved.nodes)
+            .with_annotation("item");
+
+        let mut edits = match self.selector.operation {
+            Operation::Replace => vec![base],
+            Operation::InsertBefore => vec![base.insert_before()],
+            Operation::InsertAfter => base.insert_after().into_iter().collect(),
+        };
+
+        if matches!(
+            self.selector.operation,
+            Operation::InsertBefore | Operation::InsertAfter
+        ) {
+            let mut additional = vec![];
+            for edit in &edits {
+                additional.push(edit.clone().with_content(format!("{}\n", edit.content())));
+                additional.push(edit.clone().with_content(format!("\n{}", edit.content())));
+            }
+            edits.extend(additional);
+        }
+
+        Ok(edits)
     }
 
     fn find_after_ast_insert_positions(

@@ -18,6 +18,7 @@
 pub mod editor;
 pub mod education;
 pub mod indentation;
+pub mod item;
 pub mod languages;
 pub mod searcher;
 pub mod selector;

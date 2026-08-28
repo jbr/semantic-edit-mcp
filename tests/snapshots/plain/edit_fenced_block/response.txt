@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -2,7 +2,7 @@
 
  ```
  fn main() {
@@ -16,6 +17,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -1,4 +1,4 @@
 -# title
 +# Welcome
 
@@ -26,6 +28,7 @@ Applied insert after — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -9,3 +9,4 @@
  ## list
 
  * item

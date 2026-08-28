@@ -3,6 +3,7 @@ Applied insert before — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -1,4 +1,6 @@
  [a]
  x = 1
 +[ab]

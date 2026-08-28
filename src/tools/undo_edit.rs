@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use crate::editor::clean_diff;
+use crate::selector::Selector;
 use crate::state::SemanticEditTools;
 use anyhow::{Result, anyhow};
 use mcplease::traits::{Tool, ToolMeta};
@@ -104,17 +105,26 @@ undoing would discard those later changes. The file was not modified.",
         state.set_last_edit(None, None)?;
 
         Ok(format!(
-            "Reverted the last edit ({} at {:?}) — {} has been restored to its prior content.\n\n{}",
+            "Reverted the last edit ({} at {}) — {} has been restored to its prior content.\n\n{}",
             record.operation().selector().operation_name(),
-            first_line(&record.operation().selector().anchor),
+            target_summary(record.operation().selector()),
             display_path.display(),
             clean_diff(record.post_edit_source(), record.pre_edit_source())
         ))
     }
 }
 
-/// The anchor's first line, enough to identify which edit was reverted
-/// without replaying a long anchor back into the conversation.
+/// How the reverted edit's target is named back: the anchor's first line —
+/// enough to identify which edit it was without replaying a long anchor into the
+/// conversation — or, for an item-targeted edit, the item reference itself.
+fn target_summary(selector: &Selector) -> String {
+    match (selector.anchor(), &selector.item) {
+        (Some(anchor), _) => format!("{:?}", first_line(anchor)),
+        (None, Some(item)) => item.to_string(),
+        (None, None) => String::from("its target"),
+    }
+}
+
 fn first_line(anchor: &str) -> &str {
     anchor.trim().lines().next().unwrap_or_default()
 }

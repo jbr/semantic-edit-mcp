@@ -12,6 +12,7 @@ Suggestion: Try a different change.
 
 
 ===DIFF===
+@@ -1,9 +1,6 @@
  /// Math helpers.
  pub fn add(a: i32, b: i32) -> i32 {
      a + b

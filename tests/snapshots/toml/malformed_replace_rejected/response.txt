@@ -9,6 +9,7 @@ Suggestion: Try a different change.
 
 
 ===DIFF===
+@@ -1,2 +1,2 @@
  [build]
 -targets = ["linux", "mac"]
 +targets = ["linux", "mac", "windows"] = ["linux", "mac"]

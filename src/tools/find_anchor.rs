@@ -94,7 +94,8 @@ impl Tool<SemanticEditTools> for FindAnchor {
         // where the anchor text matches, nothing more.
         let selector = crate::selector::Selector {
             operation: crate::selector::Operation::Replace,
-            anchor,
+            anchor: Some(anchor),
+            item: None,
         };
 
         let editor = Editor::new(String::new(), selector, language, file_path)?;

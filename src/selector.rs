@@ -1,3 +1,4 @@
+use crate::item::ItemRef;
 use anyhow::Result;
 use clap::ValueEnum;
 use schemars::JsonSchema;
@@ -54,7 +55,7 @@ pub struct Selector {
     #[arg(value_enum)]
     pub operation: Operation,
 
-    /// The text to target, copied from the file.
+    /// The text to target, copied from the file. Supply this **or** `item`.
     ///
     /// Provide the complete text of the code you're operating on — for
     /// `replace`, the whole item or statement being replaced; for inserts, the
@@ -70,7 +71,24 @@ pub struct Selector {
     /// more of the target's own text if the wrong one was chosen. If the
     /// anchor isn't found, or doesn't line up with complete syntax nodes,
     /// nothing is changed.
-    pub anchor: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+
+    /// Target a **named item** instead of anchor text: `{"kind": "function",
+    /// "name": "handle_frame"}`. Supply this or `anchor`, not both.
+    ///
+    /// The item resolves together with its leading outer attributes and doc
+    /// comments, so `insert_before` places new code above the whole decorated
+    /// item and `insert_after` below it — the boundary a text anchor on the
+    /// item's first line cannot express, and the one that silently gives a new
+    /// function its neighbor's `#[test]` and documentation. The result names the
+    /// item it resolved to and its neighbors, so the placement is checkable.
+    ///
+    /// Only for files with a grammar, and only for items that declare a name;
+    /// anchor text remains the general path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[arg(long, value_parser = str::parse::<ItemRef>)]
+    pub item: Option<ItemRef>,
 }
 
 impl Selector {
@@ -78,13 +96,29 @@ impl Selector {
         self.operation.as_str()
     }
 
+    /// The anchor text, when this selector targets text at all.
+    pub fn anchor(&self) -> Option<&str> {
+        self.anchor.as_deref()
+    }
+
     /// Validate that the selector is properly formed
     pub fn validate(&self) -> Result<(), String> {
-        let Self { anchor, .. } = self;
+        let Self { anchor, item, .. } = self;
 
         let mut errors = vec![];
-        if anchor.trim().is_empty() {
-            errors.push("- `anchor` cannot be empty");
+        match (anchor, item) {
+            (Some(anchor), None) if anchor.trim().is_empty() => {
+                errors.push("- `anchor` cannot be empty");
+            }
+            (None, None) => errors.push(
+                "- supply either `anchor` (text copied from the file) or \
+`item` ({kind, name})",
+            ),
+            (Some(_), Some(_)) => errors.push(
+                "- supply `anchor` or `item`, not both: they name the target two \
+different ways and could disagree",
+            ),
+            _ => {}
         }
 
         // if anchor.contains('\n') {

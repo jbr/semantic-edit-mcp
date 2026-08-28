@@ -78,8 +78,9 @@ impl ToolMeta for Edit {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         operation: Operation::Replace,
-                        anchor: "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into(),
+                        item: None,
+                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
+                            .into()),
                     },
                     content: Some(
                         "fn greet(name: &str) {\n    println!(\"Hi there, {name}!\");\n}"
@@ -94,8 +95,9 @@ impl ToolMeta for Edit {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         operation: Operation::InsertAfter,
-                        anchor: "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into(),
+                        item: None,
+                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
+                            .into()),
                     },
                     content: Some(
                         "\n\nfn farewell(name: &str) {\n    println!(\"Goodbye, {name}\");\n}"
@@ -110,7 +112,8 @@ impl ToolMeta for Edit {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         operation: Operation::Replace,
-                        anchor: "let name = args.next().unwrap();".to_string(),
+                        item: None,
+                        anchor: Some("let name = args.next().unwrap();".to_string()),
                     },
                     content: Some(r#"let name = args.next().unwrap_or_default();"#.to_string()),
                     language: None,
@@ -122,9 +125,29 @@ impl ToolMeta for Edit {
                     file_path: "src/main.rs".into(),
                     selector: Selector {
                         operation: Operation::Replace,
-                        anchor: "fn unused_helper() {\n    todo!()\n}".to_string(),
+                        item: None,
+                        anchor: Some("fn unused_helper() {\n    todo!()\n}".to_string()),
                     },
                     content: None,
+                    language: None,
+                },
+            },
+            Example {
+                description: "Insert a test above another one, without inheriting its attributes or doc comment",
+                item: Self {
+                    file_path: "src/tui/test.rs".into(),
+                    selector: Selector {
+                        operation: Operation::InsertBefore,
+                        anchor: None,
+                        item: Some(crate::item::ItemRef {
+                            kind: "function".into(),
+                            name: "prose_still_reaches_the_sink_as_text".into(),
+                        }),
+                    },
+                    content: Some(
+                        "#[test]\nfn thinking_is_typed_as_thinking() {\n    todo!()\n}\n\n"
+                            .to_string(),
+                    ),
                     language: None,
                 },
             },
@@ -259,7 +282,8 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
                     content.clone(),
                     Selector {
                         operation: selector.operation,
-                        anchor: short.clone(),
+                        anchor: Some(short.clone()),
+                        item: None,
                     },
                     language,
                     file_path.clone(),

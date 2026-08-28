@@ -15,6 +15,7 @@ class Inner:
 
 
 ===DIFF===
+@@ -1,2 +1,5 @@
  def target():
 -    return 1
 +    class Inner:

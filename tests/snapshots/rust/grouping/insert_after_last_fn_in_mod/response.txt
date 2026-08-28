@@ -3,6 +3,7 @@ Applied insert after — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -4,4 +4,9 @@
      fn only() {
          assert!(true);
      }

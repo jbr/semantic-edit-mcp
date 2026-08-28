@@ -3,6 +3,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -1,5 +1,5 @@
  pub fn alpha(x: i32) -> i32 {
 -    x + 1
 +    x + 10
@@ -14,6 +15,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -3,7 +3,7 @@
  }
 
  pub fn beta(x: i32) -> i32 {
@@ -27,6 +29,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -7,7 +7,7 @@
  }
 
  pub fn gamma(x: i32) -> i32 {
@@ -40,6 +43,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -11,7 +11,7 @@
  }
 
  pub fn delta(x: i32) -> i32 {
@@ -53,6 +57,7 @@ Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -15,5 +15,5 @@
  }
 
  pub fn epsilon(x: i32) -> i32 {
