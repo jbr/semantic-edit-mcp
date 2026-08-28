@@ -3,7 +3,7 @@ use crate::education;
 use crate::languages::LanguageName;
 use crate::selector::{Operation, Selector};
 use crate::state::{AppliedEdit, SemanticEditTools};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use mcplease::{
     traits::{Tool, ToolMeta},
     types::{Example, RequestContext, ToolAnnotations},
@@ -208,6 +208,10 @@ impl Tool<SemanticEditTools> for Edit {
             owns_persistence,
         );
         match duplicate {
+            // A success: the file already holds exactly what this call asked
+            // for, so the requested state is true and there is nothing to act
+            // on. The `MovedReplace` case below is the opposite — the content
+            // is not where this call asked for it — so that one errors.
             Some(DuplicateOfLastEdit::ExactResend) => {
                 return Ok("This exact edit was already applied — the file already contains \
 this change, so it was not applied again. If the previous application was unintended, \
@@ -215,11 +219,12 @@ this change, so it was not applied again. If the previous application was uninte
                     .to_string());
             }
             Some(DuplicateOfLastEdit::MovedReplace) => {
-                return Ok("The file was not modified: this content is identical to the \
+                bail!(
+                    "The file was not modified: this content is identical to the \
 `replace` just applied to this file at a different anchor. If that edit landed on the wrong \
 target, use `retarget_edit` with the corrected anchor — it reverts the earlier placement and \
 re-applies the content there in one step. (`undo_edit` also reverts it.)"
-                    .to_string());
+                );
             }
             Some(DuplicateOfLastEdit::DuplicatedInsert) | None => {}
         }
@@ -238,10 +243,17 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
         let shorthand = editor.shorthand_suggestion();
         let (mut message, applied) = editor.apply()?;
 
+        // A rejected edit is an error, not a success whose body describes a
+        // failure: the file is untouched, and the caller has to change what it
+        // sent. The rejection report is the error's message, unchanged.
+        let Some(applied) = applied else {
+            bail!("{message}");
+        };
+
         // Never teach an unverified shorthand: re-run the edit with the
         // shortened anchor and only offer it if the diff is identical. This
         // runs before the edit is persisted, so both runs see the same file.
-        let verified_shorthand = if applied.is_some() && education.prefix_tip_due() {
+        let verified_shorthand = if education.prefix_tip_due() {
             shorthand.filter(|short| {
                 Editor::new(
                     content.clone(),
@@ -260,23 +272,21 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
             None
         };
 
-        if let Some(applied) = applied {
-            state.persist_output(file_path, applied.post_edit_source.clone())?;
-            message = format!(
-                "Applied {} — the file has been updated.\n{message}",
-                applied.operation().selector().operation_name()
-            );
-            state.set_last_edit(None, Some(applied))?;
-            state.update_education(None, |education| education.record_success())?;
+        state.persist_output(file_path, applied.post_edit_source.clone())?;
+        message = format!(
+            "Applied {} — the file has been updated.\n{message}",
+            applied.operation().selector().operation_name()
+        );
+        state.set_last_edit(None, Some(applied))?;
+        state.update_education(None, |education| education.record_success())?;
 
-            if matches!(duplicate, Some(DuplicateOfLastEdit::DuplicatedInsert)) {
-                message.push_str("\n\n");
-                message.push_str(education::duplicate_insert_warning());
-            } else if let Some(short) = verified_shorthand {
-                state.update_education(None, |education| education.record_prefix_tip_emitted())?;
-                message.push_str("\n\n");
-                message.push_str(&education::prefix_tip(&short));
-            }
+        if matches!(duplicate, Some(DuplicateOfLastEdit::DuplicatedInsert)) {
+            message.push_str("\n\n");
+            message.push_str(education::duplicate_insert_warning());
+        } else if let Some(short) = verified_shorthand {
+            state.update_education(None, |education| education.record_prefix_tip_emitted())?;
+            message.push_str("\n\n");
+            message.push_str(&education::prefix_tip(&short));
         }
 
         Ok(message)

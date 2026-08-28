@@ -1,2 +1,3 @@
 === snapshot test tool call: retarget_edit ===
+=== error ===
 No edit to retarget. Only the most recent edit is retargetable.

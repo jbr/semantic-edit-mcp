@@ -12,4 +12,5 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
 
  pub fn beta(x: i32) -> i32 {
 === snapshot test tool call: edit ===
+=== error ===
 The file was not modified: this content is identical to the `replace` just applied to this file at a different anchor. If that edit landed on the wrong target, use `retarget_edit` with the corrected anchor — it reverts the earlier placement and re-applies the content there in one step. (`undo_edit` also reverts it.)

@@ -109,7 +109,10 @@ re-applied at the new anchor. The diff is relative to the file from before the o
                 state.set_last_edit(None, Some(applied))?;
                 Ok(message)
             }
-            None => Ok(format!(
+            // An error: the content is not at the anchor this call named, and the
+            // rejection report is what says why. (The "already targeted there"
+            // case above stays a success — that request's state already holds.)
+            None => Err(anyhow!(
                 "Retarget failed — the file is unchanged and the previous placement remains \
 applied.\n\n{message}"
             )),

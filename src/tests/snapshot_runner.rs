@@ -368,9 +368,18 @@ impl SnapshotRunner {
 
             match tool.call_to_text(&mut self.state, &RequestContext::default()) {
                 Ok(response) => snapshot_execution_result.response.push_str(&response),
-                Err(err) => snapshot_execution_result
-                    .response
-                    .push_str(&err.to_string()),
+                // Marked, so the snapshot records *whether* the text came back as
+                // an error as well as what it said. Without the marker a rejection
+                // that moves between the success and error channels leaves every
+                // response.txt byte-identical, and the suite cannot see the move.
+                Err(err) => {
+                    snapshot_execution_result
+                        .response
+                        .push_str("=== error ===\n");
+                    snapshot_execution_result
+                        .response
+                        .push_str(&err.to_string());
+                }
             }
             snapshot_execution_result.response.push('\n');
         }
