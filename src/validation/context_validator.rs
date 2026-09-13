@@ -42,7 +42,7 @@ impl ContextValidator {
                 continue;
             }
 
-            for capture in m.captures {
+            for capture in m.captures() {
                 let node = capture.node;
 
                 // Extract violation type from capture name
