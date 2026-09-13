@@ -85,7 +85,7 @@ pub struct SemanticEditTools {
     shared_context_store: SessionStore<SharedContextData>,
     language_registry: Arc<LanguageRegistry>,
     #[field(set, get_mut(option_borrow_inner = false))]
-    commit_fn: Option<Box<dyn Fn(PathBuf, String) + 'static>>,
+    commit_fn: Option<Box<dyn Fn(PathBuf, String) + Send + 'static>>,
     #[field(set, with)]
     default_session_id: &'static str,
 }
