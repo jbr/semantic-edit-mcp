@@ -1,8 +1,8 @@
 [package]
 name = "semantic-edit-mcp"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
-description = "MCP server for semantic code editing with tree-sitter"
+description = "MCP server for code editing"
 readme = "README.md"
 repository = "https://github.com/jbr/semantic-edit-mcp"
 documentation = "https://docs.rs/semantic-edit-mcp"
@@ -13,7 +13,7 @@ categories = ["development-tools", "text-processing"]
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
-diffy = "0.5.2"
+diffy = { version = "0.5.2", features = ["color"] }
 dirs = "7.0"
 enum-map = "3.1.0"
 fieldwork = "0.5.3"
