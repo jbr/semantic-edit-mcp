@@ -18,7 +18,7 @@ dirs = "6.0"
 enum-map = "2.7.3"
 fieldwork = "0.4.6"
 log = "0.4.27"
-mcplease = "0.3"
+mcplease = "0.4"
 ropey = "1.6"
 schemars = "1.0.4"
 serde = { version = "1.0", features = ["derive"] }

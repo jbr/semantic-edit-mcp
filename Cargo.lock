@@ -572,9 +572,9 @@ dependencies = [
 
 [[package]]
 name = "mcplease"
-version = "0.3.0"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2100d2ce5acf40d10933314d33dddd7e01818c0a3bcfcef253ad5ed0920a80f"
+checksum = "ac6b4fdeb3dfcd998219a3f9cc95b0d11f0ae203a89f5e6912921ed7f25a3ec0"
 dependencies = [
  "anyhow",
  "clap",
