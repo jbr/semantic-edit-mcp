@@ -1,6 +1,9 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    languages::{LanguageCommon, LanguageEditor, LanguageName, ecma_editor::EcmaEditor},
+    languages::{
+        LanguageCommon, LanguageEditor, LanguageName,
+        ecma_editor::{EcmaEditor, with_comma_variants},
+    },
 };
 use anyhow::Result;
 use std::path::Path;
@@ -38,21 +41,6 @@ impl LanguageEditor for JsonEditor {
         &self,
         editor: &'editor Editor<'language>,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        let mut edits = EditIterator::new(editor).find_edits()?;
-
-        let new_edits = edits
-            .iter()
-            .filter(|edit| !edit.content().ends_with(','))
-            .cloned()
-            .map(Edit::modify(|edit| {
-                edit.set_annotation("json: added trailing comma")
-                    .content_mut()
-                    .to_mut()
-                    .push(',')
-            }))
-            .collect::<Vec<_>>();
-
-        edits.extend(new_edits);
-        Ok(edits)
+        Ok(with_comma_variants(EditIterator::new(editor).find_edits()?))
     }
 }

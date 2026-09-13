@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "fn bar",
+      "content": "#[inline]\nfn bar() -> u32 {\n    2\n}"
+    }
+  }
+]

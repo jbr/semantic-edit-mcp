@@ -133,6 +133,19 @@ impl PythonEditor {
 
         let target_indentation_count = file_indentation.minimum(reference_region);
 
+        // `insert_after` a whole statement lands at the end of the statement's
+        // line, so the naive insertion glues the new content onto that line. When
+        // the glued result happens to be valid Python (e.g. `a = b` + `c = d`
+        // becoming the chained `a = bc = d`) it is wrongly accepted. In that case
+        // indent the content as a fresh line and prefix a newline so it becomes a
+        // sibling statement instead of being appended.
+        if insert_after_statement(edit, source_code, start_byte) {
+            file_indentation.reindent(target_indentation_count, edit.content_mut(), true);
+            edit.content_mut().to_mut().insert(0, '\n');
+            edit.set_start_byte(start_byte);
+            return;
+        }
+
         if source_code[line_start..start_byte].trim().is_empty() {
             start_byte = line_start;
         }
@@ -144,6 +157,52 @@ impl PythonEditor {
 
         edit.set_start_byte(start_byte);
     }
+}
+
+/// Detect an `insert_after` whose insertion point is the end of a complete
+/// statement — i.e. an insert (no `end_byte`) positioned exactly at the end of a
+/// node whose parent is a statement container (`block`/`module`), with only
+/// whitespace remaining on the line. This is the case that would otherwise glue a
+/// new statement onto the anchor's line.
+///
+/// Keying on the node's *role* (statement vs. sub-expression) and on being at the
+/// node's *end* is what keeps this from firing on `insert_before` (which sits at a
+/// node's start) or on same-line appends like `insert_after 'def f(self'` → `,
+/// arg` (whose anchor resolves inside the parameter list, not a statement
+/// container).
+fn insert_after_statement(edit: &Edit<'_, '_>, source: &str, start_byte: usize) -> bool {
+    if edit.position().end_byte.is_some() {
+        return false; // a replace, not an insert
+    }
+
+    // Only when the rest of the anchor's line is blank — i.e. we really are at the
+    // line's end, not before a `;`-separated follow-on statement.
+    let line_tail = source[start_byte..].split('\n').next().unwrap_or("");
+    if !line_tail.trim().is_empty() {
+        return false;
+    }
+
+    // The captured node is often a sub-expression (e.g. the `identifier` in an
+    // assignment), so climb the ancestors that also end exactly at the insertion
+    // point. If one of them is a direct child of a statement container, the
+    // insertion point is a statement boundary.
+    let Some(node) = edit.nodes().and_then(|nodes| nodes.last()) else {
+        return false;
+    };
+
+    let mut current = *node;
+    while current.end_byte() == start_byte {
+        match current.parent() {
+            Some(parent) => {
+                if matches!(parent.kind(), "block" | "module") {
+                    return true;
+                }
+                current = parent;
+            }
+            None => break,
+        }
+    }
+    false
 }
 
 fn find_line_start(source_code: &str, start_byte: usize) -> usize {

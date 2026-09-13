@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERRORS===
+   1   ⎸[build]
+   2 ->⎸targets = ["linux", "mac", "windows"] = ["linux", "mac"]
+
+
+===DIFF===
+@@ -1,2 +1,2 @@
+ [build]
+-targets = ["linux", "mac"]
++targets = ["linux", "mac", "windows"] = ["linux", "mac"]
+
+None of the candidate placements for this anchor produced a valid file. The diff above shows one failed attempt — if the placement looks wrong, the anchor is likely resolving to a different node than intended; try anchoring on the first line of the item you mean to target.

@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -10,6 +10,9 @@
+             users: HashMap::new(),
+         }
+     }
++    pub fn is_empty(&self) -> bool {
++        self.users.is_empty()
++    }
+
+     pub fn add(&mut self, id: u64, name: String) {
+         self.users.insert(id, name);
+
+Note: the anchor matched at 2 locations (lines 8, 14); this edit targeted the match at line 8. If a different location was intended, extend the anchor with more of the target's surrounding text to disambiguate.

@@ -5,12 +5,6 @@
       "anchor": "pub fn target",
       "operation": "insert_before"
     },
-    "name": "preview_edit"
-  },
-  {
-    "arguments": {
-      
-    },
-    "name": "persist_edit"
+    "name": "edit"
   }
 ]

@@ -1,9 +1,8 @@
 [package]
 name = "semantic-edit-mcp"
-version = "0.2.1"
-authors = ["Jacob Rothstein <hi@jbr.me>", "Anthropic Claude Sonnet 4"]
+version = "0.3.0"
 edition = "2024"
-description = "MCP server for semantic code editing with tree-sitter"
+description = "MCP server for code editing"
 readme = "README.md"
 repository = "https://github.com/jbr/semantic-edit-mcp"
 documentation = "https://docs.rs/semantic-edit-mcp"
@@ -13,30 +12,27 @@ categories = ["development-tools", "text-processing"]
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "4.5", features = ["derive"] }
-diffy = "0.4.2"
-dirs = "6.0"
-enum-map = "2.7.3"
-fieldwork = "0.4.6"
-log = "0.4.27"
-mcplease = "0.2.3"
+clap = { version = "4.6", features = ["derive"] }
+diffy = { version = "0.5.2", features = ["color"] }
+dirs = "7.0"
+enum-map = "3.1.0"
+fieldwork = "0.5.3"
+log = "0.4.34"
+mcplease = "0.4"
 ropey = "1.6"
-schemars = "1.0.4"
+schemars = "1.2.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-shellexpand = "3.1.1"
-strum = { version = "0.27.2", features = ["derive"] }
+shellexpand = "3.1.2"
+strum = { version = "0.28.0", features = ["derive"] }
 taplo = "0.14.0"
-tree-sitter = "0.25"
-tree-sitter-javascript = "0.23.1"
+tree-sitter = "0.27"
+tree-sitter-javascript = "0.25.0"
 tree-sitter-json = "0.24.8"
 tree-sitter-plain = "0.1.0"
-tree-sitter-python = "0.23.6"
+tree-sitter-python = "0.25.0"
 tree-sitter-rust = "0.24"
 tree-sitter-toml-ng = "0.7.0"
 tree-sitter-typescript = "0.23.2"
 walkdir = "2.5"
 
-
-# [patch.crates-io]
-# mcplease = { path = "../mcplease" }

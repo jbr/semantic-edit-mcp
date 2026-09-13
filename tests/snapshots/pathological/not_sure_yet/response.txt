@@ -1,10 +1,9 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: replace
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
-💡 TIP: For focused changes like this, you might try targeted insert/replace operations for easier review and iteration
-
 ===DIFF===
+@@ -85,6 +85,7 @@
              email,
              created_at: chrono::Utc::now(),
              is_active: true,
@@ -12,3 +11,5 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
              profile: UserProfile::default(),
          }
      }
+
+Note: the anchor matched at 2 locations (lines 81, 247); this edit targeted the match at line 81. If a different location was intended, extend the anchor with more of the target's surrounding text to disambiguate.

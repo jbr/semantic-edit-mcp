@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "name: \"app\"",
+      "content": "author: \"jbr\""
+    }
+  }
+]

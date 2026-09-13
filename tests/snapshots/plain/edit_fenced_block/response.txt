@@ -1,8 +1,9 @@
-=== snapshot test tool call: preview_edit ===
-Previewing: replace
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -2,7 +2,7 @@
 
  ```
  fn main() {
@@ -11,21 +12,23 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
  }
  ```
      
-=== snapshot test tool call: preview_edit ===
-Previewing: replace
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -1,4 +1,4 @@
 -# title
 +# Welcome
 
  ```
  fn main() {
-=== snapshot test tool call: preview_edit ===
-Previewing: insert after
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
 Note: the editor applies a consistent formatting style to the entire file, including your edit
 
 ===DIFF===
+@@ -9,3 +9,4 @@
  ## list
 
  * item

@@ -1,4 +1,4 @@
-use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
+use tree_sitter::{Node, Query, QueryCursor, QueryPredicateArg, StreamingIterator, Tree};
 
 /// Tree-sitter based context validator for semantic code editing
 pub struct ContextValidator;
@@ -29,15 +29,34 @@ impl ContextValidator {
         let mut matches = cursor.matches(query, tree.root_node(), source_code.as_bytes());
 
         let mut violations = Vec::new();
+        // Scratch buffers reused across matches for the text-predicate check.
+        let (mut buf1, mut buf2) = (Vec::new(), Vec::new());
 
         while let Some(m) = matches.next() {
-            for capture in m.captures {
+            // tree-sitter does NOT apply predicates for us. The *standard* text
+            // predicates (`#eq?`, `#match?`, `#any-of?`) gate a match here (e.g.
+            // the self-parameter rule's `#eq? @self_param "self"`); without this
+            // they were silently ignored and the rule over-fired.
+            let mut text_provider = source_code.as_bytes();
+            if !m.satisfies_text_predicates(query, &mut buf1, &mut buf2, &mut text_provider) {
+                continue;
+            }
+
+            for capture in m.captures() {
                 let node = capture.node;
 
                 // Extract violation type from capture name
                 if let Some(violation_type) = Self::extract_violation_type(capture.index, query) {
                     // Only process "invalid" captures
-                    if violation_type.starts_with("invalid.") {
+                    if violation_type.starts_with("invalid.")
+                        // The *custom* `#has-ancestor?` / `#not-has-ancestor?`
+                        // predicates are user-defined: tree-sitter surfaces them via
+                        // `general_predicates` but never evaluates them. Until this
+                        // call existed, every guarded rule (notably
+                        // `await.outside.async`) degenerated to its bare pattern and
+                        // fired on valid code.
+                        && Self::satisfies_ancestor_predicates(query, m.pattern_index, node)
+                    {
                         violations.push(ContextViolation {
                             node,
                             message: Self::get_violation_message(&violation_type),
@@ -53,6 +72,45 @@ impl ContextValidator {
             source_code,
             violations,
         }
+    }
+
+    /// Evaluate the pattern's custom ancestor predicates against the captured
+    /// node. Returns `true` when the node may be reported as a violation —
+    /// i.e. every `#has-ancestor?` / `#not-has-ancestor?` guard on the pattern is
+    /// satisfied. Unknown operators are ignored (treated as satisfied), matching
+    /// tree-sitter's lenient handling of general predicates.
+    fn satisfies_ancestor_predicates(query: &Query, pattern_index: usize, node: Node) -> bool {
+        for predicate in query.general_predicates(pattern_index) {
+            // tree-sitter keeps the trailing `?`; tolerate either spelling.
+            let negated = match predicate.operator.trim_end_matches('?') {
+                "has-ancestor" => false,
+                "not-has-ancestor" => true,
+                _ => continue, // unknown general predicate: ignore (treat as satisfied)
+            };
+            let found = predicate.args.iter().any(|arg| match arg {
+                QueryPredicateArg::String(kind) => Self::has_ancestor_of_kind(node, kind),
+                QueryPredicateArg::Capture(_) => false,
+            });
+            // `#has-ancestor?` requires such an ancestor to exist; `#not-has-ancestor?`
+            // requires that none does.
+            if found == negated {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Walk strict ancestors (parents) of `node`, returning whether any has the
+    /// given tree-sitter node kind.
+    fn has_ancestor_of_kind(node: Node, kind: &str) -> bool {
+        let mut current = node.parent();
+        while let Some(ancestor) = current {
+            if ancestor.kind() == kind {
+                return true;
+            }
+            current = ancestor.parent();
+        }
+        false
     }
 
     fn extract_violation_type(capture_index: u32, query: &Query) -> Option<String> {
@@ -124,17 +182,26 @@ impl ValidationResult<'_, '_> {
             return "✅ All validations passed".to_string();
         }
 
-        let mut response = String::new();
-        response.push_str("❌ Invalid placement detected:\n\n");
-
-        for violation in &self.violations {
-            response.push_str(&format!("• {}:\n", violation.message));
-            let parent = violation.node.parent().unwrap_or(violation.node);
-            response.push_str(&self.source_code[parent.byte_range()]);
-            response.push_str("\n\n");
-            response.push_str(&format!("  💡 Suggestion: {}\n", violation.suggestion));
-        }
-
-        response
+        format_violations(self.violations.iter(), self.source_code)
     }
+}
+
+/// Render a set of violations (not necessarily all of a [`ValidationResult`]'s —
+/// the editor reports only the violations an edit *introduced*).
+pub fn format_violations<'tree>(
+    violations: impl Iterator<Item = &'tree ContextViolation<'tree>>,
+    source_code: &str,
+) -> String {
+    let mut response = String::new();
+    response.push_str("❌ Invalid placement detected:\n\n");
+
+    for violation in violations {
+        response.push_str(&format!("• {}:\n", violation.message));
+        let parent = violation.node.parent().unwrap_or(violation.node);
+        response.push_str(&source_code[parent.byte_range()]);
+        response.push_str("\n\n");
+        response.push_str(&format!("  💡 Suggestion: {}\n", violation.suggestion));
+    }
+
+    response
 }

@@ -1,6 +1,6 @@
 [
   {
-    "name": "preview_edit",
+    "name": "edit",
     "arguments": {
       "operation": "replace",
       "anchor": "println!(\"hello world!\");",
@@ -8,7 +8,7 @@
     }
   },
   {
-    "name": "preview_edit",
+    "name": "edit",
     "arguments": {
       "operation": "replace",
       "anchor": "# title",
@@ -16,7 +16,7 @@
     }
   },
   {
-    "name": "preview_edit",
+    "name": "edit",
     "arguments": {
       "operation": "insert_after",
       "anchor": "* item",

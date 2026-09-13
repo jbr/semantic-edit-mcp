@@ -1,0 +1,29 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -2,6 +2,10 @@
+     x + 1
+ }
+
++pub fn omega(x: i32) -> i32 {
++    x * 2
++}
++
+ pub fn beta(x: i32) -> i32 {
+     x + 2
+ }
+=== snapshot test tool call: retarget_edit ===
+Retargeted insert after: the previous placement was reverted and the edit was re-applied at the new anchor. The diff is relative to the file from before the original edit.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -5,3 +5,7 @@
+ pub fn beta(x: i32) -> i32 {
+     x + 2
+ }
++
++pub fn omega(x: i32) -> i32 {
++    x * 2
++}

@@ -1,0 +1,18 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -5,6 +5,12 @@
+         assert!(true);
+     }
+
++    /// Inserted test.
++    #[test]
++    fn inserted() {
++        assert!(true);
++    }
++
+     /// Second test.
+     #[test]
+     fn second() {

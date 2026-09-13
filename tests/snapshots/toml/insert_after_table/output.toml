@@ -1,0 +1,7 @@
+scope = "..."
+[commands]
+[logging]
+level = "info"
+ls = true
+[paths]
+"." = true

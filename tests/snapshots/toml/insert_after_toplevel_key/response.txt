@@ -1,0 +1,10 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,3 +1,4 @@
+ name = "app"
++version = "2"
+ [deps]
+ foo = "1"

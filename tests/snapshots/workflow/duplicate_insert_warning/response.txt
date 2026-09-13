@@ -1,0 +1,26 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,3 +1,4 @@
++#[inline]
+ pub fn alpha(x: i32) -> i32 {
+     x + 1
+ }
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -3,6 +3,7 @@
+     x + 1
+ }
+
++#[inline]
+ pub fn beta(x: i32) -> i32 {
+     x + 2
+ }
+
+===WARNING===
+This content is identical to the previous edit applied to this file, and that earlier placement is still present — the file now contains both. If the earlier placement was a mistake, remove it with a `replace` edit (omit `content` to delete) anchored on the misplaced copy. Next time, `retarget_edit` moves the previous edit to a corrected anchor in one step.

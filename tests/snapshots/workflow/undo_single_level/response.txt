@@ -1,0 +1,35 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,5 +1,5 @@
+ pub fn alpha(x: i32) -> i32 {
+-    x + 1
++    x + 100
+ }
+
+ pub fn beta(x: i32) -> i32 {
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -3,5 +3,5 @@
+ }
+
+ pub fn beta(x: i32) -> i32 {
+-    x + 2
++    x + 200
+ }
+=== snapshot test tool call: undo_edit ===
+Reverted the last edit (replace at "pub fn beta(x: i32) -> i32 {") — input.rs has been restored to its prior content.
+
+===DIFF===
+@@ -3,5 +3,5 @@
+ }
+
+ pub fn beta(x: i32) -> i32 {
+-    x + 200
++    x + 2
+ }

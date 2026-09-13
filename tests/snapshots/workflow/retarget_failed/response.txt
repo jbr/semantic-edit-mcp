@@ -1,0 +1,21 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -2,6 +2,10 @@
+     x + 1
+ }
+
++pub fn omega(x: i32) -> i32 {
++    x * 2
++}
++
+ pub fn beta(x: i32) -> i32 {
+     x + 2
+ }
+=== snapshot test tool call: retarget_edit ===
+=== error ===
+Retarget failed — the file is unchanged and the previous placement remains applied.
+
+Anchor "pub fn does_not_exist()" not found in source

@@ -1,5 +1,6 @@
 use super::{EditPosition, Editor};
 use crate::searcher::find_positions;
+use crate::selector::Operation;
 use fieldwork::Fieldwork;
 use ropey::Rope;
 use std::{
@@ -28,6 +29,18 @@ pub struct Edit<'editor, 'language> {
     nodes: Option<Vec<Node<'editor>>>,
     #[field(with, get, set)]
     annotation: Option<&'static str>,
+    /// The `(start, end)` byte range of the anchor occurrence this candidate was
+    /// built from — used after a candidate wins to report when the anchor also
+    /// matched elsewhere.
+    #[field(with, get)]
+    anchor_hit: Option<(usize, usize)>,
+    /// Whether this candidate's result parsed cleanly — a candidate can be
+    /// structurally valid yet still rejected (context-query violation, formatter
+    /// error). When every candidate fails, the editor prefers reporting a
+    /// structurally-valid one: its failure describes what blocked the edit,
+    /// rather than the syntax wreckage of an inner-node splice.
+    #[field(get)]
+    structurally_valid: bool,
 }
 
 impl PartialEq for Edit<'_, '_> {
@@ -113,6 +126,8 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             output: None,
             nodes: None,
             annotation: None,
+            anchor_hit: None,
+            structurally_valid: false,
         }
     }
 
@@ -165,6 +180,41 @@ impl<'editor, 'language> Edit<'editor, 'language> {
         self
     }
 
+    /// The operation this edit is performing (insert-after/before or replace).
+    /// Language-specific node grouping needs this to place an insertion point
+    /// correctly: an `insert_after` edit's position is anchored to the *end* of
+    /// the target node, so expanding the selection must not drag it backward.
+    pub fn operation(&self) -> Operation {
+        self.editor.selector.operation
+    }
+
+    /// Reject a candidate whose content would fuse directly onto an adjacent
+    /// identifier/keyword character — e.g. inserting `log(item)` after `items` to
+    /// make `itemslog(item)`, or `self.x` after `name` to make `nameself.x`. Such a
+    /// glue frequently re-parses as *different* valid code and would otherwise be
+    /// silently accepted; rejecting it lets the whitespace-separated candidate
+    /// variants (which the iterator also generates) win instead.
+    fn would_merge_identifiers(&self) -> bool {
+        let is_word = |c: char| c.is_alphanumeric() || c == '_';
+        let source = self.source_code();
+        let EditPosition {
+            start_byte,
+            end_byte,
+        } = self.position;
+
+        let before = source.get(..start_byte).and_then(|s| s.chars().next_back());
+        let after = source
+            .get(end_byte.unwrap_or(start_byte)..)
+            .and_then(|s| s.chars().next());
+
+        let glues_left = matches!((before, self.content.chars().next()),
+            (Some(b), Some(c)) if is_word(b) && is_word(c));
+        let glues_right = matches!((self.content.chars().last(), after),
+            (Some(c), Some(a)) if is_word(c) && is_word(a));
+
+        glues_left || glues_right
+    }
+
     fn byte_to_point(&self, byte_idx: usize) -> Point {
         let line = self.rope.byte_to_line(byte_idx);
         let line_start_byte = self.rope.line_to_byte(line);
@@ -176,6 +226,13 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     pub(crate) fn apply(&mut self) -> bool {
         if let Some(valid) = self.valid {
             return valid;
+        }
+
+        if self.would_merge_identifiers() {
+            self.valid = Some(false);
+            self.message =
+                Some("This placement would fuse the content onto an adjacent identifier".into());
+            return false;
         }
 
         let content = &self.content;
@@ -227,6 +284,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             self.message = Some(message);
             false
         } else {
+            self.structurally_valid = true;
             self.message = Some(format!(
                 "Applied {} operation",
                 self.editor.selector.operation_name()
@@ -249,7 +307,9 @@ impl<'editor, 'language> Edit<'editor, 'language> {
     }
 
     fn validate(&mut self, output: &str) -> Option<String> {
-        let errors = self.editor.validate_tree(&self.tree, output)?;
+        let failure = self.editor.validate_tree(&self.tree, output)?;
+        self.structurally_valid = !failure.syntax;
+        let errors = failure.message;
         let diff = self.editor.diff(output);
         Some(format!(
             "This edit would result in invalid syntax, but the file is still in a valid state. \
@@ -270,13 +330,6 @@ Suggestion: Try a different change.\n
     pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
         self.position.start_byte = start_byte;
         self
-    }
-
-    pub(crate) fn modify(mut fun: impl FnMut(&mut Self)) -> impl FnMut(Self) -> Self {
-        move |mut edit| {
-            fun(&mut edit);
-            edit
-        }
     }
 
     pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {

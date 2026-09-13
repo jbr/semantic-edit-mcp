@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "fn foo",
+      "content": "/// New documentation\nfn foo() {\n    new();\n}"
+    }
+  }
+]

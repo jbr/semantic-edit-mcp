@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+1 formatting-only hunk elsewhere in the file is not shown (whitespace only — no token changed; anchors are whitespace-insensitive, so later edits are unaffected).
+
+===DIFF===
+@@ -14,4 +14,5 @@
+
+ struct Config {
+     name: String,
++    retries: u8,
+ }

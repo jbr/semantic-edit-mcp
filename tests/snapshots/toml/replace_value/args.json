@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "port = 8080",
+      "content": "port = 9090"
+    }
+  }
+]

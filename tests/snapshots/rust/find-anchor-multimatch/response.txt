@@ -1,0 +1,20 @@
+=== snapshot test tool call: find_anchor ===
+Anchor matched at 2 locations
+
+=== match 1: lines 2-2 ===
+       1 | pub mod client {
+>>>    2 |     pub fn timeout() -> u64 {
+       3 |         30
+       4 |     }
+       5 | }
+
+=== match 2: lines 8-8 ===
+       5 | }
+       6 | 
+       7 | pub mod server {
+>>>    8 |     pub fn timeout() -> u64 {
+       9 |         30
+      10 |     }
+      11 | }
+
+Edits use the first match. To target a different one, extend the anchor with more of the target's own text until it is unique.

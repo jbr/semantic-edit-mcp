@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub struct Config",
+      "content": "#[derive(Debug, Clone)]\npub struct Config {\n    pub port: u16,\n}"
+    }
+  }
+]

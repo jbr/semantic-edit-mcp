@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "ls = true\n[paths]",
+      "content": "ls = true\nfind = true\n[paths]"
+    }
+  }
+]

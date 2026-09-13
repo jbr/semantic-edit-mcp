@@ -1,0 +1,15 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,7 +1,7 @@
+ mod m {
+-    /// Alpha.
++    /// Alpha rewritten.
+     pub async unsafe fn alpha() -> u32 {
+-        1
++        11
+     }
+
+     /// Beta.

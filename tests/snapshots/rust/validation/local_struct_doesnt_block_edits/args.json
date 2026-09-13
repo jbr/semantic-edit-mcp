@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "fn target(",
+      "content": "/// A new sibling fn; the local struct/impl inside `parse` must not block this.\nfn inserted() {}\n\n"
+    }
+  }
+]

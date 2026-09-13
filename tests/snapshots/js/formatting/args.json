@@ -1,5 +1,5 @@
 {
-  "name": "preview_edit",
+  "name": "edit",
   "arguments": {
     "anchor": "async refreshUser(id) {",
     "operation": "insert_after",

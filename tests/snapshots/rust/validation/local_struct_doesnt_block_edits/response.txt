@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -13,5 +13,8 @@
+     local.get()
+ }
+
++/// A new sibling fn; the local struct/impl inside `parse` must not block this.
++fn inserted() {}
++
+ /// Doc for target.
+ fn target() {}

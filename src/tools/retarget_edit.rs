@@ -1,14 +1,20 @@
 use crate::{editor::Editor, selector::Selector, state::SemanticEditTools};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use mcplease::{
-    traits::{Tool, WithExamples},
-    types::Example,
+    traits::{Tool, ToolMeta},
+    types::{Example, RequestContext, ToolAnnotations},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Change the targeting of an already-staged operation without rewriting the content
+/// Move the most recent edit to a different location without resending its content
+///
+/// Reverts the last edit and re-applies its content at the corrected anchor
+/// in a single step. Useful when the diff from `edit` shows the change
+/// landing somewhere other than intended. If the edit fails at the new
+/// anchor, the file is left unchanged, with the previous placement still
+/// applied and still retargetable.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "retarget_edit")]
 #[group(skip)]
@@ -18,68 +24,98 @@ pub struct RetargetEdit {
     pub selector: Selector,
 }
 
-impl WithExamples for RetargetEdit {
+impl ToolMeta for RetargetEdit {
+    fn title() -> Option<&'static str> {
+        Some("Retarget last edit")
+    }
+
+    fn annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations {
+            read_only_hint: Some(false),
+            destructive_hint: Some(true),
+            // Re-running with the same selector reports that the edit is
+            // already there and leaves the file alone.
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+            ..Default::default()
+        })
+    }
+
     fn examples() -> Vec<Example<Self>> {
-        vec![
-            // Example {
-            //     description: "After staging content to add a struct field, retarget from field_declaration to field_declaration_list for better insertion point",
-            //     item: Self {
-            //         selector: NodeSelector {
-            //             anchor_text: "pub created_at:".into(),
-            //             ancestor_node_type: Some("field_declaration_list".into()),
-            //             position: None,
-            //         },
-            //     },
-            // },
-            // Example {
-            //     description: "Move JSON insertion from inside an object to after the entire object pair",
-            //     item: Self {
-            //         selector: NodeSelector {
-            //             anchor_text: "\"cache\"".into(),
-            //             ancestor_node_type: Some("pair".into()),
-            //             position: None,
-            //         },
-            //     },
-            // },
-            // Example {
-            //     description: "Adjust function insertion from declaration_list to function_item scope",
-            //     item: Self {
-            //         selector: NodeSelector {
-            //             anchor_text: "pub fn validate_email".into(),
-            //             ancestor_node_type: Some("function_item".into()),
-            //             position: None,
-            //         },
-            //     },
-            // },
-            // Example {
-            //     description: "Use exploration mode first to see all targeting options before retargeting",
-            //     item: Self {
-            //         selector: NodeSelector {
-            //             anchor_text: "impl User".into(),
-            //             ancestor_node_type: None,
-            //             position: None,
-            //         },
-            //     },
-            // },
-        ]
+        vec![]
     }
 }
 
 impl Tool<SemanticEditTools> for RetargetEdit {
-    fn execute(self, state: &mut SemanticEditTools) -> Result<String> {
+    type Output = String;
+
+    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
         let Self { selector } = self;
 
-        let staged_operation = state
-            .modify_staged_operation(None, |op| op.retarget(selector))?
-            .ok_or_else(|| anyhow!("no operation staged"))?;
+        let record = state
+            .last_edit(None)?
+            .cloned()
+            .ok_or_else(|| anyhow!("No edit to retarget. Only the most recent edit is retargetable."))?;
 
-        let editor =
-            Editor::from_staged_operation(staged_operation.clone(), state.language_registry())?;
-        let (message, staged_operation) = editor.preview()?;
-        if staged_operation.is_some() {
-            // leave failed operations in place
-            state.preview_edit(None, staged_operation)?;
+        let file_path = record.operation.file_path.clone();
+        if state.owns_persistence() {
+            match record.is_current_on_disk() {
+                Ok(true) => {}
+                Ok(false) => {
+                    return Err(anyhow!(
+                        "Cannot retarget: {} has changed since the last edit was applied, \
+so that edit can no longer be safely moved. The file was not modified.",
+                        file_path.display()
+                    ));
+                }
+                Err(error) => {
+                    return Err(anyhow!(
+                        "Cannot retarget: failed to read {}: {error}",
+                        file_path.display()
+                    ));
+                }
+            }
         }
-        Ok(message)
+
+        if *record.operation().selector() == selector {
+            return Ok(
+                "The last edit already used exactly this targeting; nothing to move.".to_string(),
+            );
+        }
+
+        // Re-run the edit against the recorded *pre-edit* source: the file on
+        // disk still contains the placement being moved, and it only gets
+        // rewritten once the new placement validates.
+        let language = state
+            .language_registry()
+            .get_language(record.operation().language_name);
+        let editor = Editor::from_source(
+            record.operation.content.clone(),
+            selector,
+            language,
+            file_path.clone(),
+            record.pre_edit_source.clone(),
+        )?;
+
+        let (message, applied) = editor.apply()?;
+        match applied {
+            Some(applied) => {
+                state.persist_output(file_path, applied.post_edit_source.clone())?;
+                let message = format!(
+                    "Retargeted {}: the previous placement was reverted and the edit was \
+re-applied at the new anchor. The diff is relative to the file from before the original edit.\n{message}",
+                    applied.operation().selector().operation_name()
+                );
+                state.set_last_edit(None, Some(applied))?;
+                Ok(message)
+            }
+            // An error: the content is not at the anchor this call named, and the
+            // rejection report is what says why. (The "already targeted there"
+            // case above stays a success — that request's state already holds.)
+            None => Err(anyhow!(
+                "Retarget failed — the file is unchanged and the previous placement remains \
+applied.\n\n{message}"
+            )),
+        }
     }
 }

@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -2,5 +2,6 @@
+ tools = ["read", "list", "search", "write", "preview_edit", "persist_edit"]
+ [commands]
+ ls = true
++find = true
+ [paths]
+ "." = true

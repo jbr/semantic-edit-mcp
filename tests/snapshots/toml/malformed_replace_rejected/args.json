@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "targets",
+      "content": "targets = [\"linux\", \"mac\", \"windows\"]"
+    }
+  }
+]

@@ -1,0 +1,24 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+❌ Invalid placement detected:
+
+• Invalid placement: class.in.function.body:
+class Inner:
+        pass
+    
+            return 1
+
+  💡 Suggestion: Consider placing this construct in an appropriate context
+
+
+===DIFF===
+@@ -1,2 +1,5 @@
+ def target():
+-    return 1
++    class Inner:
++        pass
++    
++            return 1

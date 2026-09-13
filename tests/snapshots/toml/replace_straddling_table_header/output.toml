@@ -1,0 +1,7 @@
+scope = "..."
+tools = ["read", "list", "search", "write", "preview_edit", "persist_edit"]
+[commands]
+ls = true
+find = true
+[paths]
+"." = true

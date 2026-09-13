@@ -1,0 +1,11 @@
+[
+  {"name": "edit", "arguments": {
+    "operation": "insert_after",
+    "anchor": "pub fn alpha(x: i32) -> i32 {\n    x + 1\n}",
+    "content": "\n\npub fn omega(x: i32) -> i32 {\n    x * 2\n}"
+  }},
+  {"name": "retarget_edit", "arguments": {
+    "operation": "insert_after",
+    "anchor": "pub fn does_not_exist()"
+  }}
+]

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "def target():\n    return factory()",
+      "content": "\n\n\ndef inserted():\n    return 1"
+    }
+  }
+]

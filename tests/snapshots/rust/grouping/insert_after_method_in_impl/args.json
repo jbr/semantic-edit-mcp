@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "fn alpha",
+      "content": "\n    /// Gamma method.\n    fn gamma(&self) -> u32 {\n        3\n    }"
+    }
+  }
+]
