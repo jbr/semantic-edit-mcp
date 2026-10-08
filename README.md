@@ -47,6 +47,16 @@ repeated undo calls walk back that file's retained edits (up to 32 edits are
 held across all files). Paths are absolute or relative to the server's startup
 directory, configurable with `--root`.
 
+## Markdown and plain-text whitespace
+
+These files are not reformatted. When replacing the first text on an indented
+line, content beginning with spaces or tabs supplies the new indentation rather
+than adding to the old indentation. Unindented content keeps the existing line
+indentation. Continuation lines are inserted exactly as supplied; no list or
+code-block nesting is inferred. To remove indentation entirely, include text
+from the preceding line and the intervening newline in a larger replacement.
+All whitespace-only changes remain visible in the returned diff.
+
 ## Installation
 
 ```bash

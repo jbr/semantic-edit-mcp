@@ -23,8 +23,9 @@ use serde::{Deserialize, Serialize};
 /// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
 /// reverts it.
 ///
-/// The whole file is reformatted with the language's standard formatter, so
-/// the diff may include formatting fixes beyond the edit itself.
+/// When formatting runs, the whole file is reformatted with the language's
+/// standard formatter, so the diff may include fixes beyond the edit itself.
+/// Markdown/plain text is not reformatted.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "edit")]
 #[group(skip)]
@@ -47,6 +48,11 @@ pub struct Edit {
     /// For `replace`, this takes the place of the anchored code; omit it to
     /// delete the anchored code instead. For inserts, include any blank lines
     /// you want between the new code and its neighbors.
+    ///
+    /// Markdown/plain text has no formatter. For a replacement starting at
+    /// the first text on a line, explicit leading spaces/tabs in content
+    /// replace that line's indentation; without them, existing indentation
+    /// stays. Continuation lines keep exactly the whitespace you supply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }

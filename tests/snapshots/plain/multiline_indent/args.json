@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "old line\n    nested line",
+    "content": "  new line\n    deeper line\n  same level"
+  }
+}

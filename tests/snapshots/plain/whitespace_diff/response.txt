@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
+
+===DIFF===
+@@ -1,4 +1,4 @@
+-# Before
++# After
+
+ unchanged text
+ unchanged text
+@@ -13,4 +13,4 @@
+ unchanged text
+ unchanged text
+ - Parent
+-  nested line
++    nested line

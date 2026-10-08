@@ -1,6 +1,6 @@
 === snapshot test tool call: edit ===
 Applied replace — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
 
 ===DIFF===
 @@ -2,7 +2,7 @@
@@ -14,7 +14,7 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
      
 === snapshot test tool call: edit ===
 Applied replace — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
 
 ===DIFF===
 @@ -1,4 +1,4 @@
@@ -25,7 +25,7 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
  fn main() {
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
 
 ===DIFF===
 @@ -9,3 +9,4 @@

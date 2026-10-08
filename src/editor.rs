@@ -396,7 +396,12 @@ decorations, which stay attached to it.",
     pub fn apply(mut self) -> Result<(String, Option<AppliedEdit>)> {
         let (message, output, note) = self.edit()?;
         if let Some(output) = output {
-            let (diff, elided) = focused_diff(&self.source_code, &output);
+            let plain_text = self.language.name() == crate::languages::LanguageName::Other;
+            let (diff, elided) = if plain_text {
+                (clean_diff(&self.source_code, &output), 0)
+            } else {
+                focused_diff(&self.source_code, &output)
+            };
             let remaining_errors = self
                 .parse(&output, None)
                 .and_then(|tree| Self::syntax_errors(self.language, &tree, &output));
@@ -406,6 +411,10 @@ decorations, which stay attached to it.",
                 )
             } else if message.starts_with("Warning:") {
                 format!("{message}\n")
+            } else if plain_text {
+                String::from(
+                    "Note: plain-text edits preserve supplied whitespace; no formatter is run.\n",
+                )
             } else {
                 String::from(
                     "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
