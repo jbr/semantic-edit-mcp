@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 /// Apply an edit to a file and see the resulting diff
 ///
 /// Find the `anchor` text in the file and apply `operation` at that location.
-/// Every edit is validated before it is written: the result must still parse
-/// in the file's language and pass its formatter, or the edit is rejected and
-/// the file is untouched. A valid edit is written to disk immediately —
-/// review the returned diff, and if the edit landed somewhere other than
+/// Edits to syntactically valid code must still parse and pass the formatter,
+/// or they are rejected without changing the file. If the source already has
+/// syntax errors, edits are accepted while it is being repaired: remaining
+/// error regions are reported, and formatting is skipped until syntax is valid.
+/// Accepted edits are written immediately. Review the returned diff, and if
+/// the edit landed somewhere other than
 /// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
 /// reverts it.
 ///
@@ -78,8 +80,9 @@ impl ToolMeta for Edit {
                     selector: Selector {
                         operation: Operation::Replace,
                         item: None,
-                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into()),
+                        anchor: Some(
+                            "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}".into(),
+                        ),
                     },
                     content: Some(
                         "fn greet(name: &str) {\n    println!(\"Hi there, {name}!\");\n}"
@@ -95,8 +98,9 @@ impl ToolMeta for Edit {
                     selector: Selector {
                         operation: Operation::InsertAfter,
                         item: None,
-                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into()),
+                        anchor: Some(
+                            "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}".into(),
+                        ),
                     },
                     content: Some(
                         "\n\nfn farewell(name: &str) {\n    println!(\"Goodbye, {name}\");\n}"
@@ -242,10 +246,12 @@ impl Edit {
             // on. The `MovedReplace` case below is the opposite — the content
             // is not where this call asked for it — so that one errors.
             Some(DuplicateOfLastEdit::ExactResend) => {
-                return Ok("This exact edit was already applied — the file already contains \
+                return Ok(
+                    "This exact edit was already applied — the file already contains \
 this change, so it was not applied again. If the previous application was unintended, \
 `undo_edit` reverts it."
-                    .to_string());
+                        .to_string(),
+                );
             }
             Some(DuplicateOfLastEdit::MovedReplace) => {
                 bail!(

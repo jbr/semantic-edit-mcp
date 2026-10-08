@@ -5,10 +5,11 @@ Suggestion: Try a different change.
 
 ===SYNTAX ERRORS===
    1 ->⎸/// Math helpers.
-   2   ⎸pub fn add(a: i32, b: i32) -> i32 {
+   2 ->⎸pub fn add(a: i32, b: i32) -> i32 {
    3 ->⎸    a + b
-   4   ⎸pub fn mul(a: i32, b: i32) -> i32 {
-   5   ⎸    a * b
+   4 ->⎸pub fn mul(a: i32, b: i32) -> i32 {
+   5 ->⎸    a * b
+   6 ->⎸}
 
 
 ===DIFF===

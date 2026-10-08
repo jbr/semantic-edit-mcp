@@ -1,0 +1,11 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "item": {
+      "kind": "function",
+      "name": "intact"
+    },
+    "content": "fn renamed() {}"
+  }
+}

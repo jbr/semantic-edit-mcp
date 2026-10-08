@@ -1,0 +1,53 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.
+
+===SYNTAX ERRORS===
+  11   ⎸// gap
+  12   ⎸// gap
+  13   ⎸// gap
+  14 ->⎸fn beta() { let b = ; }
+
+===DIFF===
+@@ -1,4 +1,4 @@
+-fn alpha() { let a = ; }
++fn alpha() { let a = 1; }
+ // gap
+ // gap
+ // gap
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+1 formatting-only hunk elsewhere in the file is not shown (whitespace only — no token changed; anchors are whitespace-insensitive, so later edits are unaffected).
+
+===DIFF===
+@@ -11,4 +13,6 @@
+ // gap
+ // gap
+ // gap
+-fn beta() { let b = ; }
++fn beta() {
++    let b = 2;
++}
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERRORS===
+   1   ⎸fn alpha() {
+   2 ->⎸    let a = ;
+   3   ⎸}
+   4   ⎸// gap
+
+
+===DIFF===
+@@ -1,5 +1,5 @@
+ fn alpha() {
+-    let a = 1;
++    let a = ;
+ }
+ // gap
+ // gap
+
+None of the candidate placements for this anchor produced a valid file. The diff above shows one failed attempt — if the placement looks wrong, the anchor is likely resolving to a different node than intended; try anchoring on the first line of the item you mean to target.

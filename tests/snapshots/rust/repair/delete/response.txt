@@ -1,0 +1,10 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,1 +1,1 @@
+-fn<'a> suggest<'a>() {}
++fn suggest<'a>() {}
+
+Note: the anchor matched at 2 locations (lines 1, 1); this edit targeted the match at line 1. If a different location was intended, extend the anchor with more of the target's surrounding text to disambiguate.

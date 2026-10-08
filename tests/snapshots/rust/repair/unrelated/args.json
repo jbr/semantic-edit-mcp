@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "fn alpha()",
+    "content": "fn renamed()"
+  }
+}
