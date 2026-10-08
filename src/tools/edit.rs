@@ -27,8 +27,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename = "edit")]
 #[group(skip)]
 pub struct Edit {
-    /// Path to the source file.
-    /// If a session has been configured, this can be a relative path to the session root.
+    /// Path to the source file: absolute, or relative to the server's root directory.
     pub file_path: String,
 
     /// Optional language hint. If not provided, language will be detected from file extension.
@@ -64,7 +63,7 @@ impl ToolMeta for Edit {
             // Re-sending the same edit is guarded against, but an insert
             // repeated after another edit intervenes does duplicate content.
             idempotent_hint: Some(false),
-            // Only touches files in the session's working directory.
+            // Only touches the file it names.
             open_world_hint: Some(false),
             ..Default::default()
         })
@@ -211,7 +210,13 @@ fn duplicate_of_last_edit(
 impl Tool<SemanticEditTools> for Edit {
     type Output = String;
 
-    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
+    async fn execute(self, state: SemanticEditTools, _context: RequestContext) -> Result<String> {
+        state.unblock(move |state| self.run(state)).await
+    }
+}
+
+impl Edit {
+    pub(crate) fn run(self, state: &SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
             selector,
@@ -219,12 +224,13 @@ impl Tool<SemanticEditTools> for Edit {
             language,
         } = self;
 
-        let file_path = state.resolve_path(&file_path, None)?;
-        let education = state.education(None)?;
+        let file_path = state.resolve_path(&file_path)?;
+        let _write_lock = state.write_lock();
+        let education = state.education();
 
         let owns_persistence = state.owns_persistence();
         let duplicate = duplicate_of_last_edit(
-            state.last_edit(None)?,
+            state.latest_edit(&file_path).as_ref(),
             &file_path,
             &selector,
             content.as_deref(),
@@ -301,14 +307,14 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
             "Applied {} — the file has been updated.\n{message}",
             applied.operation().selector().operation_name()
         );
-        state.set_last_edit(None, Some(applied))?;
-        state.update_education(None, |education| education.record_success())?;
+        state.record_edit(applied);
+        state.update_education(|education| education.record_success());
 
         if matches!(duplicate, Some(DuplicateOfLastEdit::DuplicatedInsert)) {
             message.push_str("\n\n");
             message.push_str(education::duplicate_insert_warning());
         } else if let Some(short) = verified_shorthand {
-            state.update_education(None, |education| education.record_prefix_tip_emitted())?;
+            state.update_education(|education| education.record_prefix_tip_emitted());
             message.push_str("\n\n");
             message.push_str(&education::prefix_tip(&short));
         }

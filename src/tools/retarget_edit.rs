@@ -8,10 +8,10 @@ use mcplease::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Move the most recent edit to a different location without resending its content
+/// Move the most recent edit to a file to a different location without resending its content
 ///
-/// Reverts the last edit and re-applies its content at the corrected anchor
-/// in a single step. Useful when the diff from `edit` shows the change
+/// Reverts the most recent edit to `file_path` and re-applies its content at
+/// the corrected anchor in a single step. Useful when the diff from `edit` shows the change
 /// landing somewhere other than intended. If the edit fails at the new
 /// anchor, the file is left unchanged, with the previous placement still
 /// applied and still retargetable.
@@ -19,6 +19,10 @@ use serde::{Deserialize, Serialize};
 #[serde(rename = "retarget_edit")]
 #[group(skip)]
 pub struct RetargetEdit {
+    /// The file the edit was made to: absolute, or relative to the server's
+    /// root directory.
+    pub file_path: String,
+
     #[serde(flatten)]
     #[clap(flatten)]
     pub selector: Selector,
@@ -26,7 +30,7 @@ pub struct RetargetEdit {
 
 impl ToolMeta for RetargetEdit {
     fn title() -> Option<&'static str> {
-        Some("Retarget last edit")
+        Some("Retarget edit")
     }
 
     fn annotations() -> Option<ToolAnnotations> {
@@ -49,22 +53,33 @@ impl ToolMeta for RetargetEdit {
 impl Tool<SemanticEditTools> for RetargetEdit {
     type Output = String;
 
-    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
-        let Self { selector } = self;
+    async fn execute(self, state: SemanticEditTools, _context: RequestContext) -> Result<String> {
+        state.unblock(move |state| self.run(state)).await
+    }
+}
 
-        let record = state
-            .last_edit(None)?
-            .cloned()
-            .ok_or_else(|| anyhow!("No edit to retarget. Only the most recent edit is retargetable."))?;
+impl RetargetEdit {
+    pub(crate) fn run(self, state: &SemanticEditTools) -> Result<String> {
+        let Self {
+            file_path,
+            selector,
+        } = self;
 
-        let file_path = record.operation.file_path.clone();
+        let file_path = state.resolve_path(&file_path)?;
+        let _write_lock = state.write_lock();
+        let record = state.latest_edit(&file_path).ok_or_else(|| {
+            anyhow!(
+                "No edit to {} is held for retargeting.",
+                state.display_path(&file_path).display()
+            )
+        })?;
         if state.owns_persistence() {
             match record.is_current_on_disk() {
                 Ok(true) => {}
                 Ok(false) => {
                     return Err(anyhow!(
-                        "Cannot retarget: {} has changed since the last edit was applied, \
-so that edit can no longer be safely moved. The file was not modified.",
+                        "Cannot retarget: {} has changed since its most recent edit was \
+applied, so that edit can no longer be safely moved. The file was not modified.",
                         file_path.display()
                     ));
                 }
@@ -79,7 +94,9 @@ so that edit can no longer be safely moved. The file was not modified.",
 
         if *record.operation().selector() == selector {
             return Ok(
-                "The last edit already used exactly this targeting; nothing to move.".to_string(),
+                "The most recent edit to this file already used exactly this targeting; nothing \
+to move."
+                    .to_string(),
             );
         }
 
@@ -100,13 +117,14 @@ so that edit can no longer be safely moved. The file was not modified.",
         let (message, applied) = editor.apply()?;
         match applied {
             Some(applied) => {
-                state.persist_output(file_path, applied.post_edit_source.clone())?;
+                state.persist_output(file_path.clone(), applied.post_edit_source.clone())?;
                 let message = format!(
                     "Retargeted {}: the previous placement was reverted and the edit was \
 re-applied at the new anchor. The diff is relative to the file from before the original edit.\n{message}",
                     applied.operation().selector().operation_name()
                 );
-                state.set_last_edit(None, Some(applied))?;
+                state.forget_latest_edit(&file_path);
+                state.record_edit(applied);
                 Ok(message)
             }
             // An error: the content is not at the anchor this call named, and the

@@ -12,10 +12,11 @@ categories = ["development-tools", "text-processing"]
 
 [dependencies]
 anyhow = "1.0"
+async-compat = "0.2"
 clap = { version = "4.6", features = ["derive"] }
 diffy = { version = "0.5.2", features = ["color"] }
-dirs = "7.0"
 enum-map = "3.1.0"
+env_logger = "0.11"
 fieldwork = "0.5.3"
 log = "0.4.34"
 mcplease = "0.4"
@@ -26,6 +27,7 @@ serde_json = "1.0"
 shellexpand = "3.1.2"
 strum = { version = "0.28.0", features = ["derive"] }
 taplo = "0.14.0"
+tokio = { version = "1", features = ["io-std", "macros", "rt-multi-thread"] }
 tree-sitter = "0.27"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-json = "0.24.8"
@@ -36,3 +38,7 @@ tree-sitter-toml-ng = "0.7.0"
 tree-sitter-typescript = "0.23.2"
 walkdir = "2.5"
 
+
+# Proving out the async mcplease before it is released.
+[patch.crates-io]
+mcplease = { path = "../mcplease" }

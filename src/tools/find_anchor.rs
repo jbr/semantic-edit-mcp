@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename = "find_anchor")]
 #[group(skip)]
 pub struct FindAnchor {
-    /// Path to the source file
+    /// Path to the source file: absolute, or relative to the server's root directory
     #[serde(rename = "file_path")]
     pub file_path: String,
 
@@ -77,14 +77,20 @@ impl ToolMeta for FindAnchor {
 impl Tool<SemanticEditTools> for FindAnchor {
     type Output = String;
 
-    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
+    async fn execute(self, state: SemanticEditTools, _context: RequestContext) -> Result<String> {
+        state.unblock(move |state| self.run(state)).await
+    }
+}
+
+impl FindAnchor {
+    pub(crate) fn run(self, state: &SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
             anchor,
             language,
         } = self;
 
-        let file_path = state.resolve_path(&file_path, None)?;
+        let file_path = state.resolve_path(&file_path)?;
 
         let language = state
             .language_registry()
