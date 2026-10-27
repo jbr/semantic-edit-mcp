@@ -44,9 +44,12 @@ struct Args {
     /// replaces an earlier one. The formatters are rustfmt, ruff, biome and
     /// taplo, and `built-in` is rustfmt for rust, ruff for python, biome for
     /// javascript, jsx, typescript, tsx and json, and taplo for toml. rustfmt,
-    /// ruff and biome must be on PATH; taplo runs in-process. A formatter
-    /// reformats the whole file after each edit, and an edit to valid code that
-    /// it fails on is rejected.
+    /// ruff and biome are found on PATH and run in the edited file's directory,
+    /// so they find its project's configuration; taplo runs in-process. A
+    /// formatter reformats the whole file after each edit. An edit to valid
+    /// code that it fails on is rejected, unless it fails on the file without
+    /// the edit too, or can't run: then the edit is written unformatted, and the
+    /// response says why.
     // Not `global`: clap keeps a global option's occurrences from one side of
     // the subcommand only. `parse_argv` adds it to each subcommand instead, so
     // parse with that rather than with `Parser`'s methods.

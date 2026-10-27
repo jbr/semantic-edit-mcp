@@ -1,6 +1,6 @@
 === snapshot test tool call: edit ===
 Applied insert before — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: ruff formatted the whole file, including the edit.
 
 ===DIFF===
 @@ -4,6 +4,9 @@
@@ -15,7 +15,7 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
      return written
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: ruff formatted the whole file, including the edit.
 
 ===DIFF===
 @@ -8,5 +8,8 @@

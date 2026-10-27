@@ -536,7 +536,7 @@ impl Placement {
 /// Lay out each candidate's content at its target, in order (see the module
 /// docs). A candidate that lands where an earlier one did, with the same text, is
 /// dropped: candidates found through different nodes often land identically, and
-/// trying one again would only rerun validation and the formatter.
+/// trying one again would only rerun validation.
 pub(crate) fn lay_out<'editor, 'language>(
     editor: &'editor Editor<'language>,
     edits: Vec<Edit<'editor, 'language>>,

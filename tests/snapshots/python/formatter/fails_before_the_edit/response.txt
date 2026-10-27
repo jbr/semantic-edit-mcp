@@ -1,0 +1,11 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: ruff fails on this file even without the edit (error: Failed to parse input.py:2:11: Simple statements must be separated by newlines or semicolons), so this edit wasn't formatted; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,4 +1,4 @@
+-def greet():
++def greet(name):
+     print "hello"
+
+

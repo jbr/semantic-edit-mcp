@@ -6,19 +6,27 @@
 //! to a file whose language has no formatter is written as laid out.
 
 mod command;
+mod resolve;
 mod rustfmt;
 
 use crate::{indentation::Indentation, languages::LanguageName};
 use anyhow::{Result, bail};
 use enum_map::{EnumMap, enum_map};
-use std::{path::Path, str::FromStr};
+use std::{
+    ffi::OsString,
+    fmt::{self, Display},
+    path::Path,
+    str::FromStr,
+};
 
 /// The formatter, if any, for each language's files.
 ///
-/// A formatter reformats the whole file after each edit to it, and an edit it
-/// fails on is rejected. A language without one has its edits written as laid
-/// out. The default is [`off`](Self::off), and [`built_in`](Self::built_in) is
-/// each language's built-in formatter.
+/// A formatter reformats the whole file after each edit to it. An edit it fails
+/// on is rejected, unless it fails on the file as it was before the edit too, or
+/// can't run at all: then the edit is written as laid out, and the response says
+/// why. A language without a formatter has its edits written as laid out. The
+/// default is [`off`](Self::off), and [`built_in`](Self::built_in) is each
+/// language's built-in formatter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatting {
     formatters: EnumMap<LanguageName, Option<Formatter>>,
@@ -42,8 +50,8 @@ impl Formatting {
 
     /// Each language's built-in formatter: rustfmt for Rust, ruff for Python,
     /// biome for JavaScript, JSX, TypeScript, TSX and JSON, and taplo for TOML.
-    /// Other files have none. rustfmt, ruff and biome are programs, and must be
-    /// installed where edits run; taplo runs in-process.
+    /// Other files have none. rustfmt, ruff and biome are programs, found on
+    /// `PATH` where edits run; taplo runs in-process.
     pub fn built_in() -> Self {
         Self {
             formatters: enum_map! {
@@ -87,40 +95,60 @@ impl Formatting {
 
 /// A formatter, which reformats a file's whole source.
 ///
-/// Each constructor carries its tool's invocation. The program-running ones
-/// read the source on stdin and write the result to stdout, and must be
-/// installed where the edit runs; a missing one fails the edit. Parsing a
-/// constructor's name (`"rustfmt"`, `"ruff"`, `"biome"` or `"taplo"`) gives
-/// that formatter.
+/// Each constructor carries its tool's invocation. A formatter program reads
+/// the source on stdin and writes the result to stdout. It runs in the file's
+/// directory, so it finds the project's own configuration, and it is given the
+/// file's path where it takes one. One that can't run, because it isn't
+/// installed or doesn't finish within 10 seconds, leaves the edit unformatted.
+/// Parsing a built-in formatter's name (`"rustfmt"`, `"ruff"`, `"biome"` or
+/// `"taplo"`) gives that formatter, and that name, or a command's program, is
+/// how responses name it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatter {
     kind: Kind,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Kind {
     Rustfmt,
     Ruff,
     Biome,
     Taplo,
+    Command { program: String, args: Vec<String> },
+}
+
+/// What a command's argument holds for the file's path.
+const PATH_PLACEHOLDER: &str = "{path}";
+
+/// Why a formatter gave no result for a source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Failure {
+    /// It couldn't run, or didn't finish in time, so it says nothing about the
+    /// source: why, as a phrase.
+    Unavailable(String),
+    /// It ran and failed on the source: its error.
+    Failed(String),
 }
 
 impl Formatter {
     /// rustfmt, for Rust, at the edition the nearest `Cargo.toml` declares, or
-    /// 2024 when none does.
+    /// 2024 when none does. Running in the file's directory, it finds the
+    /// project's `rustfmt.toml`.
     pub fn rustfmt() -> Self {
         Self {
             kind: Kind::Rustfmt,
         }
     }
 
-    /// `ruff format`, for Python.
+    /// `ruff format`, for Python, given the file's path. A file the project's
+    /// configuration excludes is left as it is.
     pub fn ruff() -> Self {
         Self { kind: Kind::Ruff }
     }
 
     /// `biome format`, for JavaScript, JSX, TypeScript, TSX and JSON, given the
-    /// file's path, and set to the indentation the file already uses.
+    /// file's path. A file no biome configuration governs keeps the indentation
+    /// it already uses, rather than taking biome's default of tabs.
     pub fn biome() -> Self {
         Self { kind: Kind::Biome }
     }
@@ -131,29 +159,72 @@ impl Formatter {
         Self { kind: Kind::Taplo }
     }
 
-    /// `source` formatted as the content of the file at `path`, or the
-    /// formatter's error.
-    pub(crate) fn format(&self, source: &str, path: &Path) -> Result<String> {
-        match self.kind {
-            Kind::Rustfmt => command::run(
+    /// `program` run with `args`: any program that reads the source on stdin
+    /// and writes the result to stdout. `{path}` in an argument stands for the
+    /// file's path. A program named without a directory is found on `PATH` as
+    /// the platform finds programs; one named with a directory is taken
+    /// relative to this process's working directory, not the file's.
+    #[allow(dead_code, reason = "embedding API, used by library consumers")]
+    pub fn command(
+        program: impl Into<String>,
+        args: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        Self {
+            kind: Kind::Command {
+                program: program.into(),
+                args: args.into_iter().map(Into::into).collect(),
+            },
+        }
+    }
+
+    /// `source` formatted as the content of the file at `path`, whose content
+    /// before the edit was `original`, or why there is no result.
+    pub(crate) fn format(
+        &self,
+        source: &str,
+        path: &Path,
+        original: &str,
+    ) -> Result<String, Failure> {
+        let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let run = |program: &str, args: Vec<OsString>| {
+            command::run(program, &args, path.parent(), source, command::TIMEOUT)
+        };
+        match &self.kind {
+            Kind::Rustfmt => run(
                 "rustfmt",
-                ["--emit", "stdout", "--edition", rustfmt::edition(path)],
-                source,
+                os_strings(["--emit", "stdout", "--edition", rustfmt::edition(&path)]),
             ),
-            Kind::Ruff => command::run("ruff", ["format", "-"], source),
-            Kind::Biome => command::run("biome", biome_args(source, path), source),
+            Kind::Ruff => run("ruff", ruff_args(&path)),
+            Kind::Biome => run("biome", biome_args(&path, original)),
             Kind::Taplo => Ok(taplo::formatter::format(
                 source,
                 taplo::formatter::Options::default(),
             )),
+            Kind::Command { program, args } => run(
+                program,
+                args.iter().map(|arg| with_path(arg, &path)).collect(),
+            ),
         }
+    }
+}
+
+impl Display for Formatter {
+    /// The built-in formatter's name, as it parses, or the command's program.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match &self.kind {
+            Kind::Rustfmt => "rustfmt",
+            Kind::Ruff => "ruff",
+            Kind::Biome => "biome",
+            Kind::Taplo => "taplo",
+            Kind::Command { program, .. } => program,
+        })
     }
 }
 
 impl FromStr for Formatter {
     type Err = anyhow::Error;
 
-    /// The formatter whose constructor is `name`.
+    /// The built-in formatter named `name`.
     fn from_str(name: &str) -> Result<Self> {
         Ok(match name {
             "rustfmt" => Self::rustfmt(),
@@ -165,20 +236,70 @@ impl FromStr for Formatter {
     }
 }
 
-fn biome_args(source: &str, path: &Path) -> Vec<String> {
+fn os_strings<const N: usize>(args: [&str; N]) -> Vec<OsString> {
+    args.map(OsString::from).into()
+}
+
+/// `arg` with each `{path}` in it replaced by `path`.
+fn with_path(arg: &str, path: &Path) -> OsString {
+    let mut parts = arg.split(PATH_PLACEHOLDER);
+    let mut replaced = OsString::from(parts.next().unwrap_or_default());
+    for part in parts {
+        replaced.push(path);
+        replaced.push(part);
+    }
+    replaced
+}
+
+/// `ruff format` on stdin, as the file at `path`. ruff formats a file named on
+/// its command line even when the project's configuration excludes it, unless
+/// told to force the exclusion, as ruff's own pre-commit hook does.
+fn ruff_args(path: &Path) -> Vec<OsString> {
+    let mut args = os_strings(["format", "--force-exclude", "--stdin-filename"]);
+    args.push(path.into());
+    args.push("-".into());
+    args
+}
+
+/// `biome format` on stdin, as the file at `path`. Indentation flags would
+/// override the project's configuration, so they are passed only when there
+/// is none, and then keep `original`'s indentation.
+fn biome_args(path: &Path, original: &str) -> Vec<OsString> {
+    let mut stdin_file_path = OsString::from("--stdin-file-path=");
+    stdin_file_path.push(path);
     let mut args = vec![
-        String::from("format"),
-        format!("--stdin-file-path={}", path.display()),
-        String::from("--diagnostic-level=error"),
+        OsString::from("format"),
+        stdin_file_path,
+        OsString::from("--diagnostic-level=error"),
     ];
-    match Indentation::determine(source).unwrap_or(Indentation::Spaces(2)) {
-        Indentation::Spaces(spaces) => {
-            args.push(String::from("--indent-style=space"));
-            args.push(format!("--indent-width={spaces}"));
-        }
-        Indentation::Tabs => args.push(String::from("--indent-style=tab")),
+    let configured = std::env::var_os("BIOME_CONFIG_PATH").is_some_and(|path| !path.is_empty())
+        || biome_configuration(path).is_some();
+    if !configured {
+        args.extend(biome_indentation(original));
     }
     args
+}
+
+/// The biome configuration file biome finds for the file at `path`: the
+/// nearest one in its directory or above, which is where biome looks when it
+/// runs there.
+fn biome_configuration(path: &Path) -> Option<std::path::PathBuf> {
+    const NAMES: [&str; 4] = ["biome.json", "biome.jsonc", ".biome.json", ".biome.jsonc"];
+    path.ancestors()
+        .skip(1)
+        .flat_map(|dir| NAMES.map(|name| dir.join(name)))
+        .find(|file| file.is_file())
+}
+
+/// biome's flags for the indentation `source` uses: two spaces if it shows none.
+fn biome_indentation(source: &str) -> Vec<OsString> {
+    match Indentation::determine(source).unwrap_or(Indentation::Spaces(2)) {
+        Indentation::Spaces(spaces) => vec![
+            OsString::from("--indent-style=space"),
+            OsString::from(format!("--indent-width={spaces}")),
+        ],
+        Indentation::Tabs => vec![OsString::from("--indent-style=tab")],
+    }
 }
 
 #[cfg(test)]
@@ -306,9 +427,121 @@ mod tests {
     fn taplo_formats_in_process() {
         assert_eq!(
             Formatter::taplo()
-                .format("a=1\n", Path::new("Cargo.toml"))
+                .format("a=1\n", Path::new("Cargo.toml"), "a=1\n")
                 .unwrap(),
             "a = 1\n"
+        );
+    }
+
+    /// Responses name the formatter as it parses, or by its program.
+    #[test]
+    fn a_formatter_displays_as_its_name_or_its_program() {
+        for name in ["rustfmt", "ruff", "biome", "taplo"] {
+            assert_eq!(name.parse::<Formatter>().unwrap().to_string(), name);
+        }
+        assert_eq!(
+            Formatter::command("npx", ["prettier", "--stdin-filepath", "{path}"]).to_string(),
+            "npx"
+        );
+        assert_eq!(
+            Formatter::command("./scripts/format.sh", Vec::<String>::new()).to_string(),
+            "./scripts/format.sh"
+        );
+    }
+
+    #[test]
+    fn path_replaces_each_placeholder_in_an_argument() {
+        let path = Path::new("/project/src/main.rs");
+        assert_eq!(with_path("{path}", path), "/project/src/main.rs");
+        assert_eq!(
+            with_path("--stdin-filepath={path}", path),
+            "--stdin-filepath=/project/src/main.rs"
+        );
+        assert_eq!(
+            with_path("{path}:{path}", path),
+            "/project/src/main.rs:/project/src/main.rs"
+        );
+        assert_eq!(with_path("--check", path), "--check");
+        assert_eq!(with_path("{pat}", path), "{pat}");
+    }
+
+    /// The file's path is ruff's to find the project's configuration and
+    /// exclusions by.
+    #[test]
+    fn ruff_is_given_the_files_path_and_the_projects_exclusions() {
+        assert_eq!(
+            ruff_args(Path::new("/project/pkg/mod.py")),
+            os_strings([
+                "format",
+                "--force-exclude",
+                "--stdin-filename",
+                "/project/pkg/mod.py",
+                "-"
+            ])
+        );
+    }
+
+    /// Flags override a project's `biome.json`, so they are passed only for a
+    /// file no configuration governs, at the indentation it had before the edit.
+    #[test]
+    fn biome_keeps_a_files_own_indentation_only_without_configuration() {
+        let root = std::env::temp_dir().join(format!("semantic-edit-biome-{}", std::process::id()));
+        let file = root.join("project/src/deep/app.ts");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let four = "class A {\n    a() {\n        return 1;\n    }\n}\n";
+        let tabs = "class A {\n\ta() {}\n}\n";
+
+        let without = (
+            biome_indentation(four),
+            biome_indentation(tabs),
+            biome_indentation("a;\n"),
+        );
+        let mut found = vec![];
+        for name in ["biome.json", "biome.jsonc", ".biome.json", ".biome.jsonc"] {
+            let config = root.join("project").join(name);
+            std::fs::write(&config, "{}").unwrap();
+            found.push(biome_configuration(&file) == Some(config.clone()));
+            std::fs::remove_file(&config).unwrap();
+        }
+        let after = biome_configuration(&file);
+        std::fs::remove_dir_all(&root).ok();
+
+        assert_eq!(
+            without,
+            (
+                os_strings(["--indent-style=space", "--indent-width=4"]),
+                os_strings(["--indent-style=tab"]),
+                os_strings(["--indent-style=space", "--indent-width=2"]),
+            )
+        );
+        assert_eq!(found, [true; 4]);
+        assert_eq!(after, None);
+    }
+
+    /// A command's arguments name the file through `{path}`, and it runs in the
+    /// file's directory.
+    #[cfg(unix)]
+    #[test]
+    fn a_command_is_given_the_files_path_and_directory() {
+        let dir =
+            std::env::temp_dir().join(format!("semantic-edit-command-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let dir = std::fs::canonicalize(&dir).unwrap();
+        let file = dir.join("main.rs");
+        let formatter = Formatter::command(
+            "sh",
+            [
+                "-c",
+                "cat >/dev/null; printf '%s\\n%s\\n' \"$1\" \"$(pwd -P)\"",
+                "sh",
+                "--file={path}",
+            ],
+        );
+        let result = formatter.format("fn main() {}\n", &file, "fn main() {}\n");
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(
+            result.unwrap(),
+            format!("--file={}\n{}\n", file.display(), dir.display())
         );
     }
 }

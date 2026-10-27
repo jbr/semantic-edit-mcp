@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "return \"hello \" + name",
+    "content": "print \"hello\", name"
+  }
+}

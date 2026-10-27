@@ -194,8 +194,15 @@ async fn built_in_formatting_formats_edits() {
         .call_to_text(state.clone(), RequestContext::default())
         .await
         .unwrap();
+        let formatter = if file_path.ends_with(".toml") {
+            "taplo"
+        } else {
+            "rustfmt"
+        };
         assert!(
-            response.contains("applies a consistent formatting style"),
+            response.contains(&format!(
+                "Note: {formatter} formatted the whole file, including the edit."
+            )),
             "{response}"
         );
     }
@@ -205,4 +212,284 @@ async fn built_in_formatting_formats_edits() {
     std::fs::remove_dir_all(&dir).ok();
     assert_eq!(toml, "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n");
     assert_eq!(rust, "fn main() {\n    let a = 2;\n}\n");
+}
+
+/// A scratch directory holding `demo.rs`, removed when dropped.
+struct Scratch {
+    dir: PathBuf,
+}
+
+impl Scratch {
+    fn new(name: &str, source: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("sem-edit-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("demo.rs"), source).unwrap();
+        Self { dir }
+    }
+
+    /// A formatter running the shell script `body`, which reads the source on
+    /// stdin. The script is run by `sh` rather than executed itself, so it
+    /// can't be busy being written when another test's process starts.
+    fn script(&self, body: &str) -> Formatter {
+        let script = self.dir.join("format.sh");
+        std::fs::write(&script, body).unwrap();
+        Formatter::command("sh", [script.to_str().unwrap()])
+    }
+
+    fn tools(&self, formatter: Formatter) -> SemanticEditTools {
+        SemanticEditTools::new(self.dir.clone())
+            .unwrap()
+            .with_formatting(Formatting::off().with(LanguageName::Rust, formatter))
+    }
+
+    fn source(&self) -> String {
+        std::fs::read_to_string(self.dir.join("demo.rs")).unwrap()
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.dir).ok();
+    }
+}
+
+/// `edit` on `demo.rs`: its response, or its error's message.
+async fn edit(
+    state: &SemanticEditTools,
+    operation: &str,
+    anchor: &str,
+    content: &str,
+) -> Result<String, String> {
+    tool(serde_json::json!({
+        "name": "edit",
+        "arguments": {
+            "file_path": "demo.rs",
+            "operation": operation,
+            "anchor": anchor,
+            "content": content,
+        }
+    }))
+    .call_to_text(state.clone(), RequestContext::default())
+    .await
+    .map_err(|error| error.to_string())
+}
+
+const REJECTED: &str = "The formatter has encountered the following error making that change, \
+so the file has not been modified.";
+
+/// A formatter that can't run is absent: the edit is written as laid out, and
+/// the response says why it wasn't formatted.
+#[tokio::test]
+async fn a_formatter_that_cant_run_leaves_the_edit_unformatted() {
+    let scratch = Scratch::new("cant-run", "fn main() {\n    let a = 1;\n}\n");
+    let state = scratch.tools(Formatter::command(
+        "semantic-edit-test-no-such-formatter",
+        ["{path}"],
+    ));
+
+    let response = edit(&state, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert_eq!(scratch.source(), "fn main() {\n    let a=2;\n}\n");
+    assert!(
+        response.contains(
+            "Note: semantic-edit-test-no-such-formatter couldn't run (not found on PATH), so this \
+edit wasn't formatted; the diff shows exactly what was written."
+        ),
+        "{response}"
+    );
+}
+
+/// A formatter that fails on the file as it was before the edit says nothing
+/// about the edit: the edit is written unformatted, with a note quoting it.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_formatter_that_fails_without_the_edit_leaves_it_unformatted() {
+    let scratch = Scratch::new("always-fails", "fn main() {\n    let a = 1;\n}\n");
+    let state = scratch.tools(
+        scratch.script("cat >/dev/null\necho 'this formatter refuses every file' >&2\nexit 1\n"),
+    );
+
+    let response = edit(&state, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert_eq!(scratch.source(), "fn main() {\n    let a=2;\n}\n");
+    assert!(
+        response.contains(
+            "Note: sh fails on this file even without the edit (this formatter refuses every \
+file), so this edit wasn't formatted; the diff shows exactly what was written."
+        ),
+        "{response}"
+    );
+}
+
+/// A formatter that formats the file before the edit and fails after it is
+/// failing on the edit, which is rejected. An edit it formats is written
+/// formatted, and the response names it.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_formatter_that_fails_only_on_the_edit_rejects_it() {
+    let original = "fn main() {\n    let a = 1;\n}\n";
+    let scratch = Scratch::new("fails-on-edit", original);
+    let state = scratch.tools(scratch.script(
+        "input=$(cat; echo .)\ninput=${input%.}\ncase \"$input\" in\n  *MARKER*) echo 'MARKER \
+isn'\"'\"'t allowed' >&2; exit 1 ;;\nesac\nprintf '%s' \"$input\" | sed 's/let b=2;/let b = 2;/'\n",
+    ));
+
+    let error = edit(&state, "insert_after", "let a = 1;", "\n    // MARKER")
+        .await
+        .unwrap_err();
+    assert!(error.starts_with(REJECTED), "{error}");
+    assert!(error.contains("MARKER isn't allowed"), "{error}");
+    assert_eq!(scratch.source(), original);
+
+    let response = edit(&state, "insert_after", "let a = 1;", "\n    let b=2;")
+        .await
+        .unwrap();
+    assert!(
+        response.contains("Note: sh formatted the whole file, including the edit."),
+        "{response}"
+    );
+    assert_eq!(
+        scratch.source(),
+        "fn main() {\n    let a = 1;\n    let b = 2;\n}\n"
+    );
+}
+
+/// A formatter's output is validated like the edit's result. Output that fails
+/// validation is a failure, judged by the same rule: absent when it is invalid
+/// for the file before the edit too, and a rejection when only the edit's is.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_formatter_whose_output_is_invalid_is_judged_per_file() {
+    let original = "fn main() {\n    let a = 1;\n}\n";
+    let scratch = Scratch::new("invalid-output", original);
+
+    let always = scratch.tools(scratch.script("cat >/dev/null\necho 'fn broken('\n"));
+    let response = edit(&always, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert_eq!(scratch.source(), "fn main() {\n    let a=2;\n}\n");
+    assert!(
+        response.contains(
+            "Note: sh fails on this file even without the edit (its output is invalid), so this \
+edit wasn't formatted; the diff shows exactly what was written."
+        ),
+        "{response}"
+    );
+
+    std::fs::write(scratch.dir.join("demo.rs"), original).unwrap();
+    let on_the_edit = scratch.tools(scratch.script(
+        "input=$(cat; echo .)\ninput=${input%.}\ncase \"$input\" in\n  *MARKER*) echo \
+'fn broken(' ;;\n  *) printf '%s' \"$input\" ;;\nesac\n",
+    ));
+    let error = edit(
+        &on_the_edit,
+        "insert_after",
+        "let a = 1;",
+        "\n    // MARKER",
+    )
+    .await
+    .unwrap_err();
+    assert!(error.starts_with(REJECTED), "{error}");
+    assert!(error.contains("Its output is invalid:"), "{error}");
+    assert_eq!(scratch.source(), original);
+}
+
+/// The formatter runs on the candidate validation picked, and its failure
+/// rejects the edit rather than moving it to another candidate. The anchor
+/// matches in both functions, and this formatter refuses only the edit to the
+/// first: moving on would have edited the second, which nothing asked for.
+#[cfg(unix)]
+#[tokio::test]
+async fn the_formatter_vetoes_the_edit_rather_than_moving_it() {
+    let original = "fn a() {\n    let x = 1;\n}\n\nfn b() {\n    let x = 1;\n}\n";
+    let scratch = Scratch::new("veto", original);
+    let state = scratch.tools(scratch.script(
+        "input=$(cat; echo .)\ninput=${input%.}\ncase \"$(printf '%s' \"$input\" | grep -m1 \
+'let x')\" in\n  *2*) echo 'refusing the change to a' >&2; exit 1 ;;\nesac\nprintf '%s' \
+\"$input\"\n",
+    ));
+
+    let error = edit(&state, "replace", "let x = 1;", "let x = 2;")
+        .await
+        .unwrap_err();
+    assert!(error.starts_with(REJECTED), "{error}");
+    assert!(error.contains("refusing the change to a"), "{error}");
+    assert_eq!(scratch.source(), original);
+}
+
+/// A built-in formatter runs the way its project would run it: in the file's
+/// directory, given the file's path, so it finds the project's configuration,
+/// and without flags that would override it. This process's own working
+/// directory, the crate's, has none of these files.
+#[tokio::test]
+async fn built_in_formatters_use_the_files_project_configuration() {
+    let dir = std::env::temp_dir().join(format!("sem-edit-project-{}", std::process::id()));
+    let src = dir.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::write(dir.join("rustfmt.toml"), "hard_tabs = true\n").unwrap();
+    std::fs::write(
+        dir.join("ruff.toml"),
+        "extend-exclude = [\"src/vendored.py\"]\n[format]\nquote-style = \"single\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("biome.json"),
+        "{ \"formatter\": { \"indentStyle\": \"space\", \"indentWidth\": 8 } }\n",
+    )
+    .unwrap();
+    let files = [
+        (
+            "src/lib.rs",
+            "fn f() {\n    let a = 1;\n}\n",
+            "let a = 1;",
+            "let a = 2;",
+        ),
+        ("src/module.py", "x = \"a\"\n", "x = \"a\"", "x = \"b\""),
+        ("src/vendored.py", "x = \"a\"\n", "x = \"a\"", "x = \"b\""),
+        (
+            "src/app.ts",
+            "function f() {\n  return 1;\n}\n",
+            "return 1;",
+            "return 2;",
+        ),
+    ];
+    for (file, source, _, _) in files {
+        std::fs::write(dir.join(file), source).unwrap();
+    }
+
+    let state = SemanticEditTools::new(dir.clone())
+        .unwrap()
+        .with_formatting(Formatting::built_in());
+    for (file, _, anchor, content) in files {
+        tool(serde_json::json!({
+            "name": "edit",
+            "arguments": {
+                "file_path": file,
+                "operation": "replace",
+                "anchor": anchor,
+                "content": content,
+            }
+        }))
+        .call_to_text(state.clone(), RequestContext::default())
+        .await
+        .unwrap();
+    }
+    let read = |file: &str| std::fs::read_to_string(dir.join(file)).unwrap();
+    let edited = files.map(|(file, ..)| read(file));
+    std::fs::remove_dir_all(&dir).ok();
+
+    assert_eq!(
+        edited,
+        [
+            // rustfmt.toml's tabs.
+            "fn f() {\n\tlet a = 2;\n}\n",
+            // ruff.toml's quotes, and its exclusion left as it is.
+            "x = 'b'\n",
+            "x = \"b\"\n",
+            // biome.json's indentation, not the file's own.
+            "function f() {\n        return 2;\n}\n",
+        ]
+    );
 }

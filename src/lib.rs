@@ -7,7 +7,8 @@
 //! per agent, rooted at its directory; tool bodies run on tokio's blocking
 //! pool, so the host must be on a tokio runtime. Edits aren't formatted unless
 //! the tools are built [`with_formatting`](SemanticEditTools::with_formatting),
-//! for example with [`Formatting::built_in`], and
+//! for example with [`Formatting::built_in`] or a language formatted by a
+//! [`Formatter::command`], and
 //! [`set_formatting`](SemanticEditTools::set_formatting) replaces the settings
 //! while they run.
 //!

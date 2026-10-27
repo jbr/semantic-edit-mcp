@@ -1,0 +1,11 @@
+=== snapshot test tool call: edit ===
+=== error ===
+The formatter has encountered the following error making that change, so the file has not been modified. The tool has prevented what it believes to be an unsafe edit. Please try a different edit.
+
+error: Failed to parse input.py:2:11: Simple statements must be separated by newlines or semicolons
+
+===DIFF===
+@@ -1,2 +1,2 @@
+ def greet(name):
+-    return "hello " + name
++    print "hello", name

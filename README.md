@@ -37,9 +37,7 @@ $ semantic-edit-mcp serve --format rust=rustfmt --format toml=taplo
 
 `LANGUAGE=FORMATTER` formats one language's files, and `built-in` formats each
 language with its built-in formatter. Settings apply in turn, so a later one for
-a language replaces an earlier one. A formatter reformats the whole file after
-each edit, and an edit to valid code that the formatter fails on is rejected,
-leaving the file untouched. The built-in formatters:
+a language replaces an earlier one. The built-in formatters:
 
 | Formatter | Formats | Needs |
 |---|---|---|
@@ -50,6 +48,23 @@ leaving the file untouched. The built-in formatters:
 
 Markdown and plain text have no formatter.
 
+A formatter reformats the whole file after each edit, and the response names
+it. It runs in the edited file's directory and is given the file's path, so it
+uses the project's own configuration (`rustfmt.toml`, `ruff.toml` or
+`pyproject.toml`, `biome.json`); biome is told to keep a file's own indentation
+only when no biome configuration governs the file. Whether a formatter failed is
+judged against the file:
+
+- If it formats the file as it was but fails on the edit, the edit is rejected,
+  leaving the file untouched.
+- If it fails on the file even without the edit, or can't run (it isn't
+  installed, or doesn't finish within 10 seconds), the edit is written
+  unformatted, and the response says why.
+
+Its output must pass the same validation as the edit, or it counts as failing.
+It runs only on the placement validation picked: it can reject an edit, but
+never moves it somewhere else.
+
 ## Tools
 ```
   edit                   Apply an edit to a file and see the resulting diff
@@ -59,16 +74,17 @@ Markdown and plain text have no formatter.
 ```
 
 Accepted edits persist immediately. For syntactically valid code, an edit must
-leave it valid, and pass the formatter when one is configured; otherwise the
-file is left untouched. For Rust, Python and TOML, valid means passing a check
-stricter than the syntax tree: a full Rust parse, Python's indentation rules,
-and TOML's rule against defining a key twice. A file that already fails that
-check stays editable, and while it fails, each edit's response says the check
-was off. A source that already has syntax errors can be repaired progressively:
-anchor edits use textual ranges, still-invalid results are written without
-formatting, and the response shows all remaining syntax-error regions, even
-outside the diff. Once syntax is restored, the normal validity guard resumes.
-Formatter failures during repair are reported without discarding the edit.
+leave it valid, and must not be what a configured formatter fails on; otherwise
+the file is left untouched. For Rust, Python and TOML, valid means passing a
+check stricter than the syntax tree: a full Rust parse, Python's indentation
+rules, and TOML's rule against defining a key twice. A file that already fails
+that check stays editable, and while it fails, each edit's response says the
+check was off. A source that already has syntax errors can be repaired
+progressively: anchor edits use textual ranges, still-invalid results are
+written without formatting, and the response shows all remaining syntax-error
+regions, even outside the diff. Once syntax is restored, the normal validity
+guard resumes. Formatter failures during repair are reported without discarding
+the edit.
 
 Review the returned diff: if the edit landed somewhere other than intended,
 `retarget-edit` moves it and `undo-edit` reverts it. Both take the file path;
