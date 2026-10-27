@@ -1,0 +1,20 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -5,8 +5,14 @@
+             counts["small"] += 1
+         elif item < 100:
+             counts["large"] += 1
++        else:
++            counts["huge"] = counts.get("huge", 0) + 1
+     return counts
+
+
++def total(counts):
++    return sum(counts.values())
++
++
+ def main():
+     print(classify([1, 50, 500]))

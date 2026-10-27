@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "data = read(path)",
+      "content": "with open(path) as handle:\n    data = handle.read()"
+    }
+  }
+]

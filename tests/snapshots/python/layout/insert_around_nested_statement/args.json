@@ -1,0 +1,18 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "sink.write(item)",
+      "content": "if item.skip:\n            continue\n        item = transform(item)"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "sink.write(item)",
+      "content": "written += 1\n        if written % 100 == 0:\n            sink.flush()"
+    }
+  }
+]

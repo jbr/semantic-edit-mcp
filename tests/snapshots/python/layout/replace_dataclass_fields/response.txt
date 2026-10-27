@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -6,6 +6,8 @@
+     name: str
+     passed: int = 0
+     failed: int = 0
++    skipped: int = 0
++    tags: list[str] = field(default_factory=list)
+
+     def total(self) -> int:
+         return self.passed + self.failed

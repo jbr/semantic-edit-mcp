@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "header = \"Report\"",
+      "content": "header = \"\"\"\\\nReport\n======\n  generated from {count} lines\n\"\"\"\nheader = header.format(count=len(self.lines))"
+    }
+  }
+]

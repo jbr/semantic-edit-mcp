@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "passed = 0\n    failed = []\n    for result in results:\n        if result.ok:\n            passed += 1\n        else:\n            failed.append(result.name)\n    log.info(\"%d passed, %d failed\", passed, len(failed))",
+      "content": "passed = 0\n    failed = []\n    for result in results:\n        if result.ok:\n            passed += 1\n        elif result.skipped:\n            continue\n        else:\n            failed.append(result.name)\n            log.warning(\n                \"test %s failed after %.2fs with %d assertion errors; \"\n                \"rerun it with --verbose to see the captured output\",\n                result.name,\n                result.duration,\n                len(result.errors),\n            )\n    log.info(\"%d passed, %d failed\", passed, len(failed))"
+    }
+  }
+]

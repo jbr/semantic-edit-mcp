@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "return (\n        (False, *parse_failure(result.err)[:2])\n        if result.err\n        else (lambda key, line, _full: (False, key, line))(*parse_failure(result.out))\n    )",
+      "content": "key, line, _full = parse_failure(result.err or result.out)\n    return False, key, line"
+    }
+  }
+]

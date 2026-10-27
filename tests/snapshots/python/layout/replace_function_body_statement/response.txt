@@ -1,0 +1,16 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -6,8 +6,5 @@
+ def check(result):
+     if result.ok:
+         return True, None, None
+-    return (
+-        (False, *parse_failure(result.err)[:2])
+-        if result.err
+-        else (lambda key, line, _full: (False, key, line))(*parse_failure(result.out))
+-    )
++    key, line, _full = parse_failure(result.err or result.out)
++    return False, key, line

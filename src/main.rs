@@ -6,6 +6,7 @@ mod education;
 mod indentation;
 mod item;
 mod languages;
+mod layout;
 mod searcher;
 mod selector;
 mod state;

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "if key in self.data:\n            return self.data[key]",
+      "content": "if key in self.data:\n    self.hits += 1\n    return self.data[key]\nself.misses += 1"
+    }
+  }
+]

@@ -8,8 +8,8 @@ Suggestion: Try a different change.
 • Invalid placement: class.in.function.body:
 class Inner:
         pass
-    
-            return 1
+
+    return 1
 
   💡 Suggestion: Consider placing this construct in an appropriate context
 
@@ -17,8 +17,7 @@ class Inner:
 ===DIFF===
 @@ -1,2 +1,5 @@
  def target():
--    return 1
 +    class Inner:
 +        pass
-+    
-+            return 1
++
+     return 1

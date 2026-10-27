@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -4,6 +4,8 @@
+ kind: Pod
+ metadata:
+   name: {name}
++  labels:
++    app: {name}
+ spec:
+   containers:
+     - name: app

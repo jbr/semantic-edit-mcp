@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "name: str\n    passed: int = 0\n    failed: int = 0",
+      "content": "name: str\n    passed: int = 0\n    failed: int = 0\n    skipped: int = 0\n    tags: list[str] = field(default_factory=list)"
+    }
+  }
+]

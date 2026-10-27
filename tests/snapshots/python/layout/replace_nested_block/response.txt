@@ -1,0 +1,22 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -9,7 +9,16 @@
+     for result in results:
+         if result.ok:
+             passed += 1
++        elif result.skipped:
++            continue
+         else:
+             failed.append(result.name)
++            log.warning(
++                "test %s failed after %.2fs with %d assertion errors; "
++                "rerun it with --verbose to see the captured output",
++                result.name,
++                result.duration,
++                len(result.errors),
++            )
+     log.info("%d passed, %d failed", passed, len(failed))
+     return passed, failed
