@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -2,4 +2,6 @@
+     result = 0
+     for item in items:
+         result += item
++    if not items:
++        return None
+     return result

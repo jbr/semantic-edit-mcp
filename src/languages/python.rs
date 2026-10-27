@@ -1,10 +1,13 @@
+mod indentation;
+
 use crate::{
     editor::{Edit, EditIterator, Editor},
     languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
     layout::{Readings, Rules},
+    validation::Diagnostic,
 };
 use anyhow::Result;
-use tree_sitter::Query;
+use tree_sitter::{Query, Tree};
 
 pub fn language() -> LanguageCommon {
     let language = tree_sitter_python::LANGUAGE.into();
@@ -80,5 +83,15 @@ impl LanguageEditor for PythonEditor {
         edits.extend(additional_edits);
 
         Ok(edits)
+    }
+
+    /// The language's indentation rules, which tree-sitter's grammar doesn't
+    /// enforce: a block header with nothing indented under it, a line indented
+    /// where no block opens, a dedent to no enclosing level, and indentation
+    /// whose meaning depends on the width of a tab. Every logged Python edit a
+    /// formatter refused failed one of these. A full parser would lag the
+    /// language; these rules haven't changed since Python 3.0.
+    fn check(&self, tree: &Tree, source: &str) -> Result<(), Diagnostic> {
+        indentation::check(tree, source)
     }
 }

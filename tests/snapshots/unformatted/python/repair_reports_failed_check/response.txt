@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Warning: the source already had syntax errors, so this edit was accepted without validation. The result parses again but has the error below, and until it is fixed, edits to this file aren't checked for errors like it.
+
+===SYNTAX ERROR===
+line 3: IndentationError: unexpected indent
+   1   ⎸def f():
+   2   ⎸    x = 1
+   3 ->⎸        return x
+
+===DIFF===
+@@ -1,2 +1,3 @@
+-def f(:
+-    pass
++def f():
++    x = 1
++        return x

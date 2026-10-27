@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,7 +1,4 @@
+ #[derive(Default)]
+ enum Theme {
+-    /// The default.
+-    #[default]
+-    Light,
+     Dark,
+ }

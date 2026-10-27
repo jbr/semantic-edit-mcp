@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "if p == \"self\":",
+      "content": "if p == \"cls\":\n        if owner is None:\n            return None\n        return type(owner)\n    if p == \"self\":"
+    }
+  }
+]

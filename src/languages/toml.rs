@@ -2,10 +2,14 @@ use crate::{
     editor::{Edit, EditIterator, Editor},
     languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
     layout::Rules,
+    validation::Diagnostic,
 };
 use anyhow::Result;
 use std::ops::Range;
-use taplo::rowan::{TextRange, TextSize};
+use taplo::{
+    dom::{Error, node::Key},
+    rowan::{TextRange, TextSize},
+};
 use tree_sitter::Tree;
 
 pub fn language() -> LanguageCommon {
@@ -80,6 +84,79 @@ impl LanguageEditor for TomlEditor {
             .into_iter()
             .flat_map(|error| converter.range_to_lines(error.range))
             .collect()
+    }
+
+    /// taplo's DOM validation, which finds what TOML's grammar allows and the
+    /// language doesn't: a key defined twice, or a table or array of tables
+    /// over a key already defined as something else.
+    fn check(&self, _tree: &Tree, source: &str) -> Result<(), Diagnostic> {
+        let parse = taplo::parser::parse(source);
+        // Syntax errors are `collect_errors`'s to report.
+        if !parse.errors.is_empty() {
+            return Ok(());
+        }
+        let Err(mut errors) = parse.into_dom().validate() else {
+            return Ok(());
+        };
+        errors
+            .next()
+            .map_or(Ok(()), |error| Err(dom_diagnostic(&error, source)))
+    }
+}
+
+/// taplo's message for a DOM error, with the keys it names, at the line of the
+/// definition that conflicts with an earlier one.
+fn dom_diagnostic(error: &Error, source: &str) -> Diagnostic {
+    let converter = LineConverter::new(source);
+    let line_at = |range: TextRange| converter.textsize_to_line(range.start()) + 1;
+    let line_of = |key: &Key| key.text_ranges().next().map(line_at);
+    let on_line =
+        |key: &Key| line_of(key).map_or_else(String::new, |line| format!(" on line {line}"));
+    let (message, line) = match error {
+        Error::ConflictingKeys { key, other } => (
+            format!(
+                "{error}: `{}` is already defined{}",
+                key.value(),
+                on_line(other)
+            ),
+            line_of(key),
+        ),
+        Error::ExpectedTable {
+            not_table,
+            required_by,
+        } => (
+            format!(
+                "{error}: `{}`{} is not a table",
+                not_table.value(),
+                on_line(not_table)
+            ),
+            line_of(required_by),
+        ),
+        Error::ExpectedArrayOfTables {
+            not_array_of_tables,
+            required_by,
+        } => (
+            format!(
+                "{error}: `{}`{} is not an array of tables",
+                not_array_of_tables.value(),
+                on_line(not_array_of_tables)
+            ),
+            line_of(required_by),
+        ),
+        Error::InvalidEscapeSequence { string } => {
+            (error.to_string(), Some(line_at(string.text_range())))
+        }
+        // Its message carries a dump of the syntax tree.
+        Error::UnexpectedSyntax { syntax } => (
+            String::from("the syntax was not expected here"),
+            Some(line_at(syntax.text_range())),
+        ),
+        Error::Query(_) => (error.to_string(), None),
+    };
+    Diagnostic {
+        message,
+        line,
+        column: None,
     }
 }
 

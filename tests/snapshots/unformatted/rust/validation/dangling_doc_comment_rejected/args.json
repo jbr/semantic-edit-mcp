@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "fn increment(&mut self) {\n        self.count += 1;\n    }",
+      "content": "\n\n/// Resets the count to zero."
+    }
+  }
+]

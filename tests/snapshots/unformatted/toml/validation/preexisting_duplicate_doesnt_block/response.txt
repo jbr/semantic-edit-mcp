@@ -1,0 +1,11 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -4,4 +4,4 @@
+ name = "example"
+
+ [dependencies]
+-serde = "1"
++serde = "1.0"

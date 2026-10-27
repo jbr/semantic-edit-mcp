@@ -1,0 +1,9 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "fn add_two(x: u32) -> u32 {\n    x + 2\n}"
+    }
+  }
+]

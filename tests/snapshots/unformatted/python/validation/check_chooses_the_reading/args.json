@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "return result",
+      "content": "if not items:\n    return None"
+    }
+  }
+]

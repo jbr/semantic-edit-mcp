@@ -1,0 +1,25 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERROR===
+line 10, column 5: expected one of: `default`, `fn`, `const`, `type`, identifier, `self`, `super`, `crate`, `::`
+   7   ⎸        self.count += 1;
+   8   ⎸    }
+   9   ⎸
+  10 ->⎸    struct Step {
+  11   ⎸        by: u32,
+  12   ⎸    }
+
+
+===DIFF===
+@@ -6,4 +6,8 @@
+     fn increment(&mut self) {
+         self.count += 1;
+     }
++
++    struct Step {
++        by: u32,
++    }
+ }

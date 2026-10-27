@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: the editor applies a consistent formatting style to the entire file, including your edit
+
+===DIFF===
+@@ -1,11 +1,5 @@
+ // Arithmetic helpers.
+
+-/// Adds one.
+-#[inline]
+-fn add_one(x: u32) -> u32 {
+-    x + 1
+-}
+-
+ /// Adds two.
+ #[inline]
+ fn add_two(x: u32) -> u32 {

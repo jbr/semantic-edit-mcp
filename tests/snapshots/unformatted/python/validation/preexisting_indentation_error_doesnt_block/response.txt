@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,5 +1,5 @@
+ def total(items):
+-    result = 0
++    result = 1
+     for item in items:
+         result += item
+     return result

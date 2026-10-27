@@ -8,12 +8,13 @@ use crate::{
     searcher::find_positions,
     selector::{Operation, Selector},
     state::{AppliedEdit, EditOperation},
-    validation::{ContextValidator, format_violations},
+    validation::{ContextValidator, Diagnostic, format_violations},
 };
 use anyhow::{Result, anyhow};
 use diffy::{DiffOptions, Line as DiffyLine, PatchFormatter};
 use ropey::Rope;
 use std::{
+    cell::OnceCell,
     collections::{BTreeMap, BTreeSet},
     iter,
     path::PathBuf,
@@ -26,7 +27,8 @@ pub(crate) use edit_position::EditPosition;
 
 /// Why a candidate's result tree was rejected. `syntax: true` means the result
 /// didn't even parse cleanly (the placement itself is structural nonsense);
-/// `syntax: false` means it parsed but introduced a context-query violation.
+/// `syntax: false` means it parsed but introduced a context-query violation or
+/// failed the language's [check](crate::languages::traits::LanguageEditor::check).
 pub(crate) struct ValidationFailure {
     pub(crate) message: String,
     pub(crate) syntax: bool,
@@ -44,6 +46,10 @@ pub struct Editor<'language> {
     source_code: String,
     tree: Tree,
     rope: Rope,
+    /// Whether the source passes its language's check, which gates candidates
+    /// only if it does. Computed on first use, once for every candidate.
+    #[field(skip)]
+    passes_check: OnceCell<bool>,
 }
 
 impl<'language> Editor<'language> {
@@ -98,6 +104,7 @@ impl<'language> Editor<'language> {
             file_path,
             source_code,
             rope,
+            passes_check: OnceCell::new(),
         })
     }
 
@@ -112,14 +119,18 @@ impl<'language> Editor<'language> {
             .is_empty()
     }
 
-    /// Validate a candidate result tree, relative to the file being edited.
+    /// Validate a candidate result tree, relative to the file being edited: it
+    /// must parse cleanly, introduce no context-query violation, and pass the
+    /// language's [check](crate::languages::traits::LanguageEditor::check) if the
+    /// file did.
     ///
     /// Unlike the absolute [`validate`](Self::validate), context-query violations
-    /// are compared against the *original* source: a violation that already
-    /// exists in the unedited file is pre-existing code, not something this edit
-    /// introduced, so it never fails the candidate. Without this, one imperfect
-    /// heuristic match anywhere in a file makes the whole file uneditable — and
-    /// the resulting error points at code the caller never touched.
+    /// and the check are compared against the *original* source: a violation
+    /// that already exists in the unedited file is pre-existing code, not
+    /// something this edit introduced, so it never fails the candidate. Without
+    /// this, one imperfect heuristic match anywhere in a file makes the whole
+    /// file uneditable — and the resulting error points at code the caller never
+    /// touched.
     fn validate_tree(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
         if self.starts_with_syntax_errors() {
             return None;
@@ -130,7 +141,13 @@ impl<'language> Editor<'language> {
                 syntax: true,
             });
         }
+        self.introduced_violations(tree, content)
+            .or_else(|| self.check_failure(tree, content))
+    }
 
+    /// The context-query violations in a candidate's result that the original
+    /// source doesn't already have.
+    fn introduced_violations(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
         let query = self.language.validation_query()?;
         let result = ContextValidator::validate_tree(tree, query, content);
         if result.is_valid {
@@ -165,6 +182,35 @@ impl<'language> Editor<'language> {
         })
     }
 
+    /// The language's check of a candidate's result, if the original source
+    /// passes it. A file the checker can't handle, with syntax newer than the
+    /// checker or a nightly feature, is still editable; what remains unguarded
+    /// is an edit introducing such syntax into a file that didn't use it.
+    ///
+    /// A result that fails the check parsed cleanly, so the placement was
+    /// plausible and its failure explains what blocked it: it is reported over
+    /// candidates that didn't parse, as a formatter's refusal was.
+    fn check_failure(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
+        if !self.passes_check() {
+            return None;
+        }
+        let diagnostic = self.language.editor().check(tree, content).err()?;
+        Some(ValidationFailure {
+            message: check_errors(&diagnostic, content),
+            syntax: false,
+        })
+    }
+
+    /// Whether the source as it was before the edit passes its language's check.
+    fn passes_check(&self) -> bool {
+        *self.passes_check.get_or_init(|| {
+            self.language
+                .editor()
+                .check(&self.tree, &self.source_code)
+                .is_ok()
+        })
+    }
+
     /// Absolute validation of a standalone tree — syntax plus *all* context-query
     /// violations, with no baseline to compare against. Candidate edits go
     /// through [`validate_tree`](Self::validate_tree) instead, which only fails
@@ -195,29 +241,10 @@ impl<'language> Editor<'language> {
             return None;
         }
 
-        let context_lines = 3;
         let lines_with_errors = errors.into_iter().collect::<BTreeSet<_>>();
-        let context_lines = lines_with_errors
-            .iter()
-            .copied()
-            .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
-            .collect::<BTreeSet<_>>();
         Some(
             iter::once(String::from("===SYNTAX ERRORS===\n"))
-                .chain(
-                    content
-                        .lines()
-                        .enumerate()
-                        .filter(|(index, _)| context_lines.contains(index))
-                        .map(|(index, line)| {
-                            let display_index = index + 1;
-                            if lines_with_errors.contains(&index) {
-                                format!("{display_index:>4} ->⎸{line}\n")
-                            } else {
-                                format!("{display_index:>4}   ⎸{line}\n")
-                            }
-                        }),
-                )
+                .chain(excerpt(content, &lines_with_errors))
                 .collect(),
         )
     }
@@ -422,15 +449,29 @@ decorations, which stay attached to it.",
             } else {
                 focused_diff(&self.source_code, &output, formatted)
             };
-            let remaining_errors = self
-                .parse(&output, None)
-                .and_then(|tree| Self::syntax_errors(self.language, &tree, &output));
+            let tree = self.parse(&output, None);
+            let remaining_errors = tree
+                .as_ref()
+                .and_then(|tree| Self::syntax_errors(self.language, tree, &output));
+            // A repair is accepted unchecked. Once it parses again, the language's
+            // check still says whether it's valid, as a formatter's refusal did.
+            let failed_check = match &tree {
+                Some(tree) if remaining_errors.is_none() && self.starts_with_syntax_errors() => {
+                    self.language.editor().check(tree, &output).err()
+                }
+                _ => None,
+            };
             let mut report = if let Some(errors) = remaining_errors {
                 format!(
                     "Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.\n\n{errors}"
                 )
             } else if message.starts_with("Warning:") {
                 format!("{message}\n")
+            } else if let Some(diagnostic) = failed_check {
+                format!(
+                    "Warning: the source already had syntax errors, so this edit was accepted without validation. The result parses again but has the error below, and until it is fixed, edits to this file aren't checked for errors like it.\n\n{}",
+                    check_errors(&diagnostic, &output)
+                )
             } else if formatted {
                 String::from(
                     "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
@@ -586,6 +627,41 @@ with more of the target's own text until it is unique.",
         let mut parser = self.language.tree_sitter_parser().ok()?;
         parser.parse(output, old_tree)
     }
+}
+
+/// The lines of `content` around each of `marked` (indexes from 0), numbered,
+/// with the marked ones pointed out.
+fn excerpt<'a>(content: &'a str, marked: &'a BTreeSet<usize>) -> impl Iterator<Item = String> + 'a {
+    let context_lines = 3;
+    let shown = marked
+        .iter()
+        .copied()
+        .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
+        .collect::<BTreeSet<_>>();
+    content
+        .lines()
+        .enumerate()
+        .filter(move |(index, _)| shown.contains(index))
+        .map(|(index, line)| {
+            let display_index = index + 1;
+            if marked.contains(&index) {
+                format!("{display_index:>4} ->⎸{line}\n")
+            } else {
+                format!("{display_index:>4}   ⎸{line}\n")
+            }
+        })
+}
+
+/// A language check's rejection of `content`: the checker's diagnostic, then
+/// the lines around the one it points at.
+fn check_errors(diagnostic: &Diagnostic, content: &str) -> String {
+    let mut errors = format!("===SYNTAX ERROR===\n{diagnostic}\n");
+    if let Some(line) = diagnostic.line {
+        let last = content.lines().count().max(1);
+        let marked = BTreeSet::from([line.clamp(1, last) - 1]);
+        errors.extend(excerpt(content, &marked));
+    }
+    errors
 }
 
 /// A `===DIFF===` section between two versions of a file, cleaned for AI
