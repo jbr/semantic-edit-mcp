@@ -6,8 +6,8 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
 @@ -1,5 +1,7 @@
  scope = "..."
  [commands]
+ ls = true
 +[logging]
 +level = "info"
- ls = true
  [paths]
  "." = true

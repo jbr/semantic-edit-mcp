@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -91,6 +91,7 @@
+       throw error;
+     }
+   }
++  getUserById(id) { console.log('here'); }
+   getUserById(id) {
+     if (this.users.has(id)) {
+       return this.users.get(id);

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "- third item",
+      "content": "- fourth item\n  - with a detail"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "Nothing else is needed.",
+      "content": "Nothing else\nis needed."
+    }
+  }
+]

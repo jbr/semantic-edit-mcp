@@ -1,0 +1,18 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,8 +1,10 @@
+ export class Cart {
+     private items: string[] = [];
+
+-    add(item: string): void {
+-        this.items.push(item);
++    add(item: string, count = 1): void {
++        for (let i = 0; i < count; i++) {
++            this.items.push(item);
++        }
+     }
+
+     get size(): number {

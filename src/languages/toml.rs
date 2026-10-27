@@ -1,6 +1,7 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
     languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
+    layout::Rules,
 };
 use anyhow::Result;
 use std::ops::Range;
@@ -32,6 +33,15 @@ impl TomlEditor {
 }
 
 impl LanguageEditor for TomlEditor {
+    /// A line inside a multi-line string (`"""…"""` or `'''…'''`) is never
+    /// re-indented.
+    fn layout(&self) -> Rules {
+        Rules {
+            literals: &["string"],
+            ..Rules::CODE
+        }
+    }
+
     // A tree-sitter-toml `table` node encompasses *all* of its key/value pairs, so
     // an anchor that straddles a table boundary makes the generic node-snapping
     // candidates (`siblings_in_range` / common-parent) expand the *replaced* span

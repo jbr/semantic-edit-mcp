@@ -1,0 +1,7 @@
+[server]
+  host = "localhost"
+    port = 9090
+    timeout = 30
+
+[database]
+  url = "postgres://localhost/app"

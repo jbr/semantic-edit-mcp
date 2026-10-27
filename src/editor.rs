@@ -222,12 +222,15 @@ impl<'language> Editor<'language> {
         )
     }
 
+    /// The candidates to try, in order, each laid out at its target: targeting,
+    /// then [layout](crate::layout), which runs whether or not a formatter will.
     fn build_edits<'editor>(&'editor self) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        if self.starts_with_syntax_errors() {
-            EditIterator::new(self).find_text_edits()
+        let edits = if self.starts_with_syntax_errors() {
+            EditIterator::new(self).find_text_edits()?
         } else {
-            self.language.editor().build_edits(self)
-        }
+            self.language.editor().build_edits(self)?
+        };
+        Ok(crate::layout::lay_out(self, edits))
     }
 
     /// Returns `(message, output, formatted, ambiguity_note)` — `output` is `Some`
@@ -602,7 +605,12 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
         if line.starts_with("---") || line.starts_with("+++") {
             continue;
         }
-        cleaned_diff.push_str(line);
+        // A blank context line has no prefix (`PatchFormatter`'s
+        // `suppress_blank_empty`), but diffy sees a CRLF file's blank line as
+        // `\r`, prefixes it, and `lines` leaves just the prefix.
+        if line != " " {
+            cleaned_diff.push_str(line);
+        }
         cleaned_diff.push('\n');
     }
 
@@ -656,16 +664,18 @@ pub(crate) fn focused_diff(original: &str, modified: &str, formatted: bool) -> (
                 DiffyLine::Delete(text) => ('-', *text),
                 DiffyLine::Insert(text) => ('+', *text),
             };
+            // Each line without its line ending, as `clean_diff`'s are: a CRLF
+            // file's diff reads like any other.
+            let text = text.strip_suffix('\n').unwrap_or(text);
+            let text = text.strip_suffix('\r').unwrap_or(text);
             // Mirrors `PatchFormatter`'s `suppress_blank_empty` (its default, and
             // what every existing snapshot was written against): a blank context
             // line carries no ` ` prefix, so the diff has no trailing whitespace.
-            if !(prefix == ' ' && text == "\n") {
+            if !(prefix == ' ' && text.is_empty()) {
                 kept.push(prefix);
             }
             kept.push_str(text);
-            if !text.ends_with('\n') {
-                kept.push('\n');
-            }
+            kept.push('\n');
         }
     }
 
@@ -774,5 +784,14 @@ mod diff_tests {
         let (diff, _) = focused_diff("a\n\nb\n", "a\n\nB\n", true);
         assert!(diff.contains("\n\n"), "blank line stays bare: {diff:?}");
         assert!(!diff.contains(" \n"), "no trailing space: {diff:?}");
+    }
+
+    /// A CRLF file's diff reads like any other, as the full diff's does.
+    #[test]
+    fn a_crlf_diff_has_no_carriage_returns() {
+        let (original, modified) = ("a\r\n\r\nb\r\n", "a\r\n\r\nB\r\n");
+        let (diff, _) = focused_diff(original, modified, false);
+        assert_eq!(diff, "===DIFF===\n@@ -1,3 +1,3 @@\n a\n\n-b\n+B");
+        assert_eq!(diff, clean_diff(original, modified));
     }
 }

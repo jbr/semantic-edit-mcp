@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,5 +1,7 @@
+ scope = "..."
+ [commands]
+ ls = true
++[logging]
++level = "info"
+ [paths]
+ "." = true

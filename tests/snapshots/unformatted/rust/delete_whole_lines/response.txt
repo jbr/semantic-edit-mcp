@@ -1,0 +1,43 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -9,7 +9,6 @@
+
+     pub fn add(&mut self, book: String) {
+         let count = self.books.len();
+-        eprintln!("adding book {count}");
+         self.books.push(book);
+     }
+
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -12,10 +12,6 @@
+         self.books.push(book);
+     }
+
+-    pub fn len(&self) -> usize {
+-        self.books.len()
+-    }
+-
+     pub fn is_empty(&self) -> bool {
+         self.books.is_empty()
+     }
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -11,8 +11,4 @@
+         let count = self.books.len();
+         self.books.push(book);
+     }
+-
+-    pub fn is_empty(&self) -> bool {
+-        self.books.is_empty()
+-    }
+ }

@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -2,6 +2,7 @@
+   return (
+     <main>
+       <h1>{title}</h1>
++      <p className="byline">By the team.</p>
+       <p className="intro">Welcome.</p>
+     </main>
+   );

@@ -2,12 +2,22 @@ use anyhow::Result;
 
 use tree_sitter::{Node, Tree};
 
-use crate::editor::{Edit, EditIterator, Editor};
+use crate::{
+    editor::{Edit, EditIterator, Editor},
+    layout::Rules,
+};
 
-/// A language's candidate generation and syntax checks. Formatting is separate:
-/// which formatter, if any, runs for a language is configured in
+/// A language's candidate generation, layout and syntax checks. Formatting is
+/// separate: which formatter, if any, runs for a language is configured in
 /// [`Formatting`](crate::formatting::Formatting).
 pub trait LanguageEditor: Send + Sync {
+    /// How edit content is laid out in this language's files (see
+    /// [`crate::layout`]): code whose indentation isn't syntax, with no
+    /// multi-line literals, unless a language says otherwise.
+    fn layout(&self) -> Rules {
+        Rules::CODE
+    }
+
     /// Collect syntax error line numbers from a tree-sitter parse tree
     fn collect_errors(&self, tree: &Tree, _content: &str) -> Vec<usize> {
         collect_errors(tree)

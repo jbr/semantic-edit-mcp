@@ -1,0 +1,15 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -2,6 +2,9 @@
+     /// Alpha.
+     fn alpha() {}
+
++    /// Gamma.
++    fn gamma() {}
++
+     /// Beta.
+     pub async unsafe fn beta() -> u32 {
+         2

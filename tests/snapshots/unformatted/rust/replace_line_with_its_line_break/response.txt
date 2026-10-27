@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,5 +1,5 @@
+ use std::collections::HashMap;
+-use std::fmt;
++use std::fmt::{self, Display};
+ use std::io;
+
+ pub fn names() -> HashMap<String, usize> {

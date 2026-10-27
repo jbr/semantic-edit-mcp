@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "<p className=\"intro\">Welcome.</p>",
+    "content": "      <section className=\"intro\">\n        <p>Welcome.</p>\n        <p>Glad you're here.</p>\n      </section>"
+  }
+}

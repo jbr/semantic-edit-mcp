@@ -1,0 +1,16 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -5,6 +5,10 @@
+         this.items.push(item);
+     }
+
++    clear(): void {
++        this.items = [];
++    }
++
+     get size(): number {
+         return this.items.length;
+     }

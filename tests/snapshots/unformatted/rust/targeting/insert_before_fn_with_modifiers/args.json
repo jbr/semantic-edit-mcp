@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "fn beta",
+      "content": "    /// Gamma.\n    fn gamma() {}\n\n"
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "private": true,
+  "version": "1.0.0"
+}

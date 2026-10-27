@@ -1,6 +1,7 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
     languages::LanguageEditor,
+    layout::Rules,
 };
 use anyhow::Result;
 
@@ -38,6 +39,17 @@ pub(super) fn with_comma_variants<'editor, 'language>(
 
 pub(super) struct EcmaEditor;
 impl LanguageEditor for EcmaEditor {
+    /// A line inside a string (continued with a backslash), a template literal
+    /// (interpolations and all) or a TypeScript template literal type is never
+    /// re-indented. JSX text isn't a literal: JSX collapses the whitespace around
+    /// its line breaks, so its indentation is layout like code's.
+    fn layout(&self) -> Rules {
+        Rules {
+            literals: &["string", "template_string", "template_literal_type"],
+            ..Rules::CODE
+        }
+    }
+
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,

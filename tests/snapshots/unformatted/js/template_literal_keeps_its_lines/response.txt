@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,6 +1,10 @@
+ function page(title) {
+   if (title) {
+-    const html = "";
++    const html = `
++<h1>${title}</h1>
++  <p>Welcome.</p>
++`;
++    console.log(html);
+     return html;
+   }
+   return null;

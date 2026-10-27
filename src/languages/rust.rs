@@ -2,6 +2,7 @@ use crate::editor::{Edit, EditIterator, Editor};
 use crate::selector::Operation;
 
 use super::{LanguageCommon, LanguageName, traits::LanguageEditor};
+use crate::layout::Rules;
 use anyhow::Result;
 use tree_sitter::{Node, Query};
 
@@ -20,6 +21,16 @@ pub fn language() -> LanguageCommon {
 struct RustEditor;
 
 impl LanguageEditor for RustEditor {
+    /// A line inside a string or raw string literal is never re-indented. Block
+    /// comments aren't literals here: their continuation lines (` * …`) sit at
+    /// the code's column, so they move with it and count as evidence like code.
+    fn layout(&self) -> Rules {
+        Rules {
+            literals: &["string_literal", "raw_string_literal"],
+            ..Rules::CODE
+        }
+    }
+
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,
@@ -38,10 +49,14 @@ impl LanguageEditor for RustEditor {
                 let mut walk = root.walk();
                 let replacement = root.children(&mut walk).collect::<Vec<_>>();
 
+                // A doc comment's node takes its line's break, so replacing one
+                // takes the break too, and content ending in a comment of its own
+                // has to give it back. A `//` comment's node stops before its
+                // break, which stays: adding another would leave a blank line.
                 if let Some("line_comment") = replacement.last().map(|node| node.kind())
-                    && let Some("line_comment") = edit
-                        .nodes()
-                        .and_then(|nodes| nodes.last().map(|node| node.kind()))
+                    && edit
+                        .edit_region()
+                        .is_some_and(|region| region.ends_with('\n'))
                     && !editor.content().ends_with('\n')
                 {
                     edit.content_mut().to_mut().push('\n');

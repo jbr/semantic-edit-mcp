@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "insert_after",
+    "anchor": "@property",
+    "content": "@functools.cache"
+  }
+}

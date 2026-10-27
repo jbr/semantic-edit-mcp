@@ -1,0 +1,8 @@
+{
+  "name": "app",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "version": "1.0.0"
+}

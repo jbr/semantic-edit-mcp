@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "fn alpha",
+      "content": "    /// Alpha rewritten.\n    #[inline]\n    fn alpha() -> u32 {\n        11\n    }"
+    }
+  }
+]

@@ -239,56 +239,10 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                 } else {
                     siblings_in_range(parent, start, end)
                 };
-                // A node-set candidate must be *boundary-aligned* with the anchor,
-                // or it targets something other than what the anchor names:
-                //
-                // - **replace** targets "the node that starts with the anchor", so
-                //   the first node must start exactly at the anchor — or the anchor
-                //   may land past the node's leading modifiers but still in its
-                //   header (`fn alpha` matching inside `pub async fn alpha`). An
-                //   anchor that *begins* inside a node's body (e.g. sloppily
-                //   including the previous item's closing `}`) partially covers a
-                //   neighbor; replacing the whole node set would silently consume
-                //   code the anchor never named.
-                // - **inserts** target "the node containing the anchor", so the
-                //   node set must contain the whole anchor span. A partial overlap
-                //   (anchor `pub fn` covering just the `pub` modifier) would place
-                //   the insertion *inside* the item it was meant to be adjacent to.
-                //   And when the node set's insertion boundary is the same byte as
-                //   the parent's own boundary, the node-range candidate is
-                //   redundant — but *worse*: its nodes are the parent's children,
-                //   so language-specific grouping can't see the parent's siblings
-                //   (a struct's preceding `#[derive]` / doc comments) and the
-                //   insertion splits them from the item they decorate. Skip it and
-                //   let the common-parent candidate, which carries the whole node,
-                //   handle that position.
-                if let (Some(first), Some(last)) = (nodes.first(), nodes.last()) {
-                    let aligned = if is_insert {
-                        first.start_byte() <= start
-                            && last.end_byte() >= end
-                            && match self.selector.operation {
-                                Operation::InsertBefore => {
-                                    first.start_byte() != parent.start_byte()
-                                }
-                                Operation::InsertAfter => last.end_byte() != parent.end_byte(),
-                                Operation::Replace => unreachable!(),
-                            }
-                    } else {
-                        first.start_byte() == start || anchor_in_header(*first, start)
-                    };
-                    if aligned {
-                        candidates.push(
-                            self.build_edit(first.start_byte())
-                                .with_end_byte(last.end_byte())
-                                .with_anchor_hit((start, end))
-                                .with_nodes(nodes)
-                                .with_annotation("node range"),
-                        );
-                    }
-                }
-
                 // The "common parent" candidate inserts/replaces relative to the
-                // whole `parent`. For an **insert**, when `parent` begins before the
+                // whole `parent`; whether there is one is decided first, because the
+                // node-range candidate below defers to it. For an **insert**, when
+                // `parent` begins before the
                 // anchor (`parent.start < start`), the anchor sits *interior* to
                 // `parent`, so inserting after/before `parent` would escape a
                 // container the anchor was merely inside (e.g. dropping a new
@@ -312,6 +266,65 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
                 } else {
                     parent.start_byte() == start || anchor_in_header(parent, start)
                 };
+
+                // A node-set candidate must be *boundary-aligned* with the anchor,
+                // or it targets something other than what the anchor names:
+                //
+                // - **replace** targets "the node that starts with the anchor", so
+                //   the first node must start exactly at the anchor — or the anchor
+                //   may land past the node's leading modifiers but still in its
+                //   header (`fn alpha` matching inside `pub async fn alpha`). An
+                //   anchor that *begins* inside a node's body (e.g. sloppily
+                //   including the previous item's closing `}`) partially covers a
+                //   neighbor; replacing the whole node set would silently consume
+                //   code the anchor never named. The node set must also reach the
+                //   anchor's end: one that stops short of it (an expression whose
+                //   statement's `;` the anchor includes) leaves the rest of the
+                //   anchor behind the content, where `x += 1;;` still parses.
+                // - **inserts** target "the node containing the anchor", so the
+                //   node set must contain the whole anchor span. A partial overlap
+                //   (anchor `pub fn` covering just the `pub` modifier) would place
+                //   the insertion *inside* the item it was meant to be adjacent to.
+                //
+                // For both, when the node set's boundary is the same byte as the
+                // parent's own — for a replace, when it spans the whole parent — the
+                // node-range candidate is redundant with the common-parent one, but
+                // *worse*: its nodes are the parent's children, so language-specific
+                // grouping can't see the parent's siblings (a struct's preceding
+                // `#[derive]` / doc comments), and the edit splits them from the item
+                // they decorate, or duplicates them. Skip it and let the
+                // common-parent candidate, which carries the whole node, handle that
+                // position.
+                if let (Some(first), Some(last)) = (nodes.first(), nodes.last()) {
+                    let aligned = if is_insert {
+                        first.start_byte() <= start
+                            && last.end_byte() >= end
+                            && match self.selector.operation {
+                                Operation::InsertBefore => {
+                                    first.start_byte() != parent.start_byte()
+                                }
+                                Operation::InsertAfter => last.end_byte() != parent.end_byte(),
+                                Operation::Replace => unreachable!(),
+                            }
+                    } else {
+                        let spans_parent = first.start_byte() == parent.start_byte()
+                            && last.end_byte() == parent.end_byte();
+                        (first.start_byte() == start || anchor_in_header(*first, start))
+                            && last.end_byte() >= end
+                            && !(keep && spans_parent)
+                    };
+                    if aligned {
+                        candidates.push(
+                            self.build_edit(first.start_byte())
+                                .with_end_byte(last.end_byte())
+                                .with_anchor_hit((start, end))
+                                .with_nodes(nodes)
+                                .with_annotation("node range"),
+                        );
+                    }
+                }
+
+                // The common-parent candidate, decided above.
                 if keep {
                     candidates.push(
                         self.build_edit(parent.start_byte())

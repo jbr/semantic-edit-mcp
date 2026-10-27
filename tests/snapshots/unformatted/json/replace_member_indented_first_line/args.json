@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "\"scripts\": {\n    \"build\": \"tsc\",\n    \"test\": \"vitest\"\n  }",
+    "content": "  \"scripts\": {\n    \"build\": \"tsc --build\",\n    \"test\": \"vitest\"\n  }"
+  }
+}

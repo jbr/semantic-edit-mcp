@@ -1,0 +1,3 @@
+# Snapshot fixtures whose line endings are what they test: stored and checked out
+# exactly as written, whatever a contributor's end-of-line settings.
+tests/snapshots/**/crlf/** -text

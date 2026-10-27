@@ -43,16 +43,18 @@ pub struct Edit {
     #[clap(flatten)]
     pub selector: Selector,
 
-    /// The new code.
+    /// The new code, written at the file's columns: indented as it should
+    /// appear in the file.
+    ///
+    /// The first line may leave its indentation off, as an anchor's first line
+    /// does; it is then indented like the code it replaces or goes next to.
+    /// Leading whitespace on the first line replaces that indentation instead.
+    /// Continuation lines are kept as written.
     ///
     /// For `replace`, this takes the place of the anchored code; omit it to
-    /// delete the anchored code instead. For inserts, include any blank lines
-    /// you want between the new code and its neighbors.
-    ///
-    /// Markdown/plain text has no formatter. For a replacement starting at
-    /// the first text on a line, explicit leading spaces/tabs in content
-    /// replace that line's indentation; without them, existing indentation
-    /// stays. Continuation lines keep exactly the whitespace you supply.
+    /// delete the anchored code instead. Blank lines between the new code and
+    /// its neighbors come from the content, so for an insert, include any you
+    /// want.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }

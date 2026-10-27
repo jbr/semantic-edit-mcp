@@ -1,0 +1,15 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -2,7 +2,8 @@
+   "name": "app",
+   "scripts": {
+     "build": "tsc",
+-    "test": "vitest"
++    "test": "vitest run",
++    "lint": "eslint ."
+   },
+   "version": "1.0.0"
+ }

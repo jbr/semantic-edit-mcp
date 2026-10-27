@@ -1,0 +1,26 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "- third item",
+      "content": "- second item"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "The plan is simple.",
+      "content": " It has two steps."
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "- first item",
+      "content": "  - with a detail"
+    }
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "pub fn get(&self) -> u32 {\n        self.count\n    }",
+      "content": "\n\n/// Forgets everything counted.\n    pub fn reset(&mut self) {\n        self.count = 0;\n    }"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "self.count += 1;",
+      "content": "self.count += 1;\n        self.count = self.count.min(10);"
+    }
+  }
+]

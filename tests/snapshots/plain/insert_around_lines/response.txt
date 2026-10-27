@@ -1,0 +1,38 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
+
+===DIFF===
+@@ -1,6 +1,7 @@
+ # Notes
+
+ - first item
++- second item
+ - third item
+
+ The plan is simple.
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
+
+===DIFF===
+@@ -4,5 +4,5 @@
+ - second item
+ - third item
+
+-The plan is simple.
++The plan is simple. It has two steps.
+ Nothing else is needed.
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: plain-text edits preserve supplied whitespace; no formatter is run.
+
+===DIFF===
+@@ -1,6 +1,7 @@
+ # Notes
+
+ - first item
++  - with a detail
+ - second item
+ - third item
+

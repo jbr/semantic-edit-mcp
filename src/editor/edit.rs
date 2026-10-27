@@ -365,11 +365,6 @@ Suggestion: Try a different change.\n
         self.position.start_byte
     }
 
-    pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
-        self.position.start_byte = start_byte;
-        self
-    }
-
     pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {
         self.position.start_byte = start_byte;
         self
