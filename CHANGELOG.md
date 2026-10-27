@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/jbr/semantic-edit-mcp/compare/v0.3.0...v0.4.0) - 2026-10-27
+
+### Fixed
+
+- preserve explicit indentation in plain-text replacements
+- allow progressive edits to syntactically invalid sources
+
+### Other
+
+- update deps
+- [**breaking**] migrate tools to async root-scoped state
+
 ## [0.3.0] - 2026-09-13
 
 ### Added
