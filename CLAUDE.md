@@ -64,17 +64,18 @@ Tools are registered through the `mcplease::tools!` macro in `src/tools.rs`. The
 
 - `edit` — apply an edit; if it validates it is persisted at once and the diff is returned for review. Omitting `content` means *delete*. Because persistence is immediate, `edit` guards against re-sends of the just-applied content: an identical resend is a no-op, an identical `replace` at a different anchor is refused (it would duplicate the content *and* overwrite the undo record), and an identical insert elsewhere applies but warns.
 - `retarget_edit` — move the last edit to a corrected anchor in one step: it re-runs the edit's content against the recorded *pre-edit* source and only rewrites the file if the new placement validates, so a failed retarget leaves the previous placement applied.
-- `undo_edit` — restore the file's exact pre-edit content. Single-level: each edit replaces the undo record.
+- `undo_edit` — restore the file's exact content from before its most recent edit. Calling it again reverts the edit before that, as long as the file hasn't changed in between.
 - `find_anchor` — report every location an anchor matches, without editing.
 
 A selector normally carries `anchor` text. It may instead carry `item` — `{kind, name}` (`src/item.rs`) — which resolves a named item **together with its leading outer attributes and doc comments**, so `insert_before`/`insert_after` land outside that whole decorated unit rather than between an item and its own `#[test]`. `kind` is matched loosely against the grammar's node kinds (`function` ≡ `function_item` ≡ `function_definition`). Exactly one of `anchor`/`item` is required; the result names the resolved item, its line span, and the neighbor on the side the content went. Textual anchors remain the general path — item targeting is not a query language and should not grow into one without evidence from further repeated targeting failures.
-- `set_working_directory` — set the session's root so later `file_path`s can be relative.
+
+A `file_path` is absolute, or relative to the root the tools were created with (`SemanticEditTools::new(root)`; the binary's `--root`, defaulting to its working directory). There is no tool for changing it.
 
 `AppliedEdit` (in `src/state.rs`) is the serializable undo/retarget record: the `EditOperation` (selector + content + file + language) plus the full pre- and post-edit file content. Storing both sides makes undo a byte-exact restore (no reverse-diff application) and lets undo/retarget verify the file on disk still matches `post_edit_source` before acting — a stale record refuses rather than clobbering outside changes. That freshness check is skipped when a `commit_fn` is injected, because then the embedder owns persistence and disk isn't observable.
 
-### State and sessions (`src/state.rs`)
+### State (`src/state.rs`)
 
-`SemanticEditTools` is the shared tool state. It holds two `mcplease` `SessionStore`s: a **private** one for the undo record and education state (path from `MCP_SESSION_STORAGE_PATH`, default `~/.ai-tools/sessions/semantic-edit.json` — so the undo record survives a server restart) and a **shared** cross-server one at `~/.ai-tools/sessions/shared-context.json` for the working directory. `commit_fn` is an injectable write hook — `None` means the tool writes to disk itself; embedders set it to capture output instead. It also holds the `Formatting` settings, shared with its clones so that `set_formatting` reaches a live instance; each tool call takes one snapshot (`formatting()`) and builds every `Editor` from it, and the `Editor` keeps its file's `Formatter`. The snapshot runner does **not** use `commit_fn`: it copies each test's input into a scratch dir under `target/snapshot-scratch/` and lets edits write for real, so sequential edits accumulate and undo/retarget freshness checks are exercised (`output.<ext>` is the scratch file's final content, omitted when the calls left no net change).
+`SemanticEditTools` is the shared tool state, cloned into every call. Its memory is a `ToolState` held in-process (nothing is written outside the edited files): the most recent applied edits across all files, at most `EDIT_HISTORY_LIMIT`, found by the file they were made to, plus the education state. An embedder that keeps its own log can `snapshot()` it and `restore()` it on resume. Every call that writes holds `write_lock` throughout, since an edit is a read-modify-write of a file. `commit_fn` is an injectable write hook — `None` means the tool writes to disk itself; embedders set it to capture output instead. It also holds the `Formatting` settings, shared with its clones so that `set_formatting` reaches a live instance; each tool call takes one snapshot (`formatting()`) and builds every `Editor` from it, and the `Editor` keeps its file's `Formatter`. The snapshot runner does **not** use `commit_fn`: it copies each test's input into a scratch dir under `target/snapshot-scratch/` and lets edits write for real, so sequential edits accumulate and undo/retarget freshness checks are exercised (`output.<ext>` is the scratch file's final content, omitted when the calls left no net change).
 
 ### Languages (`src/languages/`)
 
@@ -95,7 +96,7 @@ Beyond "does it parse", languages can ship tree-sitter queries that flag semanti
 
 ### Binary vs. library
 
-`src/main.rs` is the standalone stdio MCP server (`mcplease::run`). `src/lib.rs` re-exposes the same modules for **in-process embedding** (e.g. running a tool directly against `SemanticEditTools::embedded`, which uses in-memory session stores and never touches `~/.ai-tools`). Keep additions reachable from both — `main.rs` uses `#[deny(dead_code)]`, while `lib.rs` allows it (items reachable only from the binary look dead in the library view).
+`src/main.rs` is the standalone stdio MCP server (`mcplease::calls`, each call spawned on tokio). `src/lib.rs` re-exposes the same modules for **in-process embedding**: a host builds one `SemanticEditTools::new(root)` per agent and runs tools through the generated `Tools` dispatcher; tool bodies run on tokio's blocking pool, so the host must be on a tokio runtime. Keep additions reachable from both — `main.rs` uses `#[deny(dead_code)]`, while `lib.rs` allows it (items reachable only from the binary look dead in the library view).
 
 ## Conventions
 
