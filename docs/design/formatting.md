@@ -123,7 +123,9 @@ Formatting is off unless the embedder configures a formatter for the language.
 - **Configured with builder types that also derive `Deserialize` and a schemars
   `JsonSchema`.** An embedder decides where the settings sit in its own configuration and
   inlines their schema into its own; efference does this for its config schema. The settings'
-  shape and schema are defined here.
+  shape and schema are defined here. Their doc comments, which become the schema's
+  descriptions, don't name the tool: the same text has to read correctly inside an embedder's
+  schema, where the tool goes by the embedder's name, and in the standalone server's.
   - Named constructors, for example `Formatter::rustfmt()`, carry each tool's correct
     invocation.
   - A command formatter runs anything that reads the source on stdin and writes the result to
