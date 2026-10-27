@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-An MCP (Model Context Protocol) server for **AST-aware code editing**. Instead of line/character edits, edits target tree-sitter AST nodes located by a short text `anchor`, then the whole file is reformatted with the language's native formatter and re-parsed to guarantee the result is still syntactically valid before anything touches disk.
+An MCP (Model Context Protocol) server for **AST-aware code editing**. Instead of line/character edits, edits target tree-sitter AST nodes located by a short text `anchor`; the content is laid out in-process, and the result is re-parsed and checked to guarantee it is still syntactically valid before anything touches disk. Reformatting the whole file with a language-native formatter is optional, and off unless configured.
 
 ## Commands
 
@@ -14,6 +14,7 @@ cargo test                           # run all tests (the snapshot suite + unit 
 cargo fmt --all -- --check           # formatting check (CI gate)
 cargo clippy                         # lint (CI gate)
 cargo run -- serve                   # run the MCP stdio server locally
+cargo run -- serve --format built-in # ...with every built-in formatter on
 ```
 
 ### Snapshot tests (the main test surface)
@@ -33,17 +34,19 @@ A pattern without `::` is a plain prefix (`py` matches `python::…`). A `::` pa
 
 When a snapshot fails, the summary prints the exact `TEST_FILTER=...` and `UPDATE_SNAPSHOTS=1 ...` commands to reproduce or accept it. Always review a diff before accepting it with `UPDATE_SNAPSHOTS=1` — the whole point of the suite is to catch unintended formatting/targeting changes.
 
-Tests run with the default formatting unless a `formatting.json` says otherwise. One in any directory under `tests/snapshots/` (a test's own directory included) applies to every test beneath it; nested files layer outermost first, each overriding the last. It maps a language, named as in `args.json` (`rust`, `typescript`, …), or `"*"` for every language, to a formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none; `"*"` applies before the languages beside it. `{"*": null}` is formatting off everywhere, `{"rust": null}` off for Rust alone. Everything under `tests/snapshots/unformatted/` runs with formatting off.
+Tests start from the product default, formatting off, and a `formatting.json` changes that. One in any directory under `tests/snapshots/` (the root and a test's own directory included) applies to every test beneath it; nested files layer outermost first, each overriding the last. It maps a language, named as in `args.json` (`rust`, `typescript`, …), or `"*"` for every language, to a formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none; `"*"` applies before the languages beside it. `{"*": null}` is formatting off everywhere, `{"rust": null}` off for Rust alone. The root `tests/snapshots/formatting.json` turns on the built-in set (`Formatting::built_in`, which a unit test holds it to) for the whole tree, since its expectations were written with formatting on; everything under `tests/snapshots/unformatted/` runs with formatting off again. So a new test is formatted unless it goes under `unformatted/` — put it there to test layout and validation on their own.
 
 ## External formatter dependencies
 
-Which formatter, if any, runs for each language is configuration: a `Formatting` (`src/formatting.rs`) set on `SemanticEditTools` with `with_formatting`, or replaced on a live instance with `set_formatting`. With no formatter for a language its edits are written as laid out. The default, which the standalone server always uses, relies on language-native formatters being on `PATH`; an edit fails (and is reported as unsafe) if its formatter is missing or errors:
+Formatting is off by default, so editing needs nothing outside the process. Which formatter, if any, runs for each language is configuration: a `Formatting` (`src/formatting.rs`) set on `SemanticEditTools` with `with_formatting`, or replaced on a live instance with `set_formatting`. `Formatting::off()` is the default, and `Formatting::built_in()` the built-in set below; `Formatter` parses from a constructor's name (`"rustfmt"`, …). The standalone binary builds its settings from `--format LANGUAGE=FORMATTER` (repeatable, applied in turn) and `--format built-in`, before or after the subcommand. With no formatter for a language its edits are written as laid out. A configured formatter relies on its program being on `PATH`; an edit fails (and is reported as unsafe) if its formatter is missing or errors. The built-in set:
 
 - **Rust** → `rustfmt`, at the edition the nearest `Cargo.toml` declares (2024 when none does; `src/formatting/rustfmt.rs`)
 - **Python** → `ruff`
 - **JS / TS / JSX / TSX / JSON** → `biome`
 - **TOML** → `taplo`, in-process (nothing to install)
 - **plain / markdown / unknown** → none
+
+The snapshot suite runs with the built-in set (see above), so `cargo test` needs `rustfmt`, `ruff` and `biome` on `PATH`; CI installs them.
 
 The design for making formatting optional is `docs/design/formatting.md`.
 
@@ -87,7 +90,7 @@ A `file_path` is absolute, or relative to the root the tools were created with (
 - `build_edits` — customize candidate generation. **Rust** (`rust.rs`) is the most complex: after the generic candidates it does *node grouping* — expanding a selection backward/forward so leading comments and `#[attribute]`s stay attached to the item they decorate, preventing duplication/orphaning on insert and replace.
 - `layout` — the `layout::Rules` content is laid out by: the string-literal node kinds whose lines never move, which readings of the content's columns to try (Python tries both and lets validation choose; other code only the evidence's; plain/Markdown always takes content as written), Python's statement containers, and whether the file is prose.
 - `collect_errors` — default walks the tree for ERROR/MISSING nodes.
-- `check` — a stricter in-process validity check, standing in for the compiler-grade parse a formatter used to provide: `syn::parse_file` for Rust, the language reference's indentation rules for Python (`languages/python/indentation.rs`), taplo's DOM validation for TOML; the default accepts everything. Delta-gated like the context queries (`Editor::passes_check` caches the pre-edit result), so it only blocks edits to a file that passed it before.
+- `check` — a stricter in-process validity check, standing in for the compiler-grade parse a formatter used to provide: `syn::parse_file` for Rust, the language reference's indentation rules for Python (`languages/python/indentation.rs`), taplo's DOM validation for TOML; the default accepts everything. Delta-gated like the context queries (`Editor::passes_check` caches the pre-edit result), so it only blocks edits to a file that passed it before. When it was off for an edit and the result still fails it, the success report adds a note with the check's diagnostic for the result (`Editor::apply`), so the caller knows the check didn't guard that edit.
 
 The four ECMAScript-family languages (js/ts/jsx/tsx) share `EcmaEditor` (`ecma_editor.rs`).
 
@@ -99,7 +102,7 @@ Beyond "does it parse", languages can ship tree-sitter queries that flag semanti
 
 ### Binary vs. library
 
-`src/main.rs` is the standalone stdio MCP server (`mcplease::calls`, each call spawned on tokio). `src/lib.rs` re-exposes the same modules for **in-process embedding**: a host builds one `SemanticEditTools::new(root)` per agent and runs tools through the generated `Tools` dispatcher; tool bodies run on tokio's blocking pool, so the host must be on a tokio runtime. Keep additions reachable from both — `main.rs` uses `#[deny(dead_code)]`, while `lib.rs` allows it (items reachable only from the binary look dead in the library view).
+`src/main.rs` is the standalone stdio MCP server (`mcplease::calls`, each call spawned on tokio). Its `--format` option isn't clap-`global`, because a global option keeps only the occurrences on one side of the subcommand; `Args::parse_argv` adds it to each subcommand and joins both sides, so parse with that rather than clap's `Parser` methods. `src/lib.rs` re-exposes the same modules for **in-process embedding**: a host builds one `SemanticEditTools::new(root)` per agent and runs tools through the generated `Tools` dispatcher; tool bodies run on tokio's blocking pool, so the host must be on a tokio runtime. Keep additions reachable from both — `main.rs` uses `#[deny(dead_code)]`, while `lib.rs` allows it (items reachable only from the binary look dead in the library view).
 
 ## Conventions
 

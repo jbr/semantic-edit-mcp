@@ -5,9 +5,9 @@
 //! generated [`tools::Tools`] dispatcher + [`state::SemanticEditTools`], without
 //! the binary's stdio, clap, or logger. Construct one [`SemanticEditTools::new`]
 //! per agent, rooted at its directory; tool bodies run on tokio's blocking
-//! pool, so the host must be on a tokio runtime. Edits are formatted as the
-//! default [`Formatting`] says unless the tools are built
-//! [`with_formatting`](SemanticEditTools::with_formatting), and
+//! pool, so the host must be on a tokio runtime. Edits aren't formatted unless
+//! the tools are built [`with_formatting`](SemanticEditTools::with_formatting),
+//! for example with [`Formatting::built_in`], and
 //! [`set_formatting`](SemanticEditTools::set_formatting) replaces the settings
 //! while they run.
 //!

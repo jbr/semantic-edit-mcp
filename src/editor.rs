@@ -461,6 +461,16 @@ decorations, which stay attached to it.",
                 }
                 _ => None,
             };
+            // A source that already failed the check had it off for this edit
+            // (see `check_failure`). That is said whenever the result still fails
+            // it: then the check isn't protecting the edit. A result that passes
+            // is what the check would have let through anyway.
+            let unguarded = match &tree {
+                Some(tree) if !self.starts_with_syntax_errors() && !self.passes_check() => {
+                    self.language.editor().check(tree, &output).err()
+                }
+                _ => None,
+            };
             let mut report = if let Some(errors) = remaining_errors {
                 format!(
                     "Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.\n\n{errors}"
@@ -492,6 +502,12 @@ decorations, which stay attached to it.",
 unaffected).\n",
                     if elided == 1 { "" } else { "s" },
                     if elided == 1 { "is" } else { "are" },
+                ));
+            }
+            if let Some(diagnostic) = unguarded {
+                report.push_str(&format!(
+                    "Note: the syntax check was off for this edit, because the file already \
+failed it; the result fails it too: {diagnostic}\n"
                 ));
             }
             if let Some(placement) = self.item_placement_note() {

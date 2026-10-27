@@ -112,8 +112,10 @@ impl Debug for SemanticEditTools {
 }
 
 impl SemanticEditTools {
-    /// Tools that resolve relative paths against `root`, with the default
-    /// [`Formatting`].
+    /// Tools that resolve relative paths against `root`, with formatting off:
+    /// edits are written as laid out unless
+    /// [`with_formatting`](Self::with_formatting) or
+    /// [`set_formatting`](Self::set_formatting) gives their language a formatter.
     pub fn new(root: PathBuf) -> Result<Self> {
         Ok(Self {
             root: root.into(),
@@ -134,7 +136,6 @@ impl SemanticEditTools {
 
     /// Format edited files as `formatting` says. These settings are this value's
     /// and its later clones': clones made before this call keep theirs.
-    #[allow(dead_code, reason = "embedding API, used by library consumers")]
     pub fn with_formatting(mut self, formatting: Formatting) -> Self {
         self.formatting = Arc::new(Mutex::new(Arc::new(formatting)));
         self
@@ -296,9 +297,11 @@ mod tests {
         Formatting::off().with(LanguageName::Toml, Formatter::taplo())
     }
 
+    /// Running a formatter is the embedder's decision, so new tools format
+    /// nothing.
     #[test]
-    fn new_tools_have_the_default_formatting() {
-        assert_eq!(*tools().formatting(), Formatting::default());
+    fn new_tools_format_nothing() {
+        assert_eq!(*tools().formatting(), Formatting::off());
     }
 
     /// An embedder hands one clone to its server and keeps another to change the
@@ -307,9 +310,9 @@ mod tests {
     fn set_formatting_reaches_every_clone() {
         let tools = tools();
         let served = tools.clone();
-        tools.set_formatting(Formatting::off());
-        assert_eq!(*served.formatting(), Formatting::off());
-        assert_eq!(*served.clone().formatting(), Formatting::off());
+        tools.set_formatting(Formatting::built_in());
+        assert_eq!(*served.formatting(), Formatting::built_in());
+        assert_eq!(*served.clone().formatting(), Formatting::built_in());
     }
 
     /// A call takes one snapshot, so settings replaced mid-call don't reach it.
@@ -317,20 +320,20 @@ mod tests {
     fn a_snapshot_keeps_the_settings_it_was_taken_with() {
         let tools = tools();
         let snapshot = tools.formatting();
-        tools.set_formatting(Formatting::off());
-        assert_eq!(*snapshot, Formatting::default());
-        assert_eq!(*tools.formatting(), Formatting::off());
+        tools.set_formatting(Formatting::built_in());
+        assert_eq!(*snapshot, Formatting::off());
+        assert_eq!(*tools.formatting(), Formatting::built_in());
     }
 
     #[test]
     fn with_formatting_configures_its_value_and_later_clones_only() {
         let original = tools();
-        let configured = original.clone().with_formatting(Formatting::off());
-        assert_eq!(*original.formatting(), Formatting::default());
-        assert_eq!(*configured.formatting(), Formatting::off());
+        let configured = original.clone().with_formatting(Formatting::built_in());
+        assert_eq!(*original.formatting(), Formatting::off());
+        assert_eq!(*configured.formatting(), Formatting::built_in());
 
         configured.clone().set_formatting(toml_only());
         assert_eq!(*configured.formatting(), toml_only());
-        assert_eq!(*original.formatting(), Formatting::default());
+        assert_eq!(*original.formatting(), Formatting::off());
     }
 }

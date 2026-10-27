@@ -14,18 +14,19 @@ use serde::{Deserialize, Serialize};
 /// Apply an edit to a file and see the resulting diff
 ///
 /// Find the `anchor` text in the file and apply `operation` at that location.
-/// Edits to syntactically valid code must still parse and pass the formatter,
-/// or they are rejected without changing the file. If the source already has
-/// syntax errors, edits are accepted while it is being repaired: remaining
-/// error regions are reported, and formatting is skipped until syntax is valid.
-/// Accepted edits are written immediately. Review the returned diff, and if
-/// the edit landed somewhere other than
-/// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
-/// reverts it.
+/// Edits to syntactically valid code must leave it valid, or they are rejected
+/// without changing the file. If the source already has syntax errors, edits
+/// are accepted while it is being repaired, and the error regions that remain
+/// are reported. Accepted edits are written immediately. Review the returned
+/// diff, and if the edit landed somewhere other than intended, `retarget_edit`
+/// moves it to a corrected anchor and `undo_edit` reverts it.
 ///
-/// When formatting runs, the whole file is reformatted with the language's
-/// standard formatter, so the diff may include fixes beyond the edit itself.
-/// Markdown/plain text is not reformatted.
+/// Unless a formatter is configured for the file's language, content is
+/// written as given, indented as `content` describes, and nothing outside the
+/// edit changes. With one, the whole file is reformatted after the edit, so
+/// the diff may include changes beyond the edit itself, and an edit to valid
+/// code that the formatter fails on is rejected. A file with syntax errors
+/// isn't formatted until an edit makes it parse.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "edit")]
 #[group(skip)]

@@ -1,0 +1,10 @@
+{
+  "rust": "rustfmt",
+  "python": "ruff",
+  "javascript": "biome",
+  "jsx": "biome",
+  "typescript": "biome",
+  "tsx": "biome",
+  "json": "biome",
+  "toml": "taplo"
+}

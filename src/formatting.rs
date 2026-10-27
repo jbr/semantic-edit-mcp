@@ -2,31 +2,49 @@
 //!
 //! Formatters are configuration, separate from languages: [`Formatting`] maps
 //! each [`LanguageName`] to a [`Formatter`] or to none, and a [`Formatter`]
-//! carries its own invocation. An edit to a file whose language has no formatter
-//! is written as laid out.
+//! carries its own invocation. Formatting is off unless configured, and an edit
+//! to a file whose language has no formatter is written as laid out.
 
 mod command;
 mod rustfmt;
 
 use crate::{indentation::Indentation, languages::LanguageName};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use enum_map::{EnumMap, enum_map};
-use std::path::Path;
+use std::{path::Path, str::FromStr};
 
 /// The formatter, if any, for each language's files.
 ///
 /// A formatter reformats the whole file after each edit to it, and an edit it
 /// fails on is rejected. A language without one has its edits written as laid
-/// out.
+/// out. The default is [`off`](Self::off), and [`built_in`](Self::built_in) is
+/// each language's built-in formatter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatting {
     formatters: EnumMap<LanguageName, Option<Formatter>>,
 }
 
 impl Default for Formatting {
-    /// rustfmt for Rust, ruff for Python, biome for JavaScript, JSX, TypeScript,
-    /// TSX and JSON, and taplo for TOML. Other files have no formatter.
+    /// No formatter for any language, as [`off`](Formatting::off).
     fn default() -> Self {
+        Self::off()
+    }
+}
+
+impl Formatting {
+    /// No formatter for any language: every edit is written as laid out. This is
+    /// the default.
+    pub fn off() -> Self {
+        Self {
+            formatters: EnumMap::default(),
+        }
+    }
+
+    /// Each language's built-in formatter: rustfmt for Rust, ruff for Python,
+    /// biome for JavaScript, JSX, TypeScript, TSX and JSON, and taplo for TOML.
+    /// Other files have none. rustfmt, ruff and biome are programs, and must be
+    /// installed where edits run; taplo runs in-process.
+    pub fn built_in() -> Self {
         Self {
             formatters: enum_map! {
                 LanguageName::Rust => Some(Formatter::rustfmt()),
@@ -41,19 +59,8 @@ impl Default for Formatting {
             },
         }
     }
-}
-
-impl Formatting {
-    /// No formatter for any language: every edit is written as laid out.
-    #[allow(dead_code, reason = "embedding API, used by library consumers")]
-    pub fn off() -> Self {
-        Self {
-            formatters: EnumMap::default(),
-        }
-    }
 
     /// These settings, with `language` formatted by `formatter`.
-    #[allow(dead_code, reason = "embedding API, used by library consumers")]
     pub fn with(mut self, language: LanguageName, formatter: Formatter) -> Self {
         self.set(language, Some(formatter));
         self
@@ -67,7 +74,6 @@ impl Formatting {
     }
 
     /// Format `language` with `formatter`, or with none.
-    #[allow(dead_code, reason = "embedding API, used by library consumers")]
     pub fn set(&mut self, language: LanguageName, formatter: Option<Formatter>) -> &mut Self {
         self.formatters[language] = formatter;
         self
@@ -83,7 +89,9 @@ impl Formatting {
 ///
 /// Each constructor carries its tool's invocation. The program-running ones
 /// read the source on stdin and write the result to stdout, and must be
-/// installed where the edit runs; a missing one fails the edit.
+/// installed where the edit runs; a missing one fails the edit. Parsing a
+/// constructor's name (`"rustfmt"`, `"ruff"`, `"biome"` or `"taplo"`) gives
+/// that formatter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatter {
     kind: Kind,
@@ -142,6 +150,21 @@ impl Formatter {
     }
 }
 
+impl FromStr for Formatter {
+    type Err = anyhow::Error;
+
+    /// The formatter whose constructor is `name`.
+    fn from_str(name: &str) -> Result<Self> {
+        Ok(match name {
+            "rustfmt" => Self::rustfmt(),
+            "ruff" => Self::ruff(),
+            "biome" => Self::biome(),
+            "taplo" => Self::taplo(),
+            _ => bail!("unknown formatter {name:?}; expected rustfmt, ruff, biome or taplo"),
+        })
+    }
+}
+
 fn biome_args(source: &str, path: &Path) -> Vec<String> {
     let mut args = vec![
         String::from("format"),
@@ -167,9 +190,15 @@ mod tests {
         LanguageName::value_variants().iter().copied()
     }
 
+    /// Running a program is configuration: nothing is formatted unless asked.
     #[test]
-    fn the_default_is_the_built_in_formatter_for_each_language() {
-        let formatting = Formatting::default();
+    fn the_default_formats_nothing() {
+        assert_eq!(Formatting::default(), Formatting::off());
+    }
+
+    #[test]
+    fn built_in_is_the_built_in_formatter_for_each_language() {
+        let formatting = Formatting::built_in();
         for language in every_language() {
             let expected = match language {
                 LanguageName::Rust => Some(Formatter::rustfmt()),
@@ -200,12 +229,12 @@ mod tests {
 
     #[test]
     fn without_clears_one_language_and_leaves_the_rest() {
-        let formatting = Formatting::default().without(LanguageName::Python);
+        let formatting = Formatting::built_in().without(LanguageName::Python);
         assert_eq!(formatting.formatter(LanguageName::Python), None);
         for language in every_language().filter(|language| *language != LanguageName::Python) {
             assert_eq!(
                 formatting.formatter(language),
-                Formatting::default().formatter(language),
+                Formatting::built_in().formatter(language),
                 "{language}"
             );
         }
@@ -248,6 +277,29 @@ mod tests {
             formatting,
             Formatting::off().with(LanguageName::Json, Formatter::biome())
         );
+    }
+
+    #[test]
+    fn a_formatter_parses_from_its_constructors_name() {
+        for (name, formatter) in [
+            ("rustfmt", Formatter::rustfmt()),
+            ("ruff", Formatter::ruff()),
+            ("biome", Formatter::biome()),
+            ("taplo", Formatter::taplo()),
+        ] {
+            assert_eq!(name.parse::<Formatter>().unwrap(), formatter, "{name}");
+        }
+    }
+
+    #[test]
+    fn an_unknown_formatter_name_is_an_error_naming_the_known_ones() {
+        for name in ["prettier", "Rustfmt", "rustfmt ", ""] {
+            let error = name.parse::<Formatter>().unwrap_err().to_string();
+            assert_eq!(
+                error,
+                format!("unknown formatter {name:?}; expected rustfmt, ruff, biome or taplo")
+            );
+        }
     }
 
     #[test]

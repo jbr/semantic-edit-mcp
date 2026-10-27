@@ -556,8 +556,10 @@ fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
     layers
 }
 
-/// The formatting a test runs with: the default, overridden by each of its
-/// [`FORMATTING_FILE`]s in turn, outermost first.
+/// The formatting a test runs with: the default, which is off, overridden by
+/// each of its [`FORMATTING_FILE`]s in turn, outermost first. The one at the
+/// snapshot root turns on [`Formatting::built_in`], so a test is formatted
+/// unless a file nearer to it says otherwise.
 ///
 /// A formatting file is a JSON object from a language (named as `args.json`
 /// names one: `rust`, `typescript`, …) or `"*"`, every language, to a
@@ -604,18 +606,11 @@ fn parse_language(name: &str) -> Result<LanguageName> {
 }
 
 fn parse_formatter(value: &Value) -> Result<Option<Formatter>> {
-    let name = match value {
-        Value::Null => return Ok(None),
-        Value::String(name) => name,
+    match value {
+        Value::Null => Ok(None),
+        Value::String(name) => Ok(Some(name.parse()?)),
         other => bail!("expected a formatter name or null, found {other}"),
-    };
-    Ok(Some(match name.as_str() {
-        "rustfmt" => Formatter::rustfmt(),
-        "ruff" => Formatter::ruff(),
-        "biome" => Formatter::biome(),
-        "taplo" => Formatter::taplo(),
-        _ => bail!("unknown formatter {name:?}; expected rustfmt, ruff, biome, taplo or null"),
-    }))
+    }
 }
 
 #[cfg(test)]
@@ -664,10 +659,26 @@ mod tests {
         Ok(formatting)
     }
 
+    fn root_formatting_file() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/snapshots")
+            .join(FORMATTING_FILE)
+    }
+
     #[test]
-    fn no_layers_is_the_default() {
-        assert_eq!(layered(&[]).unwrap(), Formatting::default());
-        assert_eq!(formatting_for(&[]).unwrap(), Formatting::default());
+    fn no_layers_is_formatting_off() {
+        assert_eq!(layered(&[]).unwrap(), Formatting::off());
+        assert_eq!(formatting_for(&[]).unwrap(), Formatting::off());
+    }
+
+    /// The tree's expectations were written with every built-in formatter on, so
+    /// the root turns exactly that set on.
+    #[test]
+    fn the_root_layer_is_the_built_in_set() {
+        assert_eq!(
+            formatting_for(&[root_formatting_file()]).unwrap(),
+            Formatting::built_in()
+        );
     }
 
     #[test]
@@ -677,9 +688,10 @@ mod tests {
 
     #[test]
     fn a_language_null_turns_just_that_one_off() {
+        let root = fs::read_to_string(root_formatting_file()).unwrap();
         assert_eq!(
-            layered(&[r#"{"rust": null}"#]).unwrap(),
-            Formatting::default().without(LanguageName::Rust)
+            layered(&[&root, r#"{"rust": null}"#]).unwrap(),
+            Formatting::built_in().without(LanguageName::Rust)
         );
     }
 

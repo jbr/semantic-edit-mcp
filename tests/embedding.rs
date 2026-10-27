@@ -124,3 +124,85 @@ async fn formatting_settings_reach_later_edits() {
     assert_eq!(unformatted, "fn main() {\n    let a=2;\n}\n");
     assert_eq!(formatted, "fn main() {\n    let a = 3;\n}\n");
 }
+
+/// Tools built without formatting settings run no formatter: an edit is written
+/// as laid out, at the indentation of the code it replaces, with its own spacing
+/// kept and nothing else in the file touched.
+#[tokio::test]
+async fn by_default_an_edit_is_written_as_laid_out() {
+    let dir = std::env::temp_dir().join(format!("sem-edit-unformatted-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("demo.rs");
+    let original = "struct S;\n\nimpl S {\n    fn a(&self) -> u8 {\n        1\n    }\n}\n\nfn  untouched( ) {}\n";
+    std::fs::write(&file, original).unwrap();
+
+    let state = SemanticEditTools::new(dir.clone()).unwrap();
+    assert_eq!(*state.formatting(), Formatting::off());
+
+    let response = tool(serde_json::json!({
+        "name": "edit",
+        "arguments": {
+            "file_path": "demo.rs",
+            "operation": "replace",
+            "anchor": "fn a(&self) -> u8 {\n        1\n    }",
+            // A bare first line, and continuation lines at the file's columns.
+            "content": "fn a(&self) -> u8 {\n        let x=2;\n        x\n    }",
+        }
+    }))
+    .call_to_text(state.clone(), RequestContext::default())
+    .await
+    .unwrap();
+    let edited = std::fs::read_to_string(&file).unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(
+        edited,
+        "struct S;\n\nimpl S {\n    fn a(&self) -> u8 {\n        let x=2;\n        x\n    }\n}\n\nfn  untouched( ) {}\n"
+    );
+    assert!(response.contains("no formatter is run"), "{response}");
+}
+
+/// [`Formatting::built_in`] is each language's built-in formatter: taplo for
+/// TOML, in-process, and rustfmt for Rust.
+#[tokio::test]
+async fn built_in_formatting_formats_edits() {
+    let dir = std::env::temp_dir().join(format!("sem-edit-built-in-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("demo.toml"), "[package]\nname = \"demo\"\n").unwrap();
+    std::fs::write(dir.join("demo.rs"), "fn main() {\n    let a = 1;\n}\n").unwrap();
+
+    let state = SemanticEditTools::new(dir.clone())
+        .unwrap()
+        .with_formatting(Formatting::built_in());
+    for (file_path, anchor, content) in [
+        (
+            "demo.toml",
+            "name = \"demo\"",
+            "name=\"demo\"\nversion=\"0.1.0\"",
+        ),
+        ("demo.rs", "let a = 1;", "let a=2;"),
+    ] {
+        let response = tool(serde_json::json!({
+            "name": "edit",
+            "arguments": {
+                "file_path": file_path,
+                "operation": "replace",
+                "anchor": anchor,
+                "content": content,
+            }
+        }))
+        .call_to_text(state.clone(), RequestContext::default())
+        .await
+        .unwrap();
+        assert!(
+            response.contains("applies a consistent formatting style"),
+            "{response}"
+        );
+    }
+    let toml = std::fs::read_to_string(dir.join("demo.toml")).unwrap();
+    let rust = std::fs::read_to_string(dir.join("demo.rs")).unwrap();
+
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(toml, "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n");
+    assert_eq!(rust, "fn main() {\n    let a = 2;\n}\n");
+}

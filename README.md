@@ -11,19 +11,44 @@
 
 A Model Context Protocol server for AST-aware code editing
 
-## Supported Languages and Important Language Notes
+## Supported Languages
 
 * Rust
-  - Must have `rustfmt` available on the `PATH`
-  - Currently assumes edition 2024 for formatting, eventually this will be determined from context
 * Python
-  - Must have [`ruff`](https://docs.astral.sh/ruff/) available on the `PATH`
-* JavaScript/TypeScript/JSON/JSX/TSX
-  - Must have [`biome`](https://biomejs.dev/) available on the `PATH`
+* JavaScript, TypeScript, JSX, TSX and JSON
 * TOML
-  - No external dependencies, taplo formatting included
-* Plaintext / markdown / default editor
-  - No external dependencies
+* Markdown, plain text and anything else, edited as text
+
+None of them needs anything installed: edits are laid out and validated
+in-process. Formatting is optional, and off unless you turn it on.
+
+## Formatting
+
+By default an edit is written as given, at the indentation of the code it
+replaces or goes next to, and nothing else in the file changes. To have edited
+files reformatted, pass `--format`, before or after the subcommand. It works for
+`serve` and for the tool subcommands, and can be repeated:
+
+```bash
+$ semantic-edit-mcp serve --format built-in                       # every built-in formatter
+$ semantic-edit-mcp serve --format rust=rustfmt                   # Rust only
+$ semantic-edit-mcp serve --format rust=rustfmt --format toml=taplo
+```
+
+`LANGUAGE=FORMATTER` formats one language's files, and `built-in` formats each
+language with its built-in formatter. Settings apply in turn, so a later one for
+a language replaces an earlier one. A formatter reformats the whole file after
+each edit, and an edit to valid code that the formatter fails on is rejected,
+leaving the file untouched. The built-in formatters:
+
+| Formatter | Formats | Needs |
+|---|---|---|
+| `rustfmt` | Rust, at the edition the nearest `Cargo.toml` declares (2024 when none does) | `rustfmt` on the `PATH` |
+| `ruff` | Python | [`ruff`](https://docs.astral.sh/ruff/) on the `PATH` |
+| `biome` | JavaScript, JSX, TypeScript, TSX and JSON | [`biome`](https://biomejs.dev/) on the `PATH` |
+| `taplo` | TOML | nothing: it runs in-process |
+
+Markdown and plain text have no formatter.
 
 ## Tools
 ```
@@ -34,12 +59,16 @@ A Model Context Protocol server for AST-aware code editing
 ```
 
 Accepted edits persist immediately. For syntactically valid code, an edit must
-still parse and pass the formatter; otherwise the file is left untouched. A
-source that already has syntax errors can be repaired progressively: anchor
-edits use textual ranges, still-invalid results are written without formatting,
-and the response shows all remaining syntax-error regions, even outside the
-diff. Once syntax is restored, the normal validity guard resumes. Formatter
-failures during repair are reported without discarding the edit.
+leave it valid, and pass the formatter when one is configured; otherwise the
+file is left untouched. For Rust, Python and TOML, valid means passing a check
+stricter than the syntax tree: a full Rust parse, Python's indentation rules,
+and TOML's rule against defining a key twice. A file that already fails that
+check stays editable, and while it fails, each edit's response says the check
+was off. A source that already has syntax errors can be repaired progressively:
+anchor edits use textual ranges, still-invalid results are written without
+formatting, and the response shows all remaining syntax-error regions, even
+outside the diff. Once syntax is restored, the normal validity guard resumes.
+Formatter failures during repair are reported without discarding the edit.
 
 Review the returned diff: if the edit landed somewhere other than intended,
 `retarget-edit` moves it and `undo-edit` reverts it. Both take the file path;
@@ -77,6 +106,9 @@ Add this to your MCP configuration JSON file:
   }
 }
 ```
+
+To reformat edited files with the built-in formatters, make the arguments
+`["serve", "--format", "built-in"]`.
 
 
 ## License
