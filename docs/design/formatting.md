@@ -120,8 +120,10 @@ Unlike formatting, validation steers: it decides which candidate wins.
 
 Formatting is off unless the embedder configures a formatter for the language.
 
-- **Configured with builder types, not a config schema.** The embedder decides how its users
-  spell the setting.
+- **Configured with builder types that also derive `Deserialize` and a schemars
+  `JsonSchema`.** An embedder decides where the settings sit in its own configuration and
+  inlines their schema into its own; efference does this for its config schema. The settings'
+  shape and schema are defined here.
   - Named constructors, for example `Formatter::rustfmt()`, carry each tool's correct
     invocation.
   - A command formatter runs anything that reads the source on stdin and writes the result to
