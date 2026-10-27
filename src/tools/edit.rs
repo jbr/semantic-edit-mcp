@@ -14,21 +14,23 @@ use serde::{Deserialize, Serialize};
 /// Apply an edit to a file and see the resulting diff
 ///
 /// Find the `anchor` text in the file and apply `operation` at that location.
-/// Every edit is validated before it is written: the result must still parse
-/// in the file's language and pass its formatter, or the edit is rejected and
-/// the file is untouched. A valid edit is written to disk immediately —
-/// review the returned diff, and if the edit landed somewhere other than
+/// Edits to syntactically valid code must still parse and pass the formatter,
+/// or they are rejected without changing the file. If the source already has
+/// syntax errors, edits are accepted while it is being repaired: remaining
+/// error regions are reported, and formatting is skipped until syntax is valid.
+/// Accepted edits are written immediately. Review the returned diff, and if
+/// the edit landed somewhere other than
 /// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
 /// reverts it.
 ///
-/// The whole file is reformatted with the language's standard formatter, so
-/// the diff may include formatting fixes beyond the edit itself.
+/// When formatting runs, the whole file is reformatted with the language's
+/// standard formatter, so the diff may include fixes beyond the edit itself.
+/// Markdown/plain text is not reformatted.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "edit")]
 #[group(skip)]
 pub struct Edit {
-    /// Path to the source file.
-    /// If a session has been configured, this can be a relative path to the session root.
+    /// Path to the source file: absolute, or relative to the server's root directory.
     pub file_path: String,
 
     /// Optional language hint. If not provided, language will be detected from file extension.
@@ -46,6 +48,11 @@ pub struct Edit {
     /// For `replace`, this takes the place of the anchored code; omit it to
     /// delete the anchored code instead. For inserts, include any blank lines
     /// you want between the new code and its neighbors.
+    ///
+    /// Markdown/plain text has no formatter. For a replacement starting at
+    /// the first text on a line, explicit leading spaces/tabs in content
+    /// replace that line's indentation; without them, existing indentation
+    /// stays. Continuation lines keep exactly the whitespace you supply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }
@@ -64,7 +71,7 @@ impl ToolMeta for Edit {
             // Re-sending the same edit is guarded against, but an insert
             // repeated after another edit intervenes does duplicate content.
             idempotent_hint: Some(false),
-            // Only touches files in the session's working directory.
+            // Only touches the file it names.
             open_world_hint: Some(false),
             ..Default::default()
         })
@@ -79,8 +86,9 @@ impl ToolMeta for Edit {
                     selector: Selector {
                         operation: Operation::Replace,
                         item: None,
-                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into()),
+                        anchor: Some(
+                            "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}".into(),
+                        ),
                     },
                     content: Some(
                         "fn greet(name: &str) {\n    println!(\"Hi there, {name}!\");\n}"
@@ -96,8 +104,9 @@ impl ToolMeta for Edit {
                     selector: Selector {
                         operation: Operation::InsertAfter,
                         item: None,
-                        anchor: Some("fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}"
-                            .into()),
+                        anchor: Some(
+                            "fn greet(name: &str) {\n    println!(\"Hello, {name}\");\n}".into(),
+                        ),
                     },
                     content: Some(
                         "\n\nfn farewell(name: &str) {\n    println!(\"Goodbye, {name}\");\n}"
@@ -211,7 +220,13 @@ fn duplicate_of_last_edit(
 impl Tool<SemanticEditTools> for Edit {
     type Output = String;
 
-    fn execute(self, state: &mut SemanticEditTools, _context: &RequestContext) -> Result<String> {
+    async fn execute(self, state: SemanticEditTools, _context: RequestContext) -> Result<String> {
+        state.unblock(move |state| self.run(state)).await
+    }
+}
+
+impl Edit {
+    pub(crate) fn run(self, state: &SemanticEditTools) -> Result<String> {
         let Self {
             file_path,
             selector,
@@ -219,12 +234,13 @@ impl Tool<SemanticEditTools> for Edit {
             language,
         } = self;
 
-        let file_path = state.resolve_path(&file_path, None)?;
-        let education = state.education(None)?;
+        let file_path = state.resolve_path(&file_path)?;
+        let _write_lock = state.write_lock();
+        let education = state.education();
 
         let owns_persistence = state.owns_persistence();
         let duplicate = duplicate_of_last_edit(
-            state.last_edit(None)?,
+            state.latest_edit(&file_path).as_ref(),
             &file_path,
             &selector,
             content.as_deref(),
@@ -236,10 +252,12 @@ impl Tool<SemanticEditTools> for Edit {
             // on. The `MovedReplace` case below is the opposite — the content
             // is not where this call asked for it — so that one errors.
             Some(DuplicateOfLastEdit::ExactResend) => {
-                return Ok("This exact edit was already applied — the file already contains \
+                return Ok(
+                    "This exact edit was already applied — the file already contains \
 this change, so it was not applied again. If the previous application was unintended, \
 `undo_edit` reverts it."
-                    .to_string());
+                        .to_string(),
+                );
             }
             Some(DuplicateOfLastEdit::MovedReplace) => {
                 bail!(
@@ -301,14 +319,14 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
             "Applied {} — the file has been updated.\n{message}",
             applied.operation().selector().operation_name()
         );
-        state.set_last_edit(None, Some(applied))?;
-        state.update_education(None, |education| education.record_success())?;
+        state.record_edit(applied);
+        state.update_education(|education| education.record_success());
 
         if matches!(duplicate, Some(DuplicateOfLastEdit::DuplicatedInsert)) {
             message.push_str("\n\n");
             message.push_str(education::duplicate_insert_warning());
         } else if let Some(short) = verified_shorthand {
-            state.update_education(None, |education| education.record_prefix_tip_emitted())?;
+            state.update_education(|education| education.record_prefix_tip_emitted());
             message.push_str("\n\n");
             message.push_str(&education::prefix_tip(&short));
         }

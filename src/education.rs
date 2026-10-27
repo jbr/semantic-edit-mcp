@@ -1,13 +1,14 @@
-//! Progressive within-session teaching.
+//! Progressive teaching, per instance of the tools.
 //!
 //! The tool's static docs deliberately describe only the minimal contract:
 //! anchor the complete text of the code being edited, old_string style. The
 //! prefix-anchor shorthand is taught here instead, as `===TIP===` sections
-//! appended to responses — emitted only after a session has demonstrated
+//! appended to responses — emitted only after the caller has demonstrated
 //! success with the basics, and only while the behavior the tip teaches
-//! remains unadopted. Every session starts untaught: there is no
-//! cross-session proficiency tracking, so short sessions that never need the
-//! shorthand never pay for learning it.
+//! remains unadopted. Every instance starts untaught — a stdio process, or an
+//! embedder's per-agent tools — so short runs that never need the shorthand
+//! never pay for learning it. MCP has no sessions, so an instance is the
+//! narrowest scope there is.
 //!
 //! Tips terminate *behaviorally*, not by shown-once bookkeeping: a harness may
 //! filter tool results before the model sees them (efference triages every
@@ -25,12 +26,11 @@ use serde::{Deserialize, Serialize};
 /// How many successful edits before the first prefix-shorthand tip, and the
 /// minimum number of further successes between repeat emissions.
 const PREFIX_TIP_CADENCE: u32 = 5;
-/// Hard cap on prefix-shorthand tip emissions per session.
+/// Hard cap on prefix-shorthand tip emissions per instance.
 const PREFIX_TIP_MAX_EMISSIONS: u32 = 3;
 
-/// Per-session record of demonstrated proficiency and tips already emitted.
-/// Lives in the private session store and is reset by `set_working_directory`,
-/// the closest available proxy for "a new session began".
+/// Record of demonstrated proficiency and tips already emitted, held in the
+/// tools' [`ToolState`](crate::state::ToolState).
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct EducationState {
     successful_edits: u32,

@@ -3,9 +3,9 @@
 //! The binary (`main.rs`) remains the standalone MCP stdio server. This lib
 //! re-exposes the same modules so a host can run a tool directly via the
 //! generated [`tools::Tools`] dispatcher + [`state::SemanticEditTools`], without
-//! `mcplease::run`'s stdio/clap/logger ownership. Use
-//! [`SemanticEditTools::embedded`] to construct with in-memory session stores so
-//! embedding never touches the shared `~/.ai-tools` store.
+//! the binary's stdio, clap, or logger. Construct one [`SemanticEditTools::new`]
+//! per agent, rooted at its directory; tool bodies run on tokio's blocking
+//! pool, so the host must be on a tokio runtime.
 //!
 //! Additive only: `main.rs` and `tests` keep declaring their own modules, so the
 //! binary and its tests are unchanged. Deleting this file reverts the crate to

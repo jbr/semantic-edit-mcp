@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Warning: formatting failed; the edit was accepted without formatting because the source already had syntax errors.
+
+error: Failed to parse at 3:1: Unexpected indentation
+
+
+===DIFF===
+@@ -1,2 +1,3 @@
+-def f(:
+-    pass
++def f():
++    x = 1
++        return x

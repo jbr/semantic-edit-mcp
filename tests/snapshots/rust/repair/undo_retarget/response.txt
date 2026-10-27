@@ -1,0 +1,34 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.
+
+===SYNTAX ERRORS===
+   1   ⎸fn alpha() { let a = 1; }
+   2 ->⎸fn beta() { let b = ; }
+
+===DIFF===
+@@ -1,2 +1,2 @@
+-fn alpha() { let a = ; }
++fn alpha() { let a = 1; }
+ fn beta() { let b = ; }
+=== snapshot test tool call: retarget_edit ===
+Retargeted replace: the previous placement was reverted and the edit was re-applied at the new anchor. The diff is relative to the file from before the original edit.
+Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.
+
+===SYNTAX ERRORS===
+   1 ->⎸fn alpha() { let a = ; }
+   2   ⎸fn beta() { let a = 1; }
+
+===DIFF===
+@@ -1,2 +1,2 @@
+ fn alpha() { let a = ; }
+-fn beta() { let b = ; }
++fn beta() { let a = 1; }
+=== snapshot test tool call: undo_edit ===
+Reverted the most recent edit to input.rs (replace at "let b = ;") — it has been restored to its prior content.
+
+===DIFF===
+@@ -1,2 +1,2 @@
+ fn alpha() { let a = ; }
+-fn beta() { let a = 1; }
++fn beta() { let b = ; }

@@ -228,7 +228,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             return valid;
         }
 
-        if self.would_merge_identifiers() {
+        if !self.editor.starts_with_syntax_errors() && self.would_merge_identifiers() {
             self.valid = Some(false);
             self.message =
                 Some("This placement would fuse the content onto an adjacent identifier".into());
@@ -280,6 +280,17 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             return false;
         }
 
+        // Recovery-tree syntax is advisory while the original source is broken.
+        // Formatters generally refuse incomplete code, so preserve it verbatim
+        // until syntax is restored; Editor::apply reports every remaining region.
+        if self.editor.starts_with_syntax_errors()
+            && Editor::syntax_errors(self.editor.language(), &self.tree, &output).is_some()
+        {
+            self.output = Some(output);
+            self.valid = Some(true);
+            return true;
+        }
+
         let valid = if let Some(message) = self.validate(&output) {
             self.message = Some(message);
             false
@@ -292,12 +303,29 @@ impl<'editor, 'language> Edit<'editor, 'language> {
 
             match self.editor.format_code(&output) {
                 Ok(formatted) => {
-                    self.output = Some(formatted);
-                    true
+                    let Some(tree) = self.editor.parse(&formatted, None) else {
+                        self.message = Some(
+                            "Unable to parse formatter output; the file was not modified.".into(),
+                        );
+                        return false;
+                    };
+                    self.tree = tree;
+                    if let Some(message) = self.validate(&formatted) {
+                        self.message = Some(message);
+                        false
+                    } else {
+                        self.output = Some(formatted);
+                        true
+                    }
                 }
                 Err(err) => {
                     self.message = Some(err);
-                    false
+                    if self.editor.starts_with_syntax_errors() {
+                        self.output = Some(output);
+                        true
+                    } else {
+                        false
+                    }
                 }
             }
         };

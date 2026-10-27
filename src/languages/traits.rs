@@ -12,7 +12,16 @@ pub trait LanguageEditor: Send + Sync {
     fn collect_errors(&self, tree: &Tree, _content: &str) -> Vec<usize> {
         collect_errors(tree)
             .into_iter()
-            .map(|node| node.start_position().row)
+            .flat_map(|node| {
+                let start = node.start_position().row;
+                let end = node.end_position();
+                let last = if end.column == 0 && end.row > start {
+                    end.row - 1
+                } else {
+                    end.row
+                };
+                start..=last
+            })
             .collect()
     }
 

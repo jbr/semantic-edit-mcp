@@ -52,7 +52,11 @@ impl ArgsDotJson {
         };
 
         for tool in &mut tool_calls {
-            if tool["name"] == "edit" {
+            // Every tool that names a file names the fixture's input.
+            if matches!(
+                tool["name"].as_str(),
+                Some("edit" | "undo_edit" | "retarget_edit")
+            ) {
                 if let Some(input_path) = &input_path {
                     tool.get_mut("arguments")
                         .unwrap()
@@ -82,7 +86,7 @@ impl ArgsDotJson {
 
 impl SnapshotRunner {
     pub fn new(update_mode: bool, test_filter: Option<String>) -> Result<Self> {
-        let state = SemanticEditTools::new(None)?;
+        let state = SemanticEditTools::new(PathBuf::from("."))?;
         Ok(Self {
             update_mode,
             state,
@@ -91,9 +95,7 @@ impl SnapshotRunner {
     }
 
     fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
-        self.state = SemanticEditTools::new(None)?
-            .with_default_session_id("test")
-            .with_working_directory(base_path, None)?;
+        self.state = SemanticEditTools::new(base_path)?;
         Ok(())
     }
 
@@ -359,6 +361,8 @@ impl SnapshotRunner {
             output: None,
         };
 
+        // Tool bodies run on tokio's blocking pool.
+        let runtime = tokio::runtime::Builder::new_current_thread().build()?;
         for tool in tool_calls {
             snapshot_execution_result
                 .response
@@ -366,7 +370,8 @@ impl SnapshotRunner {
             snapshot_execution_result.response.push_str(tool.name());
             snapshot_execution_result.response.push_str(" ===\n");
 
-            match tool.call_to_text(&mut self.state, &RequestContext::default()) {
+            match runtime.block_on(tool.call_to_text(self.state.clone(), RequestContext::default()))
+            {
                 Ok(response) => snapshot_execution_result.response.push_str(&response),
                 // Marked, so the snapshot records *whether* the text came back as
                 // an error as well as what it said. Without the marker a rejection

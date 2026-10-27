@@ -71,6 +71,38 @@ impl<'editor, 'language> EditIterator<'editor, 'language> {
         }
     }
 
+    /// Textual placements for a source whose recovery tree cannot safely define
+    /// the anchor's extent. Named items still use the normal resolver.
+    pub(crate) fn find_text_edits(&self) -> Result<Vec<Edit<'editor, 'language>>, String> {
+        self.selector.validate()?;
+        let Some(anchor) = self.selector.anchor() else {
+            return self.find_edits();
+        };
+        Ok(find_positions(self.source_code, anchor.trim())?
+            .into_iter()
+            .map(|(start, end)| {
+                let position = match self.selector.operation {
+                    Operation::Replace => EditPosition {
+                        start_byte: start,
+                        end_byte: Some(end),
+                    },
+                    Operation::InsertBefore => EditPosition {
+                        start_byte: start,
+                        end_byte: None,
+                    },
+                    Operation::InsertAfter => EditPosition {
+                        start_byte: end,
+                        end_byte: None,
+                    },
+                };
+                Edit::new(self.editor, position)
+                    .with_content(self.content.clone())
+                    .with_anchor_hit((start, end))
+                    .with_annotation("textual repair")
+            })
+            .collect())
+    }
+
     fn ensure_text_ranges_loaded(&mut self) -> Result<(), String> {
         if self.edits.is_none() {
             self.edits = Some(self.find_edits()?);

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "let a = ;",
+      "content": "let a = 1;"
+    }
+  },
+  {
+    "name": "retarget_edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "let b = ;"
+    }
+  },
+  {
+    "name": "undo_edit",
+    "arguments": {}
+  }
+]

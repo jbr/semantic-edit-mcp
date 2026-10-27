@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.
+
+===SYNTAX ERRORS===
+   1 ->⎸fn broken() { let a = ; }
+   2   ⎸fn renamed() {}
+Item target: function `intact` at lines 2-2, no leading attributes or doc comments. Replaced function `intact`.
+
+===DIFF===
+@@ -1,2 +1,2 @@
+ fn broken() { let a = ; }
+-fn intact() {}
++fn renamed() {}

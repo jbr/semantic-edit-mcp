@@ -27,16 +27,35 @@ A Model Context Protocol server for AST-aware code editing
 
 ## Tools
 ```
-  edit                   Apply a validated edit to a file and see the resulting diff
+  edit                   Apply an edit to a file and see the resulting diff
   retarget-edit          Move the most recent edit to a corrected anchor without resending its content
   undo-edit              Revert the most recent edit, restoring the file's prior content
   find-anchor            Show every location an anchor matches in a file, with context
-  set-working-directory  Set the working context path for a session
 ```
 
-Edits persist immediately when they validate (parse + formatter). The returned
-diff is for review-after-the-fact: if the edit landed somewhere other than
-intended, `retarget-edit` moves it and `undo-edit` (single-level) reverts it.
+Accepted edits persist immediately. For syntactically valid code, an edit must
+still parse and pass the formatter; otherwise the file is left untouched. A
+source that already has syntax errors can be repaired progressively: anchor
+edits use textual ranges, still-invalid results are written without formatting,
+and the response shows all remaining syntax-error regions, even outside the
+diff. Once syntax is restored, the normal validity guard resumes. Formatter
+failures during repair are reported without discarding the edit.
+
+Review the returned diff: if the edit landed somewhere other than intended,
+`retarget-edit` moves it and `undo-edit` reverts it. Both take the file path;
+repeated undo calls walk back that file's retained edits (up to 32 edits are
+held across all files). Paths are absolute or relative to the server's startup
+directory, configurable with `--root`.
+
+## Markdown and plain-text whitespace
+
+These files are not reformatted. When replacing the first text on an indented
+line, content beginning with spaces or tabs supplies the new indentation rather
+than adding to the old indentation. Unindented content keeps the existing line
+indentation. Continuation lines are inserted exactly as supplied; no list or
+code-block nesting is inferred. To remove indentation entirely, include text
+from the preceding line and the intervening newline in a larger replacement.
+All whitespace-only changes remain visible in the returned diff.
 
 ## Installation
 

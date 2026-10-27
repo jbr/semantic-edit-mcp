@@ -11,7 +11,7 @@ Note: the editor applies a consistent formatting style to the entire file, inclu
 
  pub fn beta(x: i32) -> i32 {
 === snapshot test tool call: undo_edit ===
-Reverted the last edit (replace at "pub fn alpha(x: i32) -> i32 {") — input.rs has been restored to its prior content.
+Reverted the most recent edit to input.rs (replace at "pub fn alpha(x: i32) -> i32 {") — it has been restored to its prior content.
 
 ===DIFF===
 @@ -1,5 +1,5 @@

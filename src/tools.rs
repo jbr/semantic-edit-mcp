@@ -5,10 +5,5 @@ mcplease::tools!(
     (Edit, edit, "edit"),
     (FindAnchor, find_anchor, "find_anchor"),
     (RetargetEdit, retarget_edit, "retarget_edit"),
-    (UndoEdit, undo_edit, "undo_edit"),
-    (
-        SetWorkingDirectory,
-        set_working_directory,
-        "set_working_directory"
-    )
+    (UndoEdit, undo_edit, "undo_edit")
 );

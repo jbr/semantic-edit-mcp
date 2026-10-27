@@ -86,18 +86,15 @@ impl<'language> Editor<'language> {
         })
     }
 
-    fn prevalidate(&self) -> Option<String> {
-        // Only gate *entry* on genuine syntax errors (ERROR/MISSING nodes). The
-        // heuristic context-validation queries describe whether the *result* of an
-        // edit is well-formed, not the pre-existing file — running them here would
-        // let any pre-existing flagged-but-valid construct (e.g. a module-level
-        // `static mut`) block every edit to the file.
-        Self::syntax_errors(self.language, &self.tree, &self.source_code).map(|errors| {
-            format!(
-                "Syntax error found prior to edit, not attempting.
-Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
-            )
-        })
+    /// A broken source is editable without a validity gate until it parses
+    /// cleanly again. The next call observes that new baseline and restores
+    /// the normal guard against making valid code invalid.
+    fn starts_with_syntax_errors(&self) -> bool {
+        !self
+            .language
+            .editor()
+            .collect_errors(&self.tree, &self.source_code)
+            .is_empty()
     }
 
     /// Validate a candidate result tree, relative to the file being edited.
@@ -109,6 +106,9 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     /// heuristic match anywhere in a file makes the whole file uneditable — and
     /// the resulting error points at code the caller never touched.
     fn validate_tree(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
+        if self.starts_with_syntax_errors() {
+            return None;
+        }
         if let Some(errors) = Self::syntax_errors(self.language, tree, content) {
             return Some(ValidationFailure {
                 message: errors,
@@ -171,10 +171,9 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
         None
     }
 
-    /// Render a context-annotated report of tree-sitter ERROR/MISSING nodes, or
-    /// `None` if the tree parses cleanly. This is the pure-syntax half of
-    /// [`validate`](Self::validate) — used by [`prevalidate`](Self::prevalidate) to
-    /// gate edits without invoking the heuristic context queries.
+    /// Render all tree-sitter ERROR/MISSING regions with context, or `None`
+    /// if the tree parses cleanly. Used both for refusals from valid sources
+    /// and advisory diagnostics while repairing broken sources.
     fn syntax_errors(language: &LanguageCommon, tree: &Tree, content: &str) -> Option<String> {
         let errors = language.editor().collect_errors(tree, content);
         if errors.is_empty() {
@@ -209,17 +208,17 @@ Suggestion: Pause and show your human collaborator this context:\n\n{errors}"
     }
 
     fn build_edits<'editor>(&'editor self) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        self.language.editor().build_edits(self)
+        if self.starts_with_syntax_errors() {
+            EditIterator::new(self).find_text_edits()
+        } else {
+            self.language.editor().build_edits(self)
+        }
     }
 
     /// Returns `(message, output, ambiguity_note)` — `output` is `Some` only when
     /// a candidate applied cleanly, and `ambiguity_note` is `Some` only when the
     /// winning candidate's anchor also matched elsewhere in the file.
     fn edit(&mut self) -> Result<(String, Option<String>, Option<String>)> {
-        if let Some(prevalidation_failure) = self.prevalidate() {
-            return Ok((prevalidation_failure, None, None));
-        };
-
         let mut edits = match self.build_edits() {
             Ok(all_edits) => all_edits,
             Err(message) => return Ok((message, None, None)),
@@ -397,10 +396,30 @@ decorations, which stay attached to it.",
     pub fn apply(mut self) -> Result<(String, Option<AppliedEdit>)> {
         let (message, output, note) = self.edit()?;
         if let Some(output) = output {
-            let (diff, elided) = focused_diff(&self.source_code, &output);
-            let mut report = String::from(
-                "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
-            );
+            let plain_text = self.language.name() == crate::languages::LanguageName::Other;
+            let (diff, elided) = if plain_text {
+                (clean_diff(&self.source_code, &output), 0)
+            } else {
+                focused_diff(&self.source_code, &output)
+            };
+            let remaining_errors = self
+                .parse(&output, None)
+                .and_then(|tree| Self::syntax_errors(self.language, &tree, &output));
+            let mut report = if let Some(errors) = remaining_errors {
+                format!(
+                    "Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.\n\n{errors}"
+                )
+            } else if message.starts_with("Warning:") {
+                format!("{message}\n")
+            } else if plain_text {
+                String::from(
+                    "Note: plain-text edits preserve supplied whitespace; no formatter is run.\n",
+                )
+            } else {
+                String::from(
+                    "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
+                )
+            };
             if elided > 0 {
                 report.push_str(&format!(
                     "{elided} formatting-only hunk{} elsewhere in the file {} not shown \
@@ -520,14 +539,20 @@ with more of the target's own text until it is unique.",
             .editor()
             .format_code(source, &self.file_path)
             .map_err(|e| {
-                let diff = self.diff(source);
-                format!(
-                    "The formatter has encountered the following error making \
-                 that change, so the file has not been modified. The tool has \
-                 prevented what it believes to be an unsafe edit. Please try a \
-                 different edit.\n\n\
-                 {e}\n\n{diff}"
-                )
+                if self.starts_with_syntax_errors() {
+                    format!(
+                        "Warning: formatting failed; the edit was accepted without formatting \
+                     because the source already had syntax errors.\n\n{e}"
+                    )
+                } else {
+                    let diff = self.diff(source);
+                    format!(
+                        "The formatter has encountered the following error making \
+                     that change, so the file has not been modified. The tool has \
+                     prevented what it believes to be an unsafe edit. Please try a \
+                     different edit.\n\n{e}\n\n{diff}"
+                    )
+                }
             })
     }
 

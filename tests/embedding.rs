@@ -15,20 +15,20 @@ fn tool(json: serde_json::Value) -> Tools {
 /// A `commit_fn` set once must be invoked for *every* successful `edit`, not just
 /// the first. (Regression: the persist path used to `.take()` the closure, so the
 /// second and later persists silently bypassed the hook and wrote to disk instead.)
-#[test]
-fn commit_fn_persists_across_multiple_edits() {
+#[tokio::test]
+async fn commit_fn_persists_across_multiple_edits() {
     let dir = std::env::temp_dir().join(format!("sem-edit-embed-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("demo.rs");
     std::fs::write(&file, "fn main() {\n    println!(\"a\");\n}\n").unwrap();
 
-    let mut state = SemanticEditTools::embedded(dir.clone()).unwrap();
-
     let captured: Arc<Mutex<Vec<(PathBuf, String)>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = captured.clone();
-    state.set_commit_fn(Some(Box::new(move |path, content| {
-        sink.lock().unwrap().push((path, content));
-    })));
+    let state = SemanticEditTools::new(dir.clone())
+        .unwrap()
+        .with_commit_fn(Arc::new(move |path, content| {
+            sink.lock().unwrap().push((path, content));
+        }));
 
     for content in ["\n    println!(\"b\");", "\n    println!(\"c\");"] {
         tool(serde_json::json!({
@@ -40,7 +40,8 @@ fn commit_fn_persists_across_multiple_edits() {
                 "content": content,
             }
         }))
-        .call_to_text(&mut state, &RequestContext::default())
+        .call_to_text(state.clone(), RequestContext::default())
+        .await
         .unwrap();
     }
 
@@ -54,11 +55,11 @@ fn commit_fn_persists_across_multiple_edits() {
 
 /// Editing a file that doesn't exist must return a clean `Err` (with an actionable
 /// message), not panic — a panic in the embedded path would take down the host.
-#[test]
-fn missing_file_is_an_error_not_a_panic() {
+#[tokio::test]
+async fn missing_file_is_an_error_not_a_panic() {
     let dir = std::env::temp_dir().join(format!("sem-edit-missing-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let mut state = SemanticEditTools::embedded(dir.clone()).unwrap();
+    let state = SemanticEditTools::new(dir.clone()).unwrap();
 
     let result = tool(serde_json::json!({
         "name": "edit",
@@ -69,7 +70,8 @@ fn missing_file_is_an_error_not_a_panic() {
             "content": "fn main() {}",
         }
     }))
-    .call_to_text(&mut state, &RequestContext::default());
+    .call_to_text(state.clone(), RequestContext::default())
+    .await;
 
     std::fs::remove_dir_all(&dir).ok();
     let err = result.expect_err("editing a missing file should be an error");
