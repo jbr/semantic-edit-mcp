@@ -22,23 +22,30 @@ Most behavior is covered by data-driven snapshot tests under `tests/snapshots/`,
 
 ```bash
 TEST_FILTER=rust cargo test                    # run a category (prefix match)
-TEST_FILTER=rust::attributes cargo test        # run one test (exact, "::"-joined path)
+TEST_FILTER=rust::attributes cargo test        # run one test (its full "::"-joined path)
+TEST_FILTER=rust::repair cargo test            # run every test beneath a "::" path
 TEST_FILTER=json,rust cargo test               # multiple, comma-separated
 UPDATE_SNAPSHOTS=1 cargo test                  # regenerate all expected files
 UPDATE_SNAPSHOTS=1 TEST_FILTER=rust::attributes cargo test   # regenerate one
 ```
 
+A pattern without `::` is a plain prefix (`py` matches `python::…`). A `::` path matches the test with that name and every test beneath it, on `::` boundaries: `rust::repair` matches `rust::repair::insert` but not `rust::repairs::…`.
+
 When a snapshot fails, the summary prints the exact `TEST_FILTER=...` and `UPDATE_SNAPSHOTS=1 ...` commands to reproduce or accept it. Always review a diff before accepting it with `UPDATE_SNAPSHOTS=1` — the whole point of the suite is to catch unintended formatting/targeting changes.
+
+Tests run with the default formatting unless a `formatting.json` says otherwise. One in any directory under `tests/snapshots/` (a test's own directory included) applies to every test beneath it; nested files layer outermost first, each overriding the last. It maps a language, named as in `args.json` (`rust`, `typescript`, …), or `"*"` for every language, to a formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none; `"*"` applies before the languages beside it. `{"*": null}` is formatting off everywhere, `{"rust": null}` off for Rust alone. Everything under `tests/snapshots/unformatted/` runs with formatting off.
 
 ## External formatter dependencies
 
-Editing relies on language-native formatters being on `PATH`; an edit fails (and is reported as unsafe) if its formatter is missing or errors:
+Which formatter, if any, runs for each language is configuration: a `Formatting` (`src/formatting.rs`) set on `SemanticEditTools` with `with_formatting`, or replaced on a live instance with `set_formatting`. With no formatter for a language its edits are written as laid out. The default, which the standalone server always uses, relies on language-native formatters being on `PATH`; an edit fails (and is reported as unsafe) if its formatter is missing or errors:
 
-- **Rust** → `rustfmt` (currently hardcoded to `--edition 2024` in `src/languages/rust.rs`)
+- **Rust** → `rustfmt`, at the edition the nearest `Cargo.toml` declares (2024 when none does; `src/formatting/rustfmt.rs`)
 - **Python** → `ruff`
 - **JS / TS / JSX / TSX / JSON** → `biome`
-- **TOML** → none (uses the `taplo` crate in-process)
+- **TOML** → `taplo`, in-process (nothing to install)
 - **plain / markdown / unknown** → none
+
+The design for making formatting optional is `docs/design/formatting.md`.
 
 ## Architecture
 
@@ -48,7 +55,7 @@ The core flow lives in `src/editor.rs` (`Editor`) and `src/editor/edit.rs` (`Edi
 
 1. **Locate candidates.** `EditIterator` (`src/editor/edit_iterator.rs`) turns a `Selector` (operation + anchor) into an *ordered list of candidate edits*. `searcher::find_positions` finds the anchor whitespace-insensitively; for each hit it produces several candidates at different AST granularities (exact byte range, the sibling nodes in range, the common parent) plus, for inserts, whitespace variants. This is a **try-in-order** strategy, not a single deterministic target.
 2. **Apply + validate each candidate** until one succeeds (`Edit::apply`). Applying edits a `ropey::Rope` + incremental tree-sitter `Tree`, then re-parses. A candidate is rejected if the result fails to parse, contains tree-sitter ERROR/MISSING nodes (`LanguageEditor::collect_errors`), fails the language's context-validation query, or the formatter errors. The first candidate that survives all checks wins.
-3. **Format the whole file** with the language formatter. The entire file is reformatted, not just the edited region, so the file-level diff can carry formatter churn arbitrarily far from the edit. The success report therefore shows a **focused diff** (`editor::focused_diff`): hunks whose deletions and insertions are identical once whitespace is removed are dropped and counted, everything else is kept wherever it sits — a formatter that changes a *token* is a semantic difference from the caller's model and always stays. Failure reports still show the full `clean_diff`. Both carry `@@` hunk headers, which are the result's only line numbers.
+3. **Format the whole file** with the language's formatter, when the settings give it one (`Editor::format_code`); without one, the laid-out result is written as is. The entire file is reformatted, not just the edited region, so the file-level diff can carry formatter churn arbitrarily far from the edit. The success report of a formatted edit therefore shows a **focused diff** (`editor::focused_diff`): hunks whose deletions and insertions are identical once whitespace is removed are dropped and counted, everything else is kept wherever it sits — a formatter that changes a *token* is a semantic difference from the caller's model and always stays. Unformatted, every hunk is the edit's own, so none is dropped. Failure reports still show the full `clean_diff`. Both carry `@@` hunk headers, which are the result's only line numbers.
 4. **Report + record.** `Editor::apply` runs the edit against the in-memory source and, on success, returns the diff report plus an `AppliedEdit` record — it never writes; the calling *tool* persists the record's `post_edit_source` (via `SemanticEditTools::persist_output`) and stores the record for undo.
 
 ### Tools and the optimistic-persist workflow (`src/tools/`)
@@ -67,7 +74,7 @@ A selector normally carries `anchor` text. It may instead carry `item` — `{kin
 
 ### State and sessions (`src/state.rs`)
 
-`SemanticEditTools` is the shared tool state. It holds two `mcplease` `SessionStore`s: a **private** one for the undo record and education state (path from `MCP_SESSION_STORAGE_PATH`, default `~/.ai-tools/sessions/semantic-edit.json` — so the undo record survives a server restart) and a **shared** cross-server one at `~/.ai-tools/sessions/shared-context.json` for the working directory. `commit_fn` is an injectable write hook — `None` means the tool writes to disk itself; embedders set it to capture output instead. The snapshot runner does **not** use `commit_fn`: it copies each test's input into a scratch dir under `target/snapshot-scratch/` and lets edits write for real, so sequential edits accumulate and undo/retarget freshness checks are exercised (`output.<ext>` is the scratch file's final content, omitted when the calls left no net change).
+`SemanticEditTools` is the shared tool state. It holds two `mcplease` `SessionStore`s: a **private** one for the undo record and education state (path from `MCP_SESSION_STORAGE_PATH`, default `~/.ai-tools/sessions/semantic-edit.json` — so the undo record survives a server restart) and a **shared** cross-server one at `~/.ai-tools/sessions/shared-context.json` for the working directory. `commit_fn` is an injectable write hook — `None` means the tool writes to disk itself; embedders set it to capture output instead. It also holds the `Formatting` settings, shared with its clones so that `set_formatting` reaches a live instance; each tool call takes one snapshot (`formatting()`) and builds every `Editor` from it, and the `Editor` keeps its file's `Formatter`. The snapshot runner does **not** use `commit_fn`: it copies each test's input into a scratch dir under `target/snapshot-scratch/` and lets edits write for real, so sequential edits accumulate and undo/retarget freshness checks are exercised (`output.<ext>` is the scratch file's final content, omitted when the calls left no net change).
 
 ### Languages (`src/languages/`)
 
@@ -75,11 +82,12 @@ A selector normally carries `anchor` text. It may instead carry `item` — `{kin
 
 `LanguageEditor` (`src/languages/traits.rs`) is the per-language extension point; all methods have working defaults, so a language can be just `language()` returning a `LanguageCommon`. Override points:
 
-- `format_code` — shell out to the formatter (see `ecma_editor.rs`, `rust.rs`, `python.rs`).
 - `build_edits` — customize candidate generation. **Rust** (`rust.rs`) is the most complex: after the generic candidates it does *node grouping* — expanding a selection backward/forward so leading comments and `#[attribute]`s stay attached to the item they decorate, preventing duplication/orphaning on insert and replace.
 - `collect_errors` — default walks the tree for ERROR/MISSING nodes.
 
 The four ECMAScript-family languages (js/ts/jsx/tsx) share `EcmaEditor` (`ecma_editor.rs`).
+
+Formatting is not a language concern: a `Formatter` (`src/formatting.rs`) carries its own invocation, and which one a language gets is the `Formatting` settings. A language's settings are looked up by `LanguageCommon::name`, so it must equal the language's registry key.
 
 ### Context-validation queries (`queries/<lang>/validation.scm`)
 

@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,5 +1,6 @@
+-fn add(a: i32, b: i32) -> i32 {
+-    a + b
++fn add(a:i32, b:i32)->i32 {
++  let sum = a+b;
++  sum
+ }
+
+ fn main() {

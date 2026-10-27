@@ -25,6 +25,9 @@ pub struct Edit<'editor, 'language> {
     message: Option<String>,
     #[field(get, take)]
     output: Option<String>,
+    /// Whether `output` is the formatter's, rather than the laid-out result as is.
+    #[field(get)]
+    formatted: bool,
     #[field(get, set, with, take)]
     nodes: Option<Vec<Node<'editor>>>,
     #[field(with, get, set)]
@@ -124,6 +127,7 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             valid: None,
             message: None,
             output: None,
+            formatted: false,
             nodes: None,
             annotation: None,
             anchor_hit: None,
@@ -302,7 +306,12 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             ));
 
             match self.editor.format_code(&output) {
-                Ok(formatted) => {
+                // No formatter for this file: the laid-out result is what's written.
+                None => {
+                    self.output = Some(output);
+                    true
+                }
+                Some(Ok(formatted)) => {
                     let Some(tree) = self.editor.parse(&formatted, None) else {
                         self.message = Some(
                             "Unable to parse formatter output; the file was not modified.".into(),
@@ -315,10 +324,11 @@ impl<'editor, 'language> Edit<'editor, 'language> {
                         false
                     } else {
                         self.output = Some(formatted);
+                        self.formatted = true;
                         true
                     }
                 }
-                Err(err) => {
+                Some(Err(err)) => {
                     self.message = Some(err);
                     if self.editor.starts_with_syntax_errors() {
                         self.output = Some(output);

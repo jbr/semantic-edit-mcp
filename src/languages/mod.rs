@@ -178,3 +178,19 @@ impl LanguageRegistry {
         self.extensions.get(extension).copied()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Settings are looked up by a language's own name, so a language misnamed in
+    /// the registry would take another language's settings (`.jsx` files were once
+    /// named `javascript`).
+    #[test]
+    fn every_language_is_named_by_its_registry_key() {
+        let registry = LanguageRegistry::new().unwrap();
+        for name in <LanguageName as ValueEnum>::value_variants() {
+            assert_eq!(registry.get_language(*name).name(), *name);
+        }
+    }
+}

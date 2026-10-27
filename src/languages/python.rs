@@ -3,12 +3,7 @@ use crate::{
     languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
     layout::{Content, Reading, Target},
 };
-use anyhow::{Result, anyhow};
-use std::{
-    io::{Read, Write},
-    path::Path,
-    process::{Command, Stdio},
-};
+use anyhow::Result;
 use tree_sitter::{Node, Parser, Query, Tree};
 
 /// The node kinds that are string literals. Layout never re-indents a line that
@@ -89,36 +84,6 @@ impl LanguageEditor for PythonEditor {
         }
 
         Ok(laid_out)
-    }
-
-    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
-        let mut child = Command::new("ruff")
-            .args(["format", "-"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(source.as_bytes())?;
-            drop(stdin);
-        }
-
-        let mut stdout = String::new();
-        if let Some(mut out) = child.stdout.take() {
-            out.read_to_string(&mut stdout)?;
-        }
-
-        let mut stderr = String::new();
-        if let Some(mut err) = child.stderr.take() {
-            err.read_to_string(&mut stderr)?;
-        }
-
-        if child.wait()?.success() {
-            Ok(stdout)
-        } else {
-            Err(anyhow!(stderr))
-        }
     }
 }
 

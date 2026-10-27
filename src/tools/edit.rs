@@ -236,6 +236,9 @@ impl Edit {
 
         let file_path = state.resolve_path(&file_path)?;
         let _write_lock = state.write_lock();
+        // One snapshot for the whole call: the shorthand check below re-runs the
+        // edit, and only the same settings make its diff comparable.
+        let formatting = state.formatting();
         let education = state.education();
 
         let owns_persistence = state.owns_persistence();
@@ -279,6 +282,7 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
             content.clone(),
             selector.clone(),
             language,
+            &formatting,
             file_path.clone(),
         )?;
         let shorthand = editor.shorthand_suggestion();
@@ -304,6 +308,7 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
                         item: None,
                     },
                     language,
+                    &formatting,
                     file_path.clone(),
                 )
                 .and_then(Editor::apply)

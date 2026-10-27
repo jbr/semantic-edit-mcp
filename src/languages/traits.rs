@@ -1,12 +1,12 @@
-use std::path::Path;
-
 use anyhow::Result;
 
 use tree_sitter::{Node, Tree};
 
 use crate::editor::{Edit, EditIterator, Editor};
 
-/// Trait for language-specific operations like validation and formatting
+/// A language's candidate generation and syntax checks. Formatting is separate:
+/// which formatter, if any, runs for a language is configured in
+/// [`Formatting`](crate::formatting::Formatting).
 pub trait LanguageEditor: Send + Sync {
     /// Collect syntax error line numbers from a tree-sitter parse tree
     fn collect_errors(&self, tree: &Tree, _content: &str) -> Vec<usize> {
@@ -23,12 +23,6 @@ pub trait LanguageEditor: Send + Sync {
                 start..=last
             })
             .collect()
-    }
-
-    /// Format code according to language conventions
-    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
-        let _ = file_path;
-        Ok(source.to_string())
     }
 
     fn build_edits<'language, 'editor>(

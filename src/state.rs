@@ -1,5 +1,6 @@
 use crate::{
     education::EducationState,
+    formatting::Formatting,
     languages::{LanguageName, LanguageRegistry},
     selector::Selector,
 };
@@ -86,6 +87,10 @@ pub struct SemanticEditTools {
     root: Arc<Path>,
     language_registry: Arc<LanguageRegistry>,
     commit_fn: Option<CommitFn>,
+    /// Shared with clones, so [`set_formatting`](Self::set_formatting) on any of
+    /// them reaches calls made through all of them. A call takes one snapshot of
+    /// it and uses that throughout.
+    formatting: Arc<Mutex<Arc<Formatting>>>,
     state: Arc<Mutex<ToolState>>,
     /// Held for the whole of every call that writes. Calls run concurrently,
     /// and an edit is a read-modify-write of a file: two edits to one file
@@ -100,18 +105,21 @@ impl Debug for SemanticEditTools {
         f.debug_struct("SemanticEditTools")
             .field("root", &self.root)
             .field("language_registry", &self.language_registry)
+            .field("formatting", &self.formatting())
             .field("owns_persistence", &self.owns_persistence())
             .finish_non_exhaustive()
     }
 }
 
 impl SemanticEditTools {
-    /// Tools that resolve relative paths against `root`.
+    /// Tools that resolve relative paths against `root`, with the default
+    /// [`Formatting`].
     pub fn new(root: PathBuf) -> Result<Self> {
         Ok(Self {
             root: root.into(),
             language_registry: Arc::new(LanguageRegistry::new()?),
             commit_fn: None,
+            formatting: Arc::default(),
             state: Arc::default(),
             write_lock: Arc::default(),
         })
@@ -122,6 +130,29 @@ impl SemanticEditTools {
     pub fn with_commit_fn(mut self, commit_fn: CommitFn) -> Self {
         self.commit_fn = Some(commit_fn);
         self
+    }
+
+    /// Format edited files as `formatting` says. These settings are this value's
+    /// and its later clones': clones made before this call keep theirs.
+    #[allow(dead_code, reason = "embedding API, used by library consumers")]
+    pub fn with_formatting(mut self, formatting: Formatting) -> Self {
+        self.formatting = Arc::new(Mutex::new(Arc::new(formatting)));
+        self
+    }
+
+    /// Replace the formatting settings, for calls made through this value and
+    /// every clone sharing its settings. A call already running finishes with
+    /// the settings it started with.
+    #[allow(dead_code, reason = "embedding API, used by library consumers")]
+    pub fn set_formatting(&self, formatting: Formatting) {
+        *lock(&self.formatting) = Arc::new(formatting);
+    }
+
+    /// The current formatting settings. A call takes them once and uses that
+    /// snapshot throughout, so it sees one consistent set even while
+    /// [`set_formatting`](Self::set_formatting) replaces them.
+    pub fn formatting(&self) -> Arc<Formatting> {
+        lock(&self.formatting).clone()
     }
 
     pub fn language_registry(&self) -> &LanguageRegistry {
@@ -250,4 +281,56 @@ impl SemanticEditTools {
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::formatting::Formatter;
+
+    fn tools() -> SemanticEditTools {
+        SemanticEditTools::new(std::env::temp_dir()).unwrap()
+    }
+
+    fn toml_only() -> Formatting {
+        Formatting::off().with(LanguageName::Toml, Formatter::taplo())
+    }
+
+    #[test]
+    fn new_tools_have_the_default_formatting() {
+        assert_eq!(*tools().formatting(), Formatting::default());
+    }
+
+    /// An embedder hands one clone to its server and keeps another to change the
+    /// settings while it runs.
+    #[test]
+    fn set_formatting_reaches_every_clone() {
+        let tools = tools();
+        let served = tools.clone();
+        tools.set_formatting(Formatting::off());
+        assert_eq!(*served.formatting(), Formatting::off());
+        assert_eq!(*served.clone().formatting(), Formatting::off());
+    }
+
+    /// A call takes one snapshot, so settings replaced mid-call don't reach it.
+    #[test]
+    fn a_snapshot_keeps_the_settings_it_was_taken_with() {
+        let tools = tools();
+        let snapshot = tools.formatting();
+        tools.set_formatting(Formatting::off());
+        assert_eq!(*snapshot, Formatting::default());
+        assert_eq!(*tools.formatting(), Formatting::off());
+    }
+
+    #[test]
+    fn with_formatting_configures_its_value_and_later_clones_only() {
+        let original = tools();
+        let configured = original.clone().with_formatting(Formatting::off());
+        assert_eq!(*original.formatting(), Formatting::default());
+        assert_eq!(*configured.formatting(), Formatting::off());
+
+        configured.clone().set_formatting(toml_only());
+        assert_eq!(*configured.formatting(), toml_only());
+        assert_eq!(*original.formatting(), Formatting::default());
+    }
 }

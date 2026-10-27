@@ -21,11 +21,6 @@ impl LanguageEditor for PlainEditor {
         vec![]
     }
 
-    fn format_code(&self, source: &str, file_path: &std::path::Path) -> Result<String> {
-        let _ = file_path;
-        Ok(source.to_string())
-    }
-
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,

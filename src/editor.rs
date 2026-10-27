@@ -3,7 +3,8 @@ mod edit_iterator;
 mod edit_position;
 
 use crate::{
-    languages::LanguageCommon,
+    formatting::{Formatter, Formatting},
+    languages::{LanguageCommon, LanguageName},
     searcher::find_positions,
     selector::{Operation, Selector},
     state::{AppliedEdit, EditOperation},
@@ -38,20 +39,32 @@ pub struct Editor<'language> {
     selector: Selector,
     file_path: PathBuf,
     language: &'language LanguageCommon,
+    /// The file's formatter under the calling tool's settings, if it has one.
+    formatter: Option<Formatter>,
     source_code: String,
     tree: Tree,
     rope: Rope,
 }
 
 impl<'language> Editor<'language> {
+    /// An editor for the file at `file_path`, formatted as `formatting` says for
+    /// `language`.
     pub fn new(
         content: String,
         selector: Selector,
         language: &'language LanguageCommon,
+        formatting: &Formatting,
         file_path: PathBuf,
     ) -> Result<Self> {
         let source_code = std::fs::read_to_string(&file_path)?;
-        Self::from_source(content, selector, language, file_path, source_code)
+        Self::from_source(
+            content,
+            selector,
+            language,
+            formatting,
+            file_path,
+            source_code,
+        )
     }
 
     /// Construct against an explicit source text instead of reading
@@ -62,6 +75,7 @@ impl<'language> Editor<'language> {
         content: String,
         selector: Selector,
         language: &'language LanguageCommon,
+        formatting: &Formatting,
         file_path: PathBuf,
         source_code: String,
     ) -> Result<Self> {
@@ -79,6 +93,7 @@ impl<'language> Editor<'language> {
             content,
             selector,
             language,
+            formatter: formatting.formatter(language.name()).cloned(),
             tree,
             file_path,
             source_code,
@@ -215,13 +230,14 @@ impl<'language> Editor<'language> {
         }
     }
 
-    /// Returns `(message, output, ambiguity_note)` — `output` is `Some` only when
-    /// a candidate applied cleanly, and `ambiguity_note` is `Some` only when the
-    /// winning candidate's anchor also matched elsewhere in the file.
-    fn edit(&mut self) -> Result<(String, Option<String>, Option<String>)> {
+    /// Returns `(message, output, formatted, ambiguity_note)` — `output` is `Some`
+    /// only when a candidate applied cleanly, `formatted` says whether `output` is
+    /// the formatter's, and `ambiguity_note` is `Some` only when the winning
+    /// candidate's anchor also matched elsewhere in the file.
+    fn edit(&mut self) -> Result<(String, Option<String>, bool, Option<String>)> {
         let mut edits = match self.build_edits() {
             Ok(all_edits) => all_edits,
-            Err(message) => return Ok((message, None, None)),
+            Err(message) => return Ok((message, None, false, None)),
         };
 
         // let count = edits.len();
@@ -242,6 +258,7 @@ impl<'language> Editor<'language> {
                 return Ok((
                     edit.take_message().unwrap_or_default(),
                     edit.take_output(),
+                    edit.formatted(),
                     note,
                 ));
             }
@@ -278,7 +295,7 @@ item you mean to target.",
                     .to_string(),
             },
         };
-        Ok((message, None, None))
+        Ok((message, None, false, None))
     }
 
     /// When the winning edit's anchor matched at more than one location, describe
@@ -394,13 +411,13 @@ decorations, which stay attached to it.",
     /// `post_edit_source` and prepends its own headline. On failure the
     /// failure report comes back alone and there is nothing to persist.
     pub fn apply(mut self) -> Result<(String, Option<AppliedEdit>)> {
-        let (message, output, note) = self.edit()?;
+        let (message, output, formatted, note) = self.edit()?;
         if let Some(output) = output {
-            let plain_text = self.language.name() == crate::languages::LanguageName::Other;
+            let plain_text = self.language.name() == LanguageName::Other;
             let (diff, elided) = if plain_text {
                 (clean_diff(&self.source_code, &output), 0)
             } else {
-                focused_diff(&self.source_code, &output)
+                focused_diff(&self.source_code, &output, formatted)
             };
             let remaining_errors = self
                 .parse(&output, None)
@@ -411,13 +428,17 @@ decorations, which stay attached to it.",
                 )
             } else if message.starts_with("Warning:") {
                 format!("{message}\n")
+            } else if formatted {
+                String::from(
+                    "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
+                )
             } else if plain_text {
                 String::from(
                     "Note: plain-text edits preserve supplied whitespace; no formatter is run.\n",
                 )
             } else {
                 String::from(
-                    "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
+                    "Note: no formatter is run on this file; the diff shows exactly what was written.\n",
                 )
             };
             if elided > 0 {
@@ -534,26 +555,26 @@ with more of the target's own text until it is unique.",
         cleaned_diff
     }
 
-    pub fn format_code(&self, source: &str) -> Result<String, String> {
-        self.language
-            .editor()
-            .format_code(source, &self.file_path)
-            .map_err(|e| {
-                if self.starts_with_syntax_errors() {
-                    format!(
-                        "Warning: formatting failed; the edit was accepted without formatting \
+    /// `source` formatted with the file's formatter, or the report of its failure;
+    /// `None` when the file has no formatter, so `source` is written as is.
+    pub fn format_code(&self, source: &str) -> Option<Result<String, String>> {
+        let formatter = self.formatter.as_ref()?;
+        Some(formatter.format(source, &self.file_path).map_err(|e| {
+            if self.starts_with_syntax_errors() {
+                format!(
+                    "Warning: formatting failed; the edit was accepted without formatting \
                      because the source already had syntax errors.\n\n{e}"
-                    )
-                } else {
-                    let diff = self.diff(source);
-                    format!(
-                        "The formatter has encountered the following error making \
+                )
+            } else {
+                let diff = self.diff(source);
+                format!(
+                    "The formatter has encountered the following error making \
                      that change, so the file has not been modified. The tool has \
                      prevented what it believes to be an unsafe edit. Please try a \
                      different edit.\n\n{e}\n\n{diff}"
-                    )
-                }
-            })
+                )
+            }
+        }))
     }
 
     fn parse(&self, output: &str, old_tree: Option<&Tree>) -> Option<Tree> {
@@ -593,12 +614,13 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 }
 
 /// The same `===DIFF===` section with the **whitespace-only hunks dropped**, plus
-/// the number dropped.
+/// the number dropped, when `formatted` says a formatter produced `modified`.
 ///
-/// An edit is validated by formatting the whole file, so the file-level diff can
-/// carry formatter churn arbitrarily far from the edit — on a large file that
-/// buries the semantic change and costs a round of re-inspecting code the caller
-/// never touched.
+/// A formatted edit is validated by formatting the whole file, so the file-level
+/// diff can carry formatter churn arbitrarily far from the edit — on a large file
+/// that buries the semantic change and costs a round of re-inspecting code the
+/// caller never touched. Without a formatter nothing outside the edit changed, so
+/// every hunk is the edit's own, whitespace included, and none is dropped.
 ///
 /// The classification is against the formatter's own contribution, hunk by hunk: a
 /// hunk whose deleted and inserted text are identical once all whitespace is
@@ -609,14 +631,14 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 /// continue from a file it no longer describes. If nothing survives the filter
 /// (an edit that was itself whitespace-only), the full diff is returned instead,
 /// because an empty diff answers nothing.
-pub(crate) fn focused_diff(original: &str, modified: &str) -> (String, usize) {
+pub(crate) fn focused_diff(original: &str, modified: &str, formatted: bool) -> (String, usize) {
     let patch = DiffOptions::new().create_patch(original, modified);
     let mut kept = String::from("===DIFF===\n");
     let mut elided = 0;
     let mut shown = 0;
 
     for hunk in patch.hunks() {
-        if hunk_is_whitespace_only(hunk) {
+        if formatted && hunk_is_whitespace_only(hunk) {
             elided += 1;
             continue;
         }
@@ -690,7 +712,7 @@ mod diff_tests {
             + &"// filler\n".repeat(20)
             + "struct S {\n    a: u8,\n    b: u8,\n}\n";
 
-        let (diff, elided) = focused_diff(&original, &modified);
+        let (diff, elided) = focused_diff(&original, &modified, true);
         assert_eq!(elided, 1, "{diff}");
         assert!(diff.contains("+    b: u8,"), "the edit is shown: {diff}");
         assert!(!diff.contains("let x = 1"), "reflow is not: {diff}");
@@ -705,7 +727,7 @@ mod diff_tests {
         let modified =
             "use a::c;\n".to_string() + &"// filler\n".repeat(20) + "struct S {\n    a: u8,\n}\n";
 
-        let (diff, elided) = focused_diff(&original, &modified);
+        let (diff, elided) = focused_diff(&original, &modified, true);
         assert_eq!(elided, 0, "{diff}");
         assert!(diff.contains("+use a::c;"), "{diff}");
         assert!(diff.contains("+    a: u8,"), "{diff}");
@@ -715,16 +737,33 @@ mod diff_tests {
     /// — the full diff is returned: an empty diff answers nothing.
     #[test]
     fn an_all_whitespace_diff_falls_back_to_the_full_diff() {
-        let (diff, elided) = focused_diff("fn a() {\n  x\n}\n", "fn a() {\n    x\n}\n");
+        let (diff, elided) = focused_diff("fn a() {\n  x\n}\n", "fn a() {\n    x\n}\n", true);
         assert_eq!(elided, 0);
         assert!(diff.contains("+    x"), "{diff}");
+    }
+
+    /// Without a formatter, a whitespace-only hunk is the edit's own: dropping it
+    /// would hide what the edit did to the file and claim a formatter did it.
+    #[test]
+    fn an_unformatted_whitespace_only_hunk_is_shown() {
+        let original = "fn a() {\n        let x = 1;\n}\n".to_string()
+            + &"// filler\n".repeat(20)
+            + "struct S {\n    a: u8,\n}\n";
+        let modified = "fn a() {\n    let x = 1;\n}\n".to_string()
+            + &"// filler\n".repeat(20)
+            + "struct S {\n    a: u8,\n    b: u8,\n}\n";
+
+        let (diff, elided) = focused_diff(&original, &modified, false);
+        assert_eq!(elided, 0, "{diff}");
+        assert!(diff.contains("+    let x = 1;"), "{diff}");
+        assert!(diff.contains("+    b: u8,"), "{diff}");
     }
 
     /// Hunk headers are the result's only line numbers, and an edit result is where
     /// a caller re-targets from.
     #[test]
     fn hunks_carry_their_line_numbers() {
-        let (diff, _) = focused_diff("a\nb\nc\n", "a\nB\nc\n");
+        let (diff, _) = focused_diff("a\nb\nc\n", "a\nB\nc\n", true);
         assert!(diff.contains("@@ -1,3 +1,3 @@"), "{diff}");
     }
 
@@ -732,7 +771,7 @@ mod diff_tests {
     /// the diff has no trailing whitespace.
     #[test]
     fn a_blank_context_line_has_no_prefix() {
-        let (diff, _) = focused_diff("a\n\nb\n", "a\n\nB\n");
+        let (diff, _) = focused_diff("a\n\nb\n", "a\n\nB\n", true);
         assert!(diff.contains("\n\n"), "blank line stays bare: {diff:?}");
         assert!(!diff.contains(" \n"), "no trailing space: {diff:?}");
     }

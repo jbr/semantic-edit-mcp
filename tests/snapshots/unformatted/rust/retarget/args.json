@@ -1,0 +1,17 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "fn first() {}",
+      "content": "\n\nfn helper(){}"
+    }
+  },
+  {
+    "name": "retarget_edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "fn second() {}"
+    }
+  }
+]

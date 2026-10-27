@@ -3,7 +3,7 @@ use crate::{
     languages::{LanguageCommon, LanguageName, traits::LanguageEditor},
 };
 use anyhow::Result;
-use std::{ops::Range, path::Path};
+use std::ops::Range;
 use taplo::rowan::{TextRange, TextSize};
 use tree_sitter::Tree;
 
@@ -32,13 +32,6 @@ impl TomlEditor {
 }
 
 impl LanguageEditor for TomlEditor {
-    fn format_code(&self, source: &str, _file_path: &Path) -> Result<String> {
-        Ok(taplo::formatter::format(
-            source,
-            taplo::formatter::Options::default(),
-        ))
-    }
-
     // A tree-sitter-toml `table` node encompasses *all* of its key/value pairs, so
     // an anchor that straddles a table boundary makes the generic node-snapping
     // candidates (`siblings_in_range` / common-parent) expand the *replaced* span
@@ -55,8 +48,8 @@ impl LanguageEditor for TomlEditor {
     // re-parse). Inserts delete nothing (`end_byte` is `None` → 0), so they all tie
     // and keep their original order — `insert_after` a `[table]` still snaps to the
     // end of the whole table. A candidate that produces malformed TOML is still
-    // rejected by the parse-error gate (`collect_errors`), and taplo reformats the
-    // winner afterward.
+    // rejected by the parse-error gate (`collect_errors`), and the configured
+    // formatter, if any, reformats the winner afterward.
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,

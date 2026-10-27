@@ -5,7 +5,11 @@
 //! generated [`tools::Tools`] dispatcher + [`state::SemanticEditTools`], without
 //! the binary's stdio, clap, or logger. Construct one [`SemanticEditTools::new`]
 //! per agent, rooted at its directory; tool bodies run on tokio's blocking
-//! pool, so the host must be on a tokio runtime.
+//! pool, so the host must be on a tokio runtime. Edits are formatted as the
+//! default [`Formatting`] says unless the tools are built
+//! [`with_formatting`](SemanticEditTools::with_formatting), and
+//! [`set_formatting`](SemanticEditTools::set_formatting) replaces the settings
+//! while they run.
 //!
 //! Additive only: `main.rs` and `tests` keep declaring their own modules, so the
 //! binary and its tests are unchanged. Deleting this file reverts the crate to
@@ -17,6 +21,7 @@
 
 pub mod editor;
 pub mod education;
+pub mod formatting;
 pub mod indentation;
 pub mod item;
 pub mod languages;
@@ -27,5 +32,7 @@ pub mod state;
 pub mod tools;
 pub mod validation;
 
+pub use formatting::{Formatter, Formatting};
+pub use languages::LanguageName;
 pub use state::SemanticEditTools;
 pub use tools::Tools;

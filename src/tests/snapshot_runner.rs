@@ -1,12 +1,19 @@
+use crate::formatting::{Formatter, Formatting};
+use crate::languages::LanguageName;
 use crate::state::SemanticEditTools;
 use crate::tools::Tools;
-use anyhow::{Error, Result};
+use anyhow::{Context, Error, Result, anyhow, bail};
+use clap::ValueEnum;
 use diffy::{DiffOptions, PatchFormatter};
 use mcplease::traits::Dispatch;
 use mcplease::types::RequestContext;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// A test directory, or any directory above one, may hold this file to set the
+/// formatting of every test beneath it. See [`formatting_for`].
+const FORMATTING_FILE: &str = "formatting.json";
 
 pub struct SnapshotRunner {
     update_mode: bool,
@@ -21,6 +28,9 @@ pub struct SnapshotTest {
     pub args_path: PathBuf,
     pub response_path: PathBuf,
     pub output_path: Option<PathBuf>,
+    /// Every [`FORMATTING_FILE`] from the snapshot root down to the test's own
+    /// directory, outermost first.
+    pub formatting_paths: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -94,8 +104,8 @@ impl SnapshotRunner {
         })
     }
 
-    fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
-        self.state = SemanticEditTools::new(base_path)?;
+    fn reset_state(&mut self, base_path: PathBuf, formatting: Formatting) -> Result<()> {
+        self.state = SemanticEditTools::new(base_path)?.with_formatting(formatting);
         Ok(())
     }
 
@@ -104,17 +114,14 @@ impl SnapshotRunner {
         let snapshots_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots");
         let mut tests = Vec::new();
 
-        Self::discover_tests_recursive(&snapshots_dir, &snapshots_dir, &mut tests)?;
+        Self::discover_tests_recursive(&snapshots_dir, &snapshots_dir, &[], &mut tests)?;
 
         tests.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tests)
     }
 
-    /// Filter tests based on the TEST_FILTER environment variable
-    /// Supports patterns like:
-    /// - "basic_operations" (matches all tests starting with this)
-    /// - "basic_operations::insert_after" (exact match)
-    /// - "json_operations,markdown_operations" (multiple patterns separated by commas)
+    /// Filter tests by the TEST_FILTER environment variable: patterns separated
+    /// by commas, each matched by [`filter_matches`].
     fn filter_tests(&self, tests: Vec<SnapshotTest>) -> Vec<SnapshotTest> {
         if let Some(filter) = &self.test_filter {
             let patterns: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
@@ -122,17 +129,9 @@ impl SnapshotRunner {
             tests
                 .into_iter()
                 .filter(|test| {
-                    patterns.iter().any(|pattern| {
-                        if pattern.is_empty() {
-                            false
-                        } else if pattern.contains("::") {
-                            // Exact match for full test names
-                            test.name == *pattern
-                        } else {
-                            // Prefix match for categories
-                            test.name.starts_with(pattern)
-                        }
-                    })
+                    patterns
+                        .iter()
+                        .any(|pattern| filter_matches(pattern, &test.name))
                 })
                 .collect()
         } else {
@@ -140,11 +139,15 @@ impl SnapshotRunner {
         }
     }
 
+    /// Collect the tests under `dir`. `formatting` is the [`FORMATTING_FILE`]s
+    /// above it, outermost first.
     fn discover_tests_recursive(
         base: &Path,
         dir: &Path,
+        formatting: &[PathBuf],
         tests: &mut Vec<SnapshotTest>,
     ) -> Result<()> {
+        let formatting = with_formatting_file(formatting, dir);
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -187,10 +190,11 @@ impl SnapshotRunner {
                         args_path,
                         response_path,
                         output_path,
+                        formatting_paths: with_formatting_file(&formatting, &path),
                     });
                 } else {
                     // Recurse into subdirectories
-                    Self::discover_tests_recursive(base, &path, tests)?;
+                    Self::discover_tests_recursive(base, &path, &formatting, tests)?;
                 }
             }
         }
@@ -207,7 +211,9 @@ impl SnapshotRunner {
                     test,
                     actual_response: String::new(),
                     expected_response: None,
-                    error: Some(e.to_string()),
+                    // With its causes: a bad formatting file is named by its
+                    // context and explained by its cause.
+                    error: Some(format!("{e:#}")),
                     actual_output: None,
                     expected_output: None,
                     response_matches: false,
@@ -346,7 +352,7 @@ impl SnapshotRunner {
             None => None,
         };
 
-        self.reset_state(scratch_dir)?;
+        self.reset_state(scratch_dir, formatting_for(&test.formatting_paths)?)?;
 
         // Read the arguments
         let args_content = fs::read_to_string(&test.args_path)?;
@@ -406,7 +412,11 @@ impl SnapshotRunner {
     pub fn run_all_tests(&mut self) -> Result<Vec<SnapshotResult>> {
         let all_tests = self.discover_tests()?;
         let tests = self.filter_tests(all_tests);
-        assert_ne!(tests.len(), 0);
+        assert!(
+            !tests.is_empty(),
+            "no snapshot test matches TEST_FILTER={}",
+            self.test_filter.as_deref().unwrap_or_default()
+        );
 
         if let Some(filter) = &self.test_filter {
             println!("🔍 Running filtered tests: {filter}");
@@ -511,6 +521,202 @@ impl SnapshotRunner {
 
                 println!("\n\n");
             }
+        }
+    }
+}
+
+/// Whether the TEST_FILTER pattern `pattern` selects the test named `name`.
+///
+/// - A bare category (no `::`, e.g. `rust`) selects every test whose name
+///   begins with it.
+/// - A `::` path (e.g. `rust::repair`, or a full name like
+///   `rust::repair::insert`) selects the test of that name and every test
+///   beneath it, on `::` boundaries: `rust::repair` doesn't select
+///   `rust::repairs::insert`. So the full name the failure summary prints
+///   selects exactly that test.
+fn filter_matches(pattern: &str, name: &str) -> bool {
+    if pattern.is_empty() {
+        false
+    } else if pattern.contains("::") {
+        name.strip_prefix(pattern)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
+    } else {
+        name.starts_with(pattern)
+    }
+}
+
+/// `formatting` with `dir`'s own [`FORMATTING_FILE`], if it has one, as the
+/// innermost layer.
+fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
+    let mut layers = formatting.to_vec();
+    let file = dir.join(FORMATTING_FILE);
+    if file.is_file() {
+        layers.push(file);
+    }
+    layers
+}
+
+/// The formatting a test runs with: the default, overridden by each of its
+/// [`FORMATTING_FILE`]s in turn, outermost first.
+///
+/// A formatting file is a JSON object from a language (named as `args.json`
+/// names one: `rust`, `typescript`, …) or `"*"`, every language, to a
+/// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none.
+/// `"*"` applies before the languages beside it.
+///
+/// - `{"*": null}`: no formatter for any language
+/// - `{"rust": null}`: none for Rust, the rest as inherited
+/// - `{"toml": "taplo"}`: taplo for TOML, the rest as inherited
+fn formatting_for(layers: &[PathBuf]) -> Result<Formatting> {
+    let mut formatting = Formatting::default();
+    for path in layers {
+        let text = fs::read_to_string(path)?;
+        serde_json::from_str(&text)
+            .map_err(Error::from)
+            .and_then(|layer| apply_formatting_layer(&mut formatting, &layer))
+            .with_context(|| format!("in {}", path.display()))?;
+    }
+    Ok(formatting)
+}
+
+fn apply_formatting_layer(formatting: &mut Formatting, layer: &Map<String, Value>) -> Result<()> {
+    if let Some(value) = layer.get("*") {
+        let formatter = parse_formatter(value)?;
+        for language in LanguageName::value_variants() {
+            formatting.set(*language, formatter.clone());
+        }
+    }
+    for (key, value) in layer.iter().filter(|(key, _)| *key != "*") {
+        formatting.set(parse_language(key)?, parse_formatter(value)?);
+    }
+    Ok(())
+}
+
+/// A language as `args.json` names one. Unlike deserializing a
+/// [`LanguageName`], which reads any unknown name as `other`, a misspelled
+/// language is an error.
+fn parse_language(name: &str) -> Result<LanguageName> {
+    LanguageName::value_variants()
+        .iter()
+        .copied()
+        .find(|language| language.to_string() == name)
+        .ok_or_else(|| anyhow!("unknown language {name:?}"))
+}
+
+fn parse_formatter(value: &Value) -> Result<Option<Formatter>> {
+    let name = match value {
+        Value::Null => return Ok(None),
+        Value::String(name) => name,
+        other => bail!("expected a formatter name or null, found {other}"),
+    };
+    Ok(Some(match name.as_str() {
+        "rustfmt" => Formatter::rustfmt(),
+        "ruff" => Formatter::ruff(),
+        "biome" => Formatter::biome(),
+        "taplo" => Formatter::taplo(),
+        _ => bail!("unknown formatter {name:?}; expected rustfmt, ruff, biome, taplo or null"),
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_path_selects_the_test_and_every_test_beneath_it() {
+        assert!(filter_matches("rust::repair", "rust::repair"));
+        assert!(filter_matches("rust::repair", "rust::repair::insert"));
+        assert!(filter_matches(
+            "rust::repair",
+            "rust::repair::deeper::insert"
+        ));
+        assert!(!filter_matches("rust::repair", "rust::repairs"));
+        assert!(!filter_matches("rust::repair", "rust::repairs::insert"));
+        assert!(!filter_matches("rust::repair", "rust"));
+        assert!(!filter_matches("rust::repair", "unformatted::rust::repair"));
+    }
+
+    #[test]
+    fn a_full_name_selects_just_that_test() {
+        assert!(filter_matches(
+            "rust::repair::insert",
+            "rust::repair::insert"
+        ));
+        assert!(!filter_matches(
+            "rust::repair::insert",
+            "rust::repair::insert_more"
+        ));
+    }
+
+    #[test]
+    fn a_bare_category_is_a_prefix() {
+        assert!(filter_matches("rust", "rust::attributes"));
+        assert!(filter_matches("py", "python::layout::replace_nested_block"));
+        assert!(!filter_matches("rust", "unformatted::rust::replace"));
+        assert!(!filter_matches("", "rust::attributes"));
+    }
+
+    fn layered(layers: &[&str]) -> Result<Formatting> {
+        let mut formatting = Formatting::default();
+        for layer in layers {
+            apply_formatting_layer(&mut formatting, &serde_json::from_str(layer)?)?;
+        }
+        Ok(formatting)
+    }
+
+    #[test]
+    fn no_layers_is_the_default() {
+        assert_eq!(layered(&[]).unwrap(), Formatting::default());
+        assert_eq!(formatting_for(&[]).unwrap(), Formatting::default());
+    }
+
+    #[test]
+    fn star_null_turns_every_formatter_off() {
+        assert_eq!(layered(&[r#"{"*": null}"#]).unwrap(), Formatting::off());
+    }
+
+    #[test]
+    fn a_language_null_turns_just_that_one_off() {
+        assert_eq!(
+            layered(&[r#"{"rust": null}"#]).unwrap(),
+            Formatting::default().without(LanguageName::Rust)
+        );
+    }
+
+    #[test]
+    fn inner_layers_override_outer_ones() {
+        assert_eq!(
+            layered(&[r#"{"*": null}"#, r#"{"toml": "taplo"}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Toml, Formatter::taplo())
+        );
+        let formatting = layered(&[r#"{"toml": null}"#, r#"{"*": "taplo"}"#]).unwrap();
+        for language in LanguageName::value_variants() {
+            assert_eq!(
+                formatting.formatter(*language),
+                Some(&Formatter::taplo()),
+                "{language}"
+            );
+        }
+    }
+
+    #[test]
+    fn star_applies_before_the_languages_beside_it() {
+        assert_eq!(
+            layered(&[r#"{"toml": "taplo", "*": null}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Toml, Formatter::taplo())
+        );
+    }
+
+    #[test]
+    fn misspellings_are_errors() {
+        for layer in [
+            r#"{"rsut": null}"#,
+            r#"{"rust": "rustformat"}"#,
+            r#"{"rust": false}"#,
+            r#"{"*": "off"}"#,
+            r#"["rust"]"#,
+        ] {
+            assert!(layered(&[layer]).is_err(), "{layer}");
         }
     }
 }

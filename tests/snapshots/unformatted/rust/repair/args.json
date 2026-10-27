@@ -1,0 +1,18 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "let a = ;",
+      "content": "let a = 1;"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "let b = ;",
+      "content": "let b = 2;"
+    }
+  }
+]

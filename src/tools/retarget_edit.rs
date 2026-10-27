@@ -110,6 +110,7 @@ to move."
             record.operation.content.clone(),
             selector,
             language,
+            &state.formatting(),
             file_path.clone(),
             record.pre_edit_source.clone(),
         )?;

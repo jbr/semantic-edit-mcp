@@ -3,6 +3,7 @@
 
 mod editor;
 mod education;
+mod formatting;
 mod indentation;
 mod item;
 mod languages;
