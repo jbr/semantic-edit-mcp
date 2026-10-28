@@ -46,7 +46,8 @@ couldn't parse.
 1. **Correctness never depends on an external program.** Layout and validation run
    in-process, so the guarantees hold on any machine.
 2. **Edits are local.** Bytes outside the edit change only if the embedder asks for whole-file
-   formatting.
+   formatting, or where a formatter moves the edit's own text, as sorting an inserted import
+   does.
 3. **Running a program is the embedder's decision.** semantic-edit never decides on its own to
    execute a formatter. Which one runs, if any, is configuration.
 4. **Formatting may veto an edit but never move it.** Candidate selection uses in-process
@@ -145,7 +146,10 @@ Formatting is off unless the embedder configures a formatter for the language.
   result is then validated again. darker (for black), `git-clang-format` and VS Code's
   `formatOnSaveMode: "modifications"` work the same way. Formatters' own range options are
   too uneven to rely on: ruff and prettier have them, rustfmt's needs nightly, and biome has
-  none. Whole-file scope is an explicit option.
+  none. When the formatter moves the edit's own text elsewhere, as sorting an inserted import
+  does, the far hunks are kept too if they add nothing but that text; otherwise the edit is
+  written as laid out, with a note, because keeping half a move would delete or duplicate
+  code. Whole-file formatting is an explicit option (`whole-file`).
 - **Failure is judged per file.**
 
   | The formatter | Treated as |

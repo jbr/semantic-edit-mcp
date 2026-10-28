@@ -1,10 +1,13 @@
+use std::io;
+use std::fmt;
+
 use a::A;
+use aa::AA;
 use b::B;
 use c::C;
 use d::D;
 use e::E;
 use f::F;
 use g::G;
-use aa::AA;
 
 fn main() {}

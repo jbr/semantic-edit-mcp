@@ -53,15 +53,18 @@ file, so it sees the edit in context, but only its changes to the lines the edit
 changed, and to the line on either side of them, are kept: the rest of the file
 stays as it was, even where the formatter would change it. A change that reaches
 across that boundary, like a statement reflowed from the line before the edit,
-is kept whole. If the changes kept can't stand without the rest of the
-formatter's, because the file isn't valid without them or the formatter moved a
-line between the edit and the rest of the file (as rustfmt does to sort
-imports), the edit is written unformatted, and the response says so. To keep all
-of a formatter's changes, reformatting the whole file, pass
-`--format-scope file`:
+is kept whole. When the formatter moves part of the edit elsewhere, as rustfmt
+does to sort an inserted import, the moved text goes where the formatter put it,
+as long as the formatter changes nothing else there, and the response says it
+moved. If the changes kept can't stand without the rest of the formatter's,
+because the file isn't valid without them, or because the formatter moved text
+between the edit and the rest of the file in any other way (into the edit from
+elsewhere, or out of it to a place where it also changes other lines), the edit
+is written unformatted, and the response says so. To keep all of a formatter's
+changes, reformatting the whole file, pass `--format-whole-file`:
 
 ```bash
-$ semantic-edit-mcp serve --format built-in --format-scope file
+$ semantic-edit-mcp serve --format built-in --format-whole-file
 ```
 
 Then the diff in a response can include changes far from the edit, in a file

@@ -4,7 +4,7 @@ mod edit_position;
 mod format;
 
 use crate::{
-    formatting::{Formatter, Formatting, Scope},
+    formatting::{Formatter, Formatting},
     languages::{LanguageCommon, LanguageName},
     searcher::find_positions,
     selector::{Operation, Selector},
@@ -58,9 +58,8 @@ pub struct Editor<'language> {
     language: &'language LanguageCommon,
     /// The file's formatter under the calling tool's settings, if it has one.
     formatter: Option<Formatter>,
-    /// How much of the file the formatter may change.
-    #[field(copy)]
-    scope: Scope,
+    /// Whether the formatter may change the whole file, and not only the edit.
+    whole_file: bool,
     source_code: String,
     tree: Tree,
     rope: Rope,
@@ -118,7 +117,7 @@ impl<'language> Editor<'language> {
             selector,
             language,
             formatter: formatting.formatter(language.name()).cloned(),
-            scope: formatting.scope(),
+            whole_file: formatting.whole_file(),
             tree,
             file_path,
             source_code,
@@ -485,8 +484,9 @@ decorations, which stay attached to it.",
         note: Option<String>,
     ) -> (String, Option<AppliedEdit>) {
         // Only a formatter that may change the whole file can have changed
-        // lines far from the edit. Otherwise every hunk is the edit's own.
-        let whole_file = matches!(whitespace, Whitespace::Formatted(_, Scope::File));
+        // lines far from the edit. Otherwise every hunk is the edit's own, even
+        // one far from it that places text the formatter moved there.
+        let whole_file = matches!(whitespace, Whitespace::FormattedFile(_));
         let plain_text = self.language.name() == LanguageName::Other;
         let (diff, elided) = if plain_text {
             (clean_diff(&self.source_code, &output), 0)
@@ -518,10 +518,18 @@ decorations, which stay attached to it.",
         // What happened to the edit's whitespace, said first unless a
         // warning about the repair it belongs to has to come before it.
         let whitespace_note = match &whitespace {
-            Whitespace::Formatted(formatter, Scope::Edit) => {
-                format!("Note: {formatter} formatted the edit.\n")
-            }
-            Whitespace::Formatted(formatter, Scope::File) => {
+            Whitespace::FormattedEdit {
+                formatter,
+                moved: false,
+            } => format!("Note: {formatter} formatted the edit.\n"),
+            Whitespace::FormattedEdit {
+                formatter,
+                moved: true,
+            } => format!(
+                "Note: {formatter} formatted the edit, and moved all or part of it elsewhere in the \
+file, as sorting imports does; the diff shows where it went.\n"
+            ),
+            Whitespace::FormattedFile(formatter) => {
                 format!("Note: {formatter} formatted the whole file, including the edit.\n")
             }
             Whitespace::Unformatted(note) | Whitespace::RepairUnformatted(note) => {
@@ -749,13 +757,14 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 
 /// The same `===DIFF===` section with the **whitespace-only hunks dropped**, plus
 /// the number dropped, when `whole_file` says a formatter that may change the
-/// whole file ([`Scope::File`]) produced `modified`.
+/// whole file ([`Formatting::whole_file`]) produced `modified`.
 ///
 /// Such a formatter's changes can reach arbitrarily far from the edit, as churn in
 /// a file that wasn't already formatted — on a large file that buries the semantic
 /// change and costs a round of re-inspecting code the caller never touched.
-/// Without one, nothing outside the edit and the lines beside it changed, so every
-/// hunk is the edit's own, whitespace included, and none is dropped.
+/// Without one, nothing changed but the edit, the lines beside it, and the edit's
+/// own text wherever the formatter moved it, so every hunk is the edit's own,
+/// whitespace included, and none is dropped.
 ///
 /// The classification is against the formatter's own contribution, hunk by hunk: a
 /// hunk whose deleted and inserted text are identical once all whitespace is

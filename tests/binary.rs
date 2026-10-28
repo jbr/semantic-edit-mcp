@@ -47,27 +47,25 @@ impl Drop for Scratch {
     }
 }
 
-/// By default the formatter formats the edit alone; `--format-scope file`,
+/// By default the formatter formats the edit alone; `--format-whole-file`,
 /// before the subcommand or after it, has it format the whole file.
 #[test]
-fn format_scope_sets_how_much_of_the_file_the_formatter_changes() {
-    let scratch = Scratch::new("format-scope");
+fn format_whole_file_has_the_formatter_format_the_whole_file() {
+    let scratch = Scratch::new("format-whole-file");
     let edited = CHURN.replace("let a = 1;", "let a = 2;");
     let whole_file = edited.replace("        let x", "    let x");
 
-    for before in [&[][..], &["--format-scope", "edit"]] {
-        let (response, source) = scratch.edit(before, &[]);
-        assert_eq!(source, edited, "{before:?}");
-        assert!(
-            response.contains("\nNote: rustfmt formatted the edit.\n"),
-            "{before:?}: {response}"
-        );
-    }
+    let (response, source) = scratch.edit(&[], &[]);
+    assert_eq!(source, edited);
+    assert!(
+        response.contains("\nNote: rustfmt formatted the edit.\n"),
+        "{response}"
+    );
 
     for (before, after) in [
-        (&["--format-scope", "file"][..], &[][..]),
-        (&[], &["--format-scope=file"]),
-        (&["--format-scope", "edit"], &["--format-scope", "file"]),
+        (&["--format-whole-file"][..], &[][..]),
+        (&[], &["--format-whole-file"]),
+        (&["--format-whole-file"], &["--format-whole-file"]),
     ] {
         let (response, source) = scratch.edit(before, after);
         assert_eq!(source, whole_file, "{before:?} {after:?}");

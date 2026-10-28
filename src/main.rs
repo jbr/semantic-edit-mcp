@@ -20,7 +20,7 @@ mod tests;
 use anyhow::{Result, anyhow, bail};
 use async_compat::Compat;
 use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
-use formatting::{Formatter, Formatting, Scope};
+use formatting::{Formatter, Formatting};
 use languages::LanguageName;
 use mcplease::{Cli, ServerConfig, server_info, traits::Dispatch, types::RequestContext};
 use state::SemanticEditTools;
@@ -47,39 +47,34 @@ struct Args {
     /// ruff and biome are found on PATH and run in the edited file's directory,
     /// so they find its project's configuration; taplo runs in-process. A
     /// formatter formats each edit: it runs on the whole file, so it sees the
-    /// edit in context, but only its changes to the edited lines and the line
-    /// on either side of them are kept, unless `--format-scope file` keeps them
-    /// all. An edit to valid code that it fails on is rejected, unless it fails
-    /// on the file without the edit too, or can't run: then the edit is written
-    /// unformatted, and the response says why.
+    /// edit in context, but only its changes to the edit are kept, unless
+    /// `--format-whole-file` keeps them all. An edit to valid code that it fails
+    /// on is rejected, unless it fails on the file without the edit too, or
+    /// can't run: then the edit is written unformatted, and the response says
+    /// why.
     // Not `global`: clap keeps a global option's occurrences from one side of
     // the subcommand only. `parse_argv` adds it to each subcommand instead, so
     // parse with that rather than with `Parser`'s methods.
     #[arg(long, value_name = "LANGUAGE=FORMATTER|built-in")]
     format: Vec<FormatSetting>,
 
-    /// How much of an edited file the formatters `--format` sets may change
-    /// [default: edit]
+    /// Keep all of a formatter's changes to an edited file, not only its
+    /// changes to the edit
     ///
-    /// `edit` keeps a formatter's changes to the lines an edit changed and to
-    /// the line on either side of them, and leaves the rest of the file as it
-    /// was; if those changes can't stand without the rest, because the file
-    /// isn't valid without them or the formatter moved a line between the edit
-    /// and the rest of the file (as sorting imports does), the edit is written
-    /// unformatted, and the response says so. `file` keeps all of them, so an
-    /// edit to a file the formatter wouldn't leave as it is changes lines far
-    /// from the edit.
-    // `global` keeps the occurrence after the subcommand when there are two,
-    // which is the later one, as with `--format`. The values are described
-    // above, so clap doesn't list them again with `Scope`'s own descriptions.
-    #[arg(
-        long,
-        global = true,
-        value_enum,
-        value_name = "edit|file",
-        hide_possible_values = true
-    )]
-    format_scope: Option<Scope>,
+    /// Without this flag, the formatters `--format` sets keep their changes to
+    /// the lines an edit changed and to the line on either side of them, and
+    /// leave the rest of the file as it was. Text a formatter moves out of the
+    /// edit, as sorting imports does, goes where the formatter put it, so long
+    /// as nothing else changes there. If the changes kept can't stand without
+    /// the rest, because the file isn't valid without them or the formatter
+    /// moved text between the edit and the rest of the file in any other way,
+    /// the edit is written unformatted, and the response says so. With it, a
+    /// formatter's changes are all kept, so an edit to a file the formatter
+    /// wouldn't leave as it is changes lines far from the edit.
+    // `global`, since a flag is set wherever it appears: clap sees it on either
+    // side of the subcommand, and only one occurrence on each.
+    #[arg(long, global = true)]
+    format_whole_file: bool,
 
     #[command(subcommand)]
     command: Cli<Tools>,
@@ -114,7 +109,7 @@ impl Args {
     }
 
     /// The formatting the `--format` settings ask for, applied in turn, none
-    /// without them, at the `--format-scope`.
+    /// without them, of the whole file with `--format-whole-file`.
     fn formatting(&self) -> Formatting {
         self.format
             .iter()
@@ -124,7 +119,7 @@ impl Args {
                     formatting.with(*language, formatter.clone())
                 }
             })
-            .with_scope(self.format_scope.unwrap_or_default())
+            .with_whole_file(self.format_whole_file)
     }
 }
 
@@ -367,34 +362,28 @@ mod cli_tests {
 
     /// Edits are local unless whole-file formatting is asked for.
     #[test]
-    fn the_format_scope_is_the_edit_unless_set() {
+    fn only_the_edit_is_formatted_without_format_whole_file() {
         for argv in [&["--format", "built-in", "serve"][..], &["serve"]] {
-            assert_eq!(formatting(argv).scope(), Scope::Edit, "{argv:?}");
+            assert!(!formatting(argv).whole_file(), "{argv:?}");
         }
-        assert_eq!(
-            formatting(&["--format", "built-in", "--format-scope", "edit", "serve"]),
-            Formatting::built_in()
-        );
     }
 
-    /// Like `--format`, `--format-scope` goes before the subcommand or after it,
-    /// and of two, the later applies. It sets the scope of every `--format`
-    /// setting, wherever they are.
+    /// Like `--format`, `--format-whole-file` goes before the subcommand or
+    /// after it, or both, for `serve` and for a one-shot tool. It applies to
+    /// every `--format` setting, wherever they are.
     #[test]
-    fn the_format_scope_goes_on_either_side_of_the_subcommand() {
-        let whole_file = Formatting::built_in().with_scope(Scope::File);
+    fn format_whole_file_goes_on_either_side_of_the_subcommand() {
+        let whole_file = Formatting::built_in().with_whole_file(true);
         for argv in [
-            &["--format-scope", "file", "--format", "built-in", "serve"][..],
-            &["--format", "built-in", "serve", "--format-scope=file"],
-            &["serve", "--format-scope", "file", "--format", "built-in"],
+            &["--format-whole-file", "--format", "built-in", "serve"][..],
+            &["--format", "built-in", "serve", "--format-whole-file"],
+            &["serve", "--format-whole-file", "--format", "built-in"],
             &[
-                "--format-scope",
-                "edit",
+                "--format-whole-file",
                 "serve",
                 "--format",
                 "built-in",
-                "--format-scope",
-                "file",
+                "--format-whole-file",
             ],
             &[
                 "--format",
@@ -404,38 +393,51 @@ mod cli_tests {
                 "replace",
                 "x",
                 "y",
-                "--format-scope",
-                "file",
+                "--format-whole-file",
+            ],
+            &[
+                "--format-whole-file",
+                "undo-edit",
+                "--format",
+                "built-in",
+                "a.rs",
             ],
         ] {
             assert_eq!(formatting(argv), whole_file, "{argv:?}");
         }
-        assert_eq!(
-            formatting(&["--format-scope", "file", "serve", "--format-scope", "edit"]),
-            Formatting::off()
-        );
         // Without `--format` it has no formatter to apply to.
         assert_eq!(
-            formatting(&["--format-scope", "file", "serve"]),
-            Formatting::off().with_scope(Scope::File)
+            formatting(&["--format-whole-file", "serve"]),
+            Formatting::off().with_whole_file(true)
         );
+
+        // The rest of the command line parses as before.
+        let args = parse(&[
+            "edit",
+            "a.rs",
+            "replace",
+            "x",
+            "y",
+            "--format-whole-file",
+            "--root",
+            "/tmp",
+        ])
+        .unwrap();
+        assert!(matches!(args.command, Cli::Tool(Tools::Edit(_))));
+        assert_eq!(args.root, Some(PathBuf::from("/tmp")));
     }
 
+    /// A flag takes no value: whole-file formatting is on or it isn't.
     #[test]
-    fn an_unknown_format_scope_is_an_error_naming_the_known_ones() {
+    fn format_whole_file_takes_no_value() {
         for argv in [
-            ["--format-scope", "whole", "serve"],
-            ["serve", "--format-scope", "File"],
-            ["serve", "--format-scope", ""],
+            ["--format-whole-file=true", "serve"],
+            ["serve", "--format-whole-file=file"],
         ] {
             let Err(error) = parse(&argv) else {
                 panic!("{argv:?} parsed");
             };
-            assert_eq!(error.kind(), ErrorKind::InvalidValue, "{argv:?}");
-            assert!(
-                error.to_string().contains("[possible values: edit, file]"),
-                "{argv:?}: {error}"
-            );
+            assert_eq!(error.kind(), ErrorKind::TooManyValues, "{argv:?}");
         }
     }
 }

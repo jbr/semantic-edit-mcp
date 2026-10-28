@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: rustfmt formatted the edit, and moved all or part of it elsewhere in the file, as sorting imports does; the diff shows where it went.
+
+===DIFF===
+@@ -2,6 +2,7 @@
+ use std::fmt;
+
+ use a::A;
++use aa::AA;
+ use b::B;
+ use c::C;
+ use d::D;

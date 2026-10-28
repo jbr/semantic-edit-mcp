@@ -1,4 +1,4 @@
-use crate::formatting::{Formatter, Formatting, Scope};
+use crate::formatting::{Formatter, Formatting};
 use crate::languages::LanguageName;
 use crate::state::SemanticEditTools;
 use crate::tools::Tools;
@@ -564,13 +564,16 @@ fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
 /// A formatting file is a JSON object from a language (named as `args.json`
 /// names one: `rust`, `typescript`, …) or `"*"`, every language, to a
 /// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none.
-/// `"*"` applies before the languages beside it. `"scope"` is the formatters'
-/// [`Scope`], `"edit"` or `"file"`, which is the edit unless a file sets it.
+/// `"*"` applies before the languages beside it. `"whole-file"` is `true` for
+/// the formatters to keep all of their changes ([`Formatting::whole_file`]), or
+/// `false` for only their changes to the edit, which is what they keep unless
+/// a file sets it.
 ///
 /// - `{"*": null}`: no formatter for any language
 /// - `{"rust": null}`: none for Rust, the rest as inherited
 /// - `{"toml": "taplo"}`: taplo for TOML, the rest as inherited
-/// - `{"scope": "file"}`: the inherited formatters, keeping all of their changes
+/// - `{"whole-file": true}`: the inherited formatters, keeping all of their
+///   changes
 fn formatting_for(layers: &[PathBuf]) -> Result<Formatting> {
     let mut formatting = Formatting::default();
     for path in layers {
@@ -593,8 +596,11 @@ fn apply_formatting_layer(formatting: &mut Formatting, layer: &Map<String, Value
     for (key, value) in layer {
         match key.as_str() {
             "*" => {}
-            "scope" => {
-                formatting.set_scope(parse_scope(value)?);
+            "whole-file" => {
+                let whole_file = value.as_bool().ok_or_else(|| {
+                    anyhow!("expected true or false for \"whole-file\", found {value}")
+                })?;
+                formatting.set_whole_file(whole_file);
             }
             language => {
                 formatting.set(parse_language(language)?, parse_formatter(value)?);
@@ -602,14 +608,6 @@ fn apply_formatting_layer(formatting: &mut Formatting, layer: &Map<String, Value
         }
     }
     Ok(())
-}
-
-/// A scope as the command line names one: `"edit"` or `"file"`.
-fn parse_scope(value: &Value) -> Result<Scope> {
-    value
-        .as_str()
-        .and_then(|name| <Scope as ValueEnum>::from_str(name, false).ok())
-        .ok_or_else(|| anyhow!("expected \"edit\" or \"file\" for the scope, found {value}"))
 }
 
 /// A language as `args.json` names one. Unlike deserializing a
@@ -745,39 +743,40 @@ mod tests {
             r#"{"rust": false}"#,
             r#"{"*": "off"}"#,
             r#"["rust"]"#,
-            r#"{"scope": "whole"}"#,
-            r#"{"scope": "File"}"#,
-            r#"{"scope": null}"#,
-            r#"{"scope": true}"#,
+            r#"{"whole-file": "true"}"#,
+            r#"{"whole-file": 1}"#,
+            r#"{"whole-file": null}"#,
+            r#"{"whole_file": true}"#,
+            r#"{"scope": "file"}"#,
         ] {
             assert!(layered(&[layer]).is_err(), "{layer}");
         }
     }
 
-    /// The scope is the edit unless a layer sets it, and it leaves the
-    /// formatters as inherited.
+    /// Formatters keep only their changes to the edit unless a layer sets
+    /// `"whole-file"`, which leaves the formatters as inherited.
     #[test]
-    fn scope_sets_how_much_the_inherited_formatters_change() {
+    fn whole_file_sets_how_much_the_inherited_formatters_change() {
         let root = fs::read_to_string(root_formatting_file()).unwrap();
-        assert_eq!(layered(&[&root]).unwrap().scope(), Scope::Edit);
+        assert!(!layered(&[&root]).unwrap().whole_file());
         assert_eq!(
-            layered(&[&root, r#"{"scope": "file"}"#]).unwrap(),
-            Formatting::built_in().with_scope(Scope::File)
+            layered(&[&root, r#"{"whole-file": true}"#]).unwrap(),
+            Formatting::built_in().with_whole_file(true)
         );
         assert_eq!(
-            layered(&[r#"{"scope": "file"}"#, r#"{"rust": "rustfmt"}"#]).unwrap(),
+            layered(&[r#"{"whole-file": true}"#, r#"{"rust": "rustfmt"}"#]).unwrap(),
             Formatting::off()
                 .with(LanguageName::Rust, Formatter::rustfmt())
-                .with_scope(Scope::File)
+                .with_whole_file(true)
         );
         assert_eq!(
-            layered(&[&root, r#"{"scope": "file"}"#, r#"{"scope": "edit"}"#]).unwrap(),
+            layered(&[&root, r#"{"whole-file": true}"#, r#"{"whole-file": false}"#]).unwrap(),
             Formatting::built_in()
         );
-        // `"*"` sets formatters, not the scope.
+        // `"*"` sets formatters, not `"whole-file"`.
         assert_eq!(
-            layered(&[r#"{"scope": "file"}"#, r#"{"*": null}"#]).unwrap(),
-            Formatting::off().with_scope(Scope::File)
+            layered(&[r#"{"whole-file": true}"#, r#"{"*": null}"#]).unwrap(),
+            Formatting::off().with_whole_file(true)
         );
     }
 }

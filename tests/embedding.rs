@@ -2,9 +2,7 @@
 
 use mcplease::traits::Dispatch;
 use mcplease::types::RequestContext;
-use semantic_edit_mcp::{
-    Formatter, Formatting, LanguageName, SemanticEditTools, Tools, formatting::Scope,
-};
+use semantic_edit_mcp::{Formatter, Formatting, LanguageName, SemanticEditTools, Tools};
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -502,7 +500,7 @@ const CHURN: &str = "fn misindented() {\n        let x = 1;\n}\n\n// a\n// b\n//
 /// formatter would change it.
 #[tokio::test]
 async fn by_default_the_formatter_formats_the_edit_alone() {
-    let scratch = Scratch::new("edit-scope", CHURN);
+    let scratch = Scratch::new("edit-alone", CHURN);
     let state = SemanticEditTools::new(scratch.dir.clone())
         .unwrap()
         .with_formatting(Formatting::off().with(LanguageName::Rust, Formatter::rustfmt()));
@@ -525,18 +523,18 @@ async fn by_default_the_formatter_formats_the_edit_alone() {
     );
 }
 
-/// With whole-file scope, every change the formatter makes is kept, as it
-/// always was, and the whitespace-only ones far from the edit are counted
+/// With whole-file formatting, every change the formatter makes is kept, as
+/// it always was, and the whitespace-only ones far from the edit are counted
 /// rather than shown.
 #[tokio::test]
-async fn with_file_scope_the_formatter_formats_the_whole_file() {
-    let scratch = Scratch::new("file-scope", CHURN);
+async fn with_whole_file_the_formatter_formats_the_whole_file() {
+    let scratch = Scratch::new("whole-file", CHURN);
     let state = SemanticEditTools::new(scratch.dir.clone())
         .unwrap()
         .with_formatting(
             Formatting::off()
                 .with(LanguageName::Rust, Formatter::rustfmt())
-                .with_scope(Scope::File),
+                .with_whole_file(true),
         );
 
     let response = edit(&state, "replace", "let a = 1;", "let a=2;")
@@ -558,11 +556,11 @@ hunk elsewhere in the file is not shown"
     assert!(!response.contains("let x"), "{response}");
 }
 
-/// The edit scope can be set while the tools run, like the rest of the
-/// settings.
+/// Whole-file formatting can be turned on while the tools run, like the rest
+/// of the settings.
 #[tokio::test]
-async fn the_scope_can_change_while_the_tools_run() {
-    let scratch = Scratch::new("scope-change", CHURN);
+async fn whole_file_can_change_while_the_tools_run() {
+    let scratch = Scratch::new("whole-file-change", CHURN);
     let formatting = Formatting::off().with(LanguageName::Rust, Formatter::rustfmt());
     let state = SemanticEditTools::new(scratch.dir.clone())
         .unwrap()
@@ -573,7 +571,7 @@ async fn the_scope_can_change_while_the_tools_run() {
         .unwrap();
     assert!(scratch.source().contains("        let x = 1;"));
 
-    state.set_formatting(formatting.with_scope(Scope::File));
+    state.set_formatting(formatting.with_whole_file(true));
     edit(&state, "replace", "let a = 2;", "let a=3;")
         .await
         .unwrap();
@@ -615,14 +613,15 @@ formatted; the diff shows exactly what was written.\n"
         "{response}"
     );
 
-    // With whole-file scope, all of them are kept, and the result is valid.
+    // With whole-file formatting, all of them are kept, and the result is
+    // valid.
     std::fs::write(scratch.dir.join("demo.rs"), original).unwrap();
     let state = SemanticEditTools::new(scratch.dir.clone())
         .unwrap()
         .with_formatting(
             Formatting::off()
                 .with(LanguageName::Rust, formatter)
-                .with_scope(Scope::File),
+                .with_whole_file(true),
         );
     let response = edit(&state, "replace", "let b = 1;", "let b=2;")
         .await

@@ -12,11 +12,18 @@
 //! A formatter's changes can depend on each other. One that moves a line, as
 //! rustfmt does to sort imports, removes it in one hunk and adds it in another,
 //! and keeping one of the two would lose the line or duplicate it, in a file that
-//! still parses: [`keep`] refuses that. Others leave the file invalid (a brace
-//! moved from far away to the edit), so the caller validates the result again.
+//! still parses. When the line is the edit's own and the hunk far from the edit
+//! does nothing but put it in its new place, [`keep`] keeps both; any other move
+//! across the boundary it refuses. Other dependencies leave the file invalid (a
+//! brace moved from far away to the edit), so the caller validates the result
+//! again.
 
 use diffy::{DiffOptions, Hunk, Line};
-use std::{borrow::Cow, collections::HashMap, ops::Range};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    ops::Range,
+};
 
 /// The lines of `laid_out` the edit changed, as indexes from 0, end exclusive.
 /// `laid_out` is `source` with the edit's text in place at `span`, a byte range
@@ -48,6 +55,16 @@ pub(super) fn edited_lines(source: &str, laid_out: &str, span: Range<usize>) -> 
     lines
 }
 
+/// What [`keep`] keeps of a formatter's changes.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct Kept {
+    /// The laid-out result with those changes made.
+    pub(super) text: String,
+    /// Whether one of them, away from the edit, puts text the formatter moved
+    /// out of the edit in its new place.
+    pub(super) moved: bool,
+}
+
 /// `laid_out` with those of `formatted`'s changes to it that touch `edited`, its
 /// lines the edit changed (see [`edited_lines`]), or the line on either side of
 /// them. Each line a kept change writes ends with `newline`, the file's line
@@ -57,51 +74,157 @@ pub(super) fn edited_lines(source: &str, laid_out: &str, span: Range<usize>) -> 
 /// so one that straddles the boundary, reflowing a statement that begins before
 /// the edit, say, is kept, and reaches a little beyond the edit.
 ///
-/// `None` if the formatter moved text across the boundary, between a change
-/// kept and one left out ([`Words::moved_across`]): either alone would lose the
+/// Where the formatter moves text out of the edit, as rustfmt does to sort an
+/// inserted import, the change that puts it in its new place is carried with
+/// the changes kept, if it does nothing else ([`carry_moves`]). That change can
+/// be anywhere in the file, but it only adds lines, with no words but the
+/// edit's own: it places the edit's text where the formatter put it, and every
+/// line already there stays as it was.
+///
+/// `None` if the formatter moved text across the boundary that can't be
+/// carried: text that was already in the file, as when it moves a line from
+/// elsewhere into the edit, or the edit's text to a place where it changes
+/// other lines too. Then keeping either side of the move alone would lose the
 /// text or duplicate it.
 pub(super) fn keep(
     laid_out: &str,
     formatted: &str,
     edited: Range<usize>,
     newline: &str,
-) -> Option<String> {
+) -> Option<Kept> {
     // Compared without their line endings: rustfmt and biome write LF whatever
     // the file uses, so a CRLF file would otherwise differ on every line.
     let (old, new) = (lf(laid_out), lf(formatted));
     let patch = DiffOptions::new()
         .set_context_len(0)
         .create_patch(&old, &new);
-    let lines = laid_out.split_inclusive('\n').collect::<Vec<_>>();
+    let hunks = patch.hunks();
     let near = edited.start.saturating_sub(1)..edited.end + 1;
+    let mut kept = hunks
+        .iter()
+        .map(|hunk| touches(&replaced_lines(hunk), &near))
+        .collect::<Vec<_>>();
+    let moved = carry_moves(hunks, &mut kept, &edited)?;
+    Some(Kept {
+        text: apply(laid_out, hunks, &kept, newline),
+        moved,
+    })
+}
 
-    let mut kept = String::with_capacity(laid_out.len());
-    let mut copied = 0;
-    let (mut kept_words, mut left_out_words) = (Words::default(), Words::default());
-    for hunk in patch.hunks() {
-        let replaced = replaced_lines(hunk);
-        if !touches(&replaced, &near) {
-            left_out_words.count(hunk);
+/// Carry, with the hunks `kept` marks, the ones left out that put text the
+/// formatter moved out of the edit, whose lines are `edited`, in its new place,
+/// marking them kept too: whether any were carried, or `None` if text still
+/// moves between the hunks kept and those left out ([`Words::moved_across`]).
+///
+/// A hunk left out is carried if it is *pure*, doing nothing but place the
+/// edit's moved text ([`moved_text`]):
+///
+/// - it removes no line,
+/// - it adds a word that crosses the boundary, and
+/// - it adds no word more times than the moved text holds it, less what the
+///   hunks carried before it placed.
+///
+/// A hunk this far from the edit can only remove a line that was already
+/// there, so text moved into the edit from elsewhere is never carried, and
+/// neither is a hunk that also restyles or reorders the lines where the edit's
+/// text lands, or that adds words the edit didn't lose.
+///
+/// One pass carries all that can be carried. A pure hunk adds only words the
+/// kept hunks remove on balance, and no more of a word than they do, so
+/// carrying it can't start another word crossing; whatever still crosses after
+/// the pass is in a hunk that isn't pure.
+fn carry_moves(hunks: &[Hunk<'_, str>], kept: &mut [bool], edited: &Range<usize>) -> Option<bool> {
+    let words = hunks.iter().map(Words::of).collect::<Vec<_>>();
+    let (inside, outside) = sides(&words, kept);
+    let crossing = inside.moved_across(&outside);
+    if crossing.is_empty() {
+        return Some(false);
+    }
+    let mut unplaced = moved_text(hunks, kept, &inside, edited);
+    for (index, hunk) in hunks.iter().enumerate() {
+        if kept[index] {
             continue;
         }
-        kept_words.count(hunk);
+        // Placing its words spends them, so it is tried last.
+        kept[index] = hunk.old_range().is_empty()
+            && words[index].adds_any(&crossing)
+            && unplaced.place(&words[index]);
+    }
+    let (inside, outside) = sides(&words, kept);
+    inside.moved_across(&outside).is_empty().then_some(true)
+}
+
+/// The edit's moved text: word by word, what the kept hunks, whose words are
+/// `inside`, remove on balance, as far as the lines of the edit they remove hold
+/// it. What they remove from the line on either side of the edit was already
+/// there, so it isn't the edit's to move.
+fn moved_text(
+    hunks: &[Hunk<'_, str>],
+    kept: &[bool],
+    inside: &Words,
+    edited: &Range<usize>,
+) -> Words {
+    let mut removed = Words::default();
+    for (hunk, _) in hunks.iter().zip(kept).filter(|(_, kept)| **kept) {
+        let mut line = replaced_lines(hunk).start;
+        for change in hunk.lines() {
+            match change {
+                Line::Delete(text) => {
+                    if edited.contains(&line) {
+                        removed.count(text, 1);
+                    }
+                    line += 1;
+                }
+                Line::Context(_) => line += 1,
+                Line::Insert(_) => {}
+            }
+        }
+    }
+    removed.0.retain(|word, count| {
+        *count = (*count).min(inside.get(word));
+        *count > 0
+    });
+    removed
+}
+
+/// The words of the hunks `kept` marks, and those of the rest.
+fn sides(words: &[Words], kept: &[bool]) -> (Words, Words) {
+    let (mut inside, mut outside) = (Words::default(), Words::default());
+    for (words, kept) in words.iter().zip(kept) {
+        if *kept {
+            inside.add(words);
+        } else {
+            outside.add(words);
+        }
+    }
+    (inside, outside)
+}
+
+/// `laid_out` with the hunks `kept` marks applied, each line they write ending
+/// with `newline`.
+fn apply(laid_out: &str, hunks: &[Hunk<'_, str>], kept: &[bool], newline: &str) -> String {
+    let lines = laid_out.split_inclusive('\n').collect::<Vec<_>>();
+    let mut applied = String::with_capacity(laid_out.len());
+    let mut copied = 0;
+    for (hunk, _) in hunks.iter().zip(kept).filter(|(_, kept)| **kept) {
+        let replaced = replaced_lines(hunk);
         for line in &lines[copied..replaced.start] {
-            kept.push_str(line);
+            applied.push_str(line);
         }
         for line in hunk.lines() {
             if let Line::Insert(line) = line {
-                push_line(&mut kept, line, newline);
+                push_line(&mut applied, line, newline);
             }
         }
         copied = replaced.end;
     }
     for line in &lines[copied..] {
-        kept.push_str(line);
+        applied.push_str(line);
     }
-    (!kept_words.moved_across(&left_out_words)).then_some(kept)
+    applied
 }
 
-/// The words some hunks remove, less those they add: each word, without regard
+/// The words some lines remove, less those they add: each word, without regard
 /// to case, with how many more times it is removed than added, so a negative
 /// count is a word added. A word is a run of letters, digits and underscores:
 /// identifiers, keywords, numbers, and the words of strings and comments.
@@ -114,31 +237,67 @@ pub(super) fn keep(
 struct Words(HashMap<String, isize>);
 
 impl Words {
-    fn count(&mut self, hunk: &Hunk<'_, str>) {
+    /// The words `hunk` removes, less those it adds.
+    fn of(hunk: &Hunk<'_, str>) -> Self {
+        let mut words = Self::default();
         for line in hunk.lines() {
-            let (text, sign) = match line {
-                Line::Delete(text) => (text, 1),
-                Line::Insert(text) => (text, -1),
-                Line::Context(_) => continue,
-            };
-            let words = text
-                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .filter(|word| !word.is_empty());
-            for word in words {
-                *self.0.entry(word.to_lowercase()).or_default() += sign;
+            match line {
+                Line::Delete(text) => words.count(text, 1),
+                Line::Insert(text) => words.count(text, -1),
+                Line::Context(_) => {}
             }
+        }
+        words
+    }
+
+    /// Count each word of `text` as removed `times` more times.
+    fn count(&mut self, text: &str, times: isize) {
+        let words = text
+            .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .filter(|word| !word.is_empty());
+        for word in words {
+            *self.0.entry(word.to_lowercase()).or_default() += times;
         }
     }
 
-    /// Whether a word these hunks remove on balance, `other`'s add on balance,
-    /// or the other way round: text moved between the two.
-    fn moved_across(&self, other: &Self) -> bool {
-        self.0.iter().any(|(word, count)| {
-            other
-                .0
-                .get(word)
-                .is_some_and(|other| count.signum() * other.signum() < 0)
-        })
+    /// How many more times these remove `word` than add it.
+    fn get(&self, word: &str) -> isize {
+        self.0.get(word).copied().unwrap_or_default()
+    }
+
+    /// Count `other`'s words too.
+    fn add(&mut self, other: &Self) {
+        for (word, count) in &other.0 {
+            *self.0.entry(word.clone()).or_default() += count;
+        }
+    }
+
+    /// The words these remove on balance that `other` adds on balance, or the
+    /// other way round: text moved between the two.
+    fn moved_across(&self, other: &Self) -> HashSet<&str> {
+        self.0
+            .iter()
+            .filter(|(word, count)| count.signum() * other.get(word).signum() < 0)
+            .map(|(word, _)| word.as_str())
+            .collect()
+    }
+
+    /// Whether these add one of `words` on balance.
+    fn adds_any(&self, words: &HashSet<&str>) -> bool {
+        words.iter().any(|word| self.get(word) < 0)
+    }
+
+    /// Taking these as words still to place, place those `other` adds, if
+    /// these hold them all: whether they did. Nothing is placed if they don't.
+    fn place(&mut self, other: &Self) -> bool {
+        let added = || other.0.iter().filter(|(_, count)| **count < 0);
+        if !added().all(|(word, count)| self.get(word) >= -count) {
+            return false;
+        }
+        for (word, count) in added() {
+            self.0.entry(word.clone()).and_modify(|left| *left += count);
+        }
+        true
     }
 }
 
@@ -262,7 +421,17 @@ mod tests {
 
     /// What [`keep`] keeps, when it keeps anything.
     fn kept(laid_out: &str, formatted: &str, edited: Range<usize>, newline: &str) -> String {
-        keep(laid_out, formatted, edited, newline).expect("nothing moved across the boundary")
+        keep(laid_out, formatted, edited, newline)
+            .expect("nothing moved across the boundary")
+            .text
+    }
+
+    /// What [`keep`] keeps, having carried a move to where the formatter put it.
+    fn carried(text: impl Into<String>) -> Option<Kept> {
+        Some(Kept {
+            text: text.into(),
+            moved: true,
+        })
     }
 
     /// `text` with each line named in `lines` given the `suffix`, as a formatter
@@ -489,23 +658,87 @@ mod tests {
 
     /// rustfmt sorts imports: a line diff sees the import added at the end
     /// removed there and added far above. Keeping only the removal would lose
-    /// the edit's import from a file that still parses.
+    /// the edit's import from a file that still parses, so the addition, which
+    /// does nothing else, is kept too.
     #[test]
-    fn a_line_moved_out_of_the_edit_keeps_nothing() {
+    fn a_line_moved_out_of_the_edit_goes_where_the_formatter_put_it() {
         let laid_out = "use a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse aa::AA;\n";
         let formatted = "use a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n";
-        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
+        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), carried(formatted));
         // Moved with a change, as when the formatter sorts inside its braces too.
         let formatted = formatted.replace("aa::AA", "aa::{X, Y}");
         let laid_out = laid_out.replace("aa::AA", "aa::{Y,X}");
-        assert_eq!(keep(&laid_out, &formatted, 5..6, "\n"), None);
+        assert_eq!(keep(&laid_out, &formatted, 5..6, "\n"), carried(&formatted));
+        // In a CRLF file, the line takes the file's line ending where it lands.
+        let crlf = laid_out.replace('\n', "\r\n");
+        assert_eq!(
+            keep(&crlf, &formatted, 5..6, "\r\n"),
+            carried(formatted.replace('\n', "\r\n"))
+        );
     }
 
-    /// A line moved from far away to the edit would be in the file twice.
+    /// The formatter's changes far from the edit that don't place its text stay
+    /// left out, even where they move lines of their own.
+    #[test]
+    fn a_move_is_carried_without_the_changes_around_it() {
+        let laid_out = "use std::io;\nuse std::fmt;\n\nuse a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse aa::AA;\n";
+        let formatted = "use std::fmt;\nuse std::io;\n\nuse a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n";
+        assert_eq!(
+            keep(laid_out, formatted, 8..9, "\n"),
+            carried(
+                "use std::io;\nuse std::fmt;\n\nuse a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n"
+            )
+        );
+    }
+
+    /// Lines of the edit that land in different places are each carried there.
+    #[test]
+    fn a_move_to_several_places_is_carried_to_each() {
+        let laid_out = "use a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse f::F;\nuse aa::AA;\nuse cc::CC;\n";
+        let formatted = "use a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse cc::CC;\nuse d::D;\nuse e::E;\nuse f::F;\n";
+        assert_eq!(keep(laid_out, formatted, 6..8, "\n"), carried(formatted));
+    }
+
+    /// A line moved from far away to the edit would be in the file twice, and
+    /// removing it from where it was would change a line already there.
     #[test]
     fn a_line_moved_into_the_edit_keeps_nothing() {
         let laid_out = "use z::Z;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse f::F;\n";
         let formatted = "use b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse f::F;\nuse z::Z;\n";
+        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
+    }
+
+    /// Where the edit's text lands, the formatter also restyles a line that was
+    /// already there: carrying the change would restyle it too.
+    #[test]
+    fn a_move_into_other_changes_keeps_nothing() {
+        let laid_out = "use a::A;\nuse  b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse aa::AA;\n";
+        let formatted = "use a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n";
+        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
+        // Or reorders lines that were already there.
+        let laid_out = "use a::A;\nuse c::C;\nuse b::B;\nuse d::D;\nuse e::E;\nuse aa::AA;\n";
+        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
+    }
+
+    /// A change that adds more than the edit's moved text isn't only placing
+    /// it.
+    #[test]
+    fn a_move_that_adds_other_words_keeps_nothing() {
+        let laid_out = "use a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\nuse aa::AA;\n";
+        let formatted =
+            "use a::A;\nuse aa::AA;\nuse ab::AB;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n";
+        assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
+        // Nor is one that adds the edit's line twice.
+        let formatted = formatted.replace("ab::AB", "aa::AA");
+        assert_eq!(keep(laid_out, &formatted, 5..6, "\n"), None);
+    }
+
+    /// The line before the edit was out of order before it: the formatter
+    /// moving it is a change to a line already there, not to the edit.
+    #[test]
+    fn a_line_moved_from_beside_the_edit_keeps_nothing() {
+        let laid_out = "use a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse aa::AA;\nuse f::F;\n";
+        let formatted = "use a::A;\nuse aa::AA;\nuse b::B;\nuse c::C;\nuse d::D;\nuse f::F;\n";
         assert_eq!(keep(laid_out, formatted, 5..6, "\n"), None);
     }
 
@@ -514,7 +747,13 @@ mod tests {
     fn a_line_moved_within_what_is_kept_is_kept() {
         let laid_out = "use a::A;\nuse b::B;\nuse d::D;\nuse c::C;\nuse e::E;\n";
         let formatted = "use a::A;\nuse b::B;\nuse c::C;\nuse d::D;\nuse e::E;\n";
-        assert_eq!(kept(laid_out, formatted, 3..4, "\n"), formatted);
+        assert_eq!(
+            keep(laid_out, formatted, 3..4, "\n"),
+            Some(Kept {
+                text: formatted.into(),
+                moved: false
+            })
+        );
     }
 
     /// Words that only change case or punctuation, as numbers and quotes do,

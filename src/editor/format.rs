@@ -3,14 +3,16 @@
 //! runs once, on that candidate's result (`docs/design/formatting.md`,
 //! "Formatting").
 //!
-//! The formatter formats the whole result, but under [`Scope::Edit`], the
-//! default, only its changes to the edit are kept ([`hunks`]), and the result is
-//! validated again. Changes that can't stand without the rest of the
-//! formatter's, because the file isn't valid without them or because the
-//! formatter moved text between them and the rest, are dropped with the rest:
-//! the edit is written as laid out, with a note. The edit itself validated, so it
-//! isn't rejected, and writing the whole formatted file instead would change
-//! lines far from it.
+//! The formatter formats the whole result, but unless the settings ask for the
+//! [whole file](crate::formatting::Formatting::whole_file), only its changes to
+//! the edit are kept ([`hunks`]), and the result is validated again. Text the
+//! formatter moves out of the edit, as sorting imports does, goes where the
+//! formatter put it, if nothing else changes there. Changes that can't stand
+//! without the rest of the formatter's, because the file isn't valid without
+//! them or because the formatter moved text between them and the rest in any
+//! other way, are dropped with the rest: the edit is written as laid out, with
+//! a note. The edit itself validated, so it isn't rejected, and writing the
+//! whole formatted file instead would change lines far from it.
 //!
 //! A formatter's failure is judged per file:
 //!
@@ -30,7 +32,7 @@ mod hunks;
 
 use super::Editor;
 use crate::{
-    formatting::{Failure, Formatter, Scope},
+    formatting::{Failure, Formatter},
     layout::line_ending,
 };
 use std::ops::Range;
@@ -43,8 +45,13 @@ pub(crate) enum Whitespace {
     /// Written as laid out: the file has no formatter, or the result is a repair
     /// that still has syntax errors, which formatters refuse.
     AsLaidOut,
-    /// The file's formatter formatted it, keeping the changes `Scope` allows.
-    Formatted(Formatter, Scope),
+    /// The file's formatter formatted the edit, and only its changes to the edit
+    /// were kept. `moved` if it moved some of the edit's text elsewhere in the
+    /// file, and that text was written where it moved it.
+    FormattedEdit { formatter: Formatter, moved: bool },
+    /// The file's formatter formatted the whole file, and all of its changes
+    /// were kept.
+    FormattedFile(Formatter),
     /// Written as laid out because the formatter couldn't be used on this file:
     /// the note saying why, a line of its own.
     Unformatted(String),
@@ -153,10 +160,10 @@ impl Editor<'_> {
     }
 
     /// What is written for `output`, whose edit's text is at `span`, given
-    /// `formatted`, the formatter's valid output for it: all of it under
-    /// [`Scope::File`]. Under [`Scope::Edit`], `output` with the formatter's
-    /// changes to the edit, if that is valid too, and otherwise `output` as laid
-    /// out, with a note.
+    /// `formatted`, the formatter's valid output for it: all of it if the
+    /// settings ask for the whole file. Otherwise `output` with the formatter's
+    /// changes to the edit, if that is valid too, and else `output` as laid out,
+    /// with a note.
     fn scoped(
         &self,
         formatter: &Formatter,
@@ -164,27 +171,29 @@ impl Editor<'_> {
         formatted: String,
         span: Range<usize>,
     ) -> Formatted {
-        if self.scope == Scope::File {
-            return written(
-                formatted,
-                Whitespace::Formatted(formatter.clone(), Scope::File),
-            );
+        if self.whole_file {
+            return written(formatted, Whitespace::FormattedFile(formatter.clone()));
         }
         let edited = hunks::edited_lines(&self.source_code, &output, span);
         let newline = line_ending(&self.source_code);
+        let formatted_edit = |moved| Whitespace::FormattedEdit {
+            formatter: formatter.clone(),
+            moved,
+        };
         let refusal = match hunks::keep(&output, &formatted, edited, newline) {
             // All of the formatter's changes, or none of them, is a result
             // already validated.
-            Some(kept) if kept == formatted || kept == output => {
-                return written(kept, Whitespace::Formatted(formatter.clone(), Scope::Edit));
+            Some(kept) if kept.text == formatted || kept.text == output => {
+                return written(kept.text, formatted_edit(kept.moved));
             }
-            Some(kept) => match self.invalid(&kept) {
-                None => {
-                    return written(kept, Whitespace::Formatted(formatter.clone(), Scope::Edit));
-                }
+            Some(kept) => match self.invalid(&kept.text) {
+                None => return written(kept.text, formatted_edit(kept.moved)),
                 Some(errors) => errors,
             },
-            None => String::from("they move text between the edit and the rest of the file"),
+            None => String::from(
+                "they move text between the edit and the rest of the file, and not only the \
+                 edit's own text to a place where nothing else changes",
+            ),
         };
         log::debug!("{formatter}'s changes to the edit alone are refused:\n{refusal}");
         written(

@@ -10,8 +10,9 @@
 //! for example with [`Formatting::built_in`] or a language formatted by a
 //! [`Formatter::command`], and
 //! [`set_formatting`](SemanticEditTools::set_formatting) replaces the settings
-//! while they run. A formatter's changes are kept to the edit unless the
-//! settings' [`Scope`](formatting::Scope) is the whole file.
+//! while they run. A formatter's changes are kept to the edit, and to the
+//! edit's own text where the formatter moves it, unless the settings ask for
+//! the [whole file](Formatting::whole_file).
 //!
 //! Additive only: `main.rs` and `tests` keep declaring their own modules, so the
 //! binary and its tests are unchanged. Deleting this file reverts the crate to
