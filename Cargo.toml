@@ -40,3 +40,6 @@ tree-sitter-rust = "0.24"
 tree-sitter-toml-ng = "0.7.0"
 tree-sitter-typescript = "0.23.2"
 
+[dev-dependencies]
+toml_edit = { version = "0.25.15", features = ["serde"] }
+

@@ -19,7 +19,7 @@ mod tests;
 
 use anyhow::{Result, anyhow, bail};
 use async_compat::Compat;
-use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
+use clap::{CommandFactory, FromArgMatches, Parser};
 use formatting::{Formatter, Formatting};
 use languages::LanguageName;
 use mcplease::{Cli, ServerConfig, server_info, traits::Dispatch, types::RequestContext};
@@ -136,6 +136,8 @@ enum FormatSetting {
 impl FromStr for FormatSetting {
     type Err = anyhow::Error;
 
+    /// A setting, with languages and formatters named as the settings' serialized
+    /// form names them, and as strictly: `other` takes no formatter.
     fn from_str(setting: &str) -> Result<Self> {
         if setting == "built-in" {
             return Ok(Self::BuiltIn);
@@ -143,21 +145,10 @@ impl FromStr for FormatSetting {
         let Some((language, formatter)) = setting.split_once('=') else {
             bail!("expected LANGUAGE=FORMATTER or built-in");
         };
-        let language = <LanguageName as ValueEnum>::from_str(language, false)
-            .map_err(|_| anyhow!("unknown language {language:?}; expected {}", languages()))?;
+        let language = formatting::formatted_language(language)
+            .ok_or_else(|| anyhow!(formatting::unknown_language(language)))?;
         Ok(Self::Language(language, formatter.parse()?))
     }
-}
-
-/// Every language's name, as `--language` takes it, for an error.
-fn languages() -> String {
-    let names = LanguageName::value_variants()
-        .iter()
-        .filter_map(ValueEnum::to_possible_value)
-        .map(|name| name.get_name().to_owned())
-        .collect::<Vec<_>>();
-    let (last, rest) = names.split_last().expect("there are languages");
-    format!("{} or {last}", rest.join(", "))
 }
 
 #[tokio::main]
@@ -309,15 +300,20 @@ mod cli_tests {
         assert_eq!(args.root, Some(PathBuf::from("/tmp")));
     }
 
+    /// Languages and formatters are named as the settings' serialized form names
+    /// them, where `other`, files of no known language, takes no formatter.
     #[test]
     fn unknown_names_are_errors() {
-        let languages =
-            "expected rust, json, toml, javascript, typescript, tsx, python, jsx or other";
+        let languages = "expected rust, json, toml, javascript, typescript, tsx, python or jsx";
         let formatters = "expected rustfmt, ruff, biome or taplo";
         for (setting, message) in [
             (
                 "rsut=rustfmt",
                 format!("unknown language \"rsut\"; {languages}"),
+            ),
+            (
+                "other=taplo",
+                format!("unknown language \"other\"; {languages}"),
             ),
             (
                 "Rust=rustfmt",

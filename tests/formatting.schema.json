@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Formatting",
+  "description": "Which formatter, if any, formats edits to each language's files, and how much of an edited file it may change. Every key is optional, and by default no language has a formatter: an edit is written as given, at the indentation of the code it replaces or goes next to. A formatter runs on the whole file, so it sees the edit in context. An edit it fails on is rejected, unless it also fails on the file without the edit, or can't run at all; then the edit is written unformatted, and its result says why.",
+  "type": "object",
+  "properties": {
+    "built-in": {
+      "description": "`true` gives each language not set here its built-in formatter: rustfmt\nfor Rust, ruff for Python, biome for JavaScript, JSX, TypeScript, TSX and\nJSON, and taplo for TOML. `false` gives them none. rustfmt, ruff and biome\nare programs, found on `PATH`; taplo runs in-process.",
+      "type": "boolean"
+    },
+    "javascript": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "json": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "jsx": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "python": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "rust": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "toml": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "tsx": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "typescript": {
+      "$ref": "#/$defs/LanguageFormatter"
+    },
+    "whole-file": {
+      "description": "Keep all of a formatter's changes to an edited file, not only its changes\nto the edit. Without it, a formatter's changes to the lines an edit\nchanged, and to the line on either side of them, are kept, as is text of\nthe edit's own that it moves elsewhere, as sorting imports does; the rest\nof the file stays as it was. If the changes kept can't stand without the\nrest, the edit is written unformatted. Default `false`.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "BuiltInFormatter": {
+      "oneOf": [
+        {
+          "description": "rustfmt, for Rust, at the edition the nearest `Cargo.toml` declares, or\n2024 when none does. Found on `PATH`.",
+          "type": "string",
+          "const": "rustfmt"
+        },
+        {
+          "description": "`ruff format`, for Python. Found on `PATH`.",
+          "type": "string",
+          "const": "ruff"
+        },
+        {
+          "description": "`biome format`, for JavaScript, JSX, TypeScript, TSX and JSON. Found on\n`PATH`.",
+          "type": "string",
+          "const": "biome"
+        },
+        {
+          "description": "taplo, for TOML. It runs in-process, so nothing needs to be installed.",
+          "type": "string",
+          "const": "taplo"
+        }
+      ]
+    },
+    "FormatterCommand": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "The program's arguments. `{path}` in an argument stands for the edited\nfile's path.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "description": "The program to run. It reads the source on stdin and writes it,\nformatted, to stdout. A name without a directory is found on `PATH`; a\npath with one is relative to the working directory of the process making\nthe edits, not to the file's.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ]
+    },
+    "LanguageFormatter": {
+      "description": "A language's formatter: a built-in formatter's name, a table with `command` and `args` to run any other program, or `false` for none. The built-in formatters are `\"rustfmt\"` for Rust, `\"ruff\"` for Python, `\"biome\"` for JavaScript, JSX, TypeScript, TSX and JSON, and `\"taplo\"` for TOML. A formatter program runs in the edited file's directory, so it finds the project's own configuration; one that isn't installed, or doesn't finish within 10 seconds, leaves the edit unformatted.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BuiltInFormatter"
+        },
+        {
+          "$ref": "#/$defs/FormatterCommand"
+        },
+        {
+          "type": "boolean",
+          "const": false
+        }
+      ]
+    }
+  }
+}

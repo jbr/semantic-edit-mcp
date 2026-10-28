@@ -1,13 +1,11 @@
-use crate::formatting::{Formatter, Formatting};
-use crate::languages::LanguageName;
+use crate::formatting::{Formatting, FormattingLayer};
 use crate::state::SemanticEditTools;
 use crate::tools::Tools;
-use anyhow::{Context, Error, Result, anyhow, bail};
-use clap::ValueEnum;
+use anyhow::{Context, Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use mcplease::traits::Dispatch;
 use mcplease::types::RequestContext;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -561,16 +559,18 @@ fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
 /// snapshot root turns on [`Formatting::built_in`], so a test is formatted
 /// unless a file nearer to it says otherwise.
 ///
-/// A formatting file is a JSON object from a language (named as `args.json`
-/// names one: `rust`, `typescript`, …) or `"*"`, every language, to a
-/// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none.
-/// `"*"` applies before the languages beside it. `"whole-file"` is `true` for
-/// the formatters to keep all of their changes ([`Formatting::whole_file`]), or
-/// `false` for only their changes to the edit, which is what they keep unless
-/// a file sets it.
+/// A formatting file is a [`FormattingLayer`] in JSON: each key it sets
+/// replaces the setting before it, and each it leaves out keeps it. A language
+/// (named as `args.json` names one: `rust`, `typescript`, …) maps to a built-in
+/// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`), a command
+/// (`{"command": "sh", "args": [...]}`), or `false` for none. `"built-in"`
+/// gives the languages the file leaves out their built-in formatters (`true`)
+/// or none (`false`), and `"whole-file"` is `true` for the formatters to keep
+/// all of their changes ([`Formatting::whole_file`]), or `false` for only their
+/// changes to the edit, which is what they keep unless a file sets it.
 ///
-/// - `{"*": null}`: no formatter for any language
-/// - `{"rust": null}`: none for Rust, the rest as inherited
+/// - `{"built-in": false}`: no formatter for any language
+/// - `{"rust": false}`: none for Rust, the rest as inherited
 /// - `{"toml": "taplo"}`: taplo for TOML, the rest as inherited
 /// - `{"whole-file": true}`: the inherited formatters, keeping all of their
 ///   changes
@@ -578,60 +578,17 @@ fn formatting_for(layers: &[PathBuf]) -> Result<Formatting> {
     let mut formatting = Formatting::default();
     for path in layers {
         let text = fs::read_to_string(path)?;
-        serde_json::from_str(&text)
-            .map_err(Error::from)
-            .and_then(|layer| apply_formatting_layer(&mut formatting, &layer))
-            .with_context(|| format!("in {}", path.display()))?;
+        let layer: FormattingLayer =
+            serde_json::from_str(&text).with_context(|| format!("in {}", path.display()))?;
+        formatting = formatting.with_layer(&layer);
     }
     Ok(formatting)
-}
-
-fn apply_formatting_layer(formatting: &mut Formatting, layer: &Map<String, Value>) -> Result<()> {
-    if let Some(value) = layer.get("*") {
-        let formatter = parse_formatter(value)?;
-        for language in LanguageName::value_variants() {
-            formatting.set(*language, formatter.clone());
-        }
-    }
-    for (key, value) in layer {
-        match key.as_str() {
-            "*" => {}
-            "whole-file" => {
-                let whole_file = value.as_bool().ok_or_else(|| {
-                    anyhow!("expected true or false for \"whole-file\", found {value}")
-                })?;
-                formatting.set_whole_file(whole_file);
-            }
-            language => {
-                formatting.set(parse_language(language)?, parse_formatter(value)?);
-            }
-        }
-    }
-    Ok(())
-}
-
-/// A language as `args.json` names one. Unlike deserializing a
-/// [`LanguageName`], which reads any unknown name as `other`, a misspelled
-/// language is an error.
-fn parse_language(name: &str) -> Result<LanguageName> {
-    LanguageName::value_variants()
-        .iter()
-        .copied()
-        .find(|language| language.to_string() == name)
-        .ok_or_else(|| anyhow!("unknown language {name:?}"))
-}
-
-fn parse_formatter(value: &Value) -> Result<Option<Formatter>> {
-    match value {
-        Value::Null => Ok(None),
-        Value::String(name) => Ok(Some(name.parse()?)),
-        other => bail!("expected a formatter name or null, found {other}"),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{formatting::Formatter, languages::LanguageName};
 
     #[test]
     fn a_path_selects_the_test_and_every_test_beneath_it() {
@@ -670,15 +627,20 @@ mod tests {
     fn layered(layers: &[&str]) -> Result<Formatting> {
         let mut formatting = Formatting::default();
         for layer in layers {
-            apply_formatting_layer(&mut formatting, &serde_json::from_str(layer)?)?;
+            formatting = formatting.with_layer(&serde_json::from_str(layer)?);
         }
         Ok(formatting)
     }
 
-    fn root_formatting_file() -> PathBuf {
+    fn snapshot_formatting_file(dir: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests/snapshots")
+            .join(dir)
             .join(FORMATTING_FILE)
+    }
+
+    fn root_formatting_file() -> PathBuf {
+        snapshot_formatting_file("")
     }
 
     #[test]
@@ -697,16 +659,32 @@ mod tests {
         );
     }
 
+    /// `unformatted/` tests layout and validation on their own.
     #[test]
-    fn star_null_turns_every_formatter_off() {
-        assert_eq!(layered(&[r#"{"*": null}"#]).unwrap(), Formatting::off());
+    fn unformatted_turns_every_formatter_off_again() {
+        assert_eq!(
+            formatting_for(&[
+                root_formatting_file(),
+                snapshot_formatting_file("unformatted")
+            ])
+            .unwrap(),
+            Formatting::off()
+        );
     }
 
     #[test]
-    fn a_language_null_turns_just_that_one_off() {
+    fn built_in_false_turns_every_formatter_off() {
+        assert_eq!(
+            layered(&[r#"{"built-in": true}"#, r#"{"built-in": false}"#]).unwrap(),
+            Formatting::off()
+        );
+    }
+
+    #[test]
+    fn a_language_false_turns_just_that_one_off() {
         let root = fs::read_to_string(root_formatting_file()).unwrap();
         assert_eq!(
-            layered(&[&root, r#"{"rust": null}"#]).unwrap(),
+            layered(&[&root, r#"{"rust": false}"#]).unwrap(),
             Formatting::built_in().without(LanguageName::Rust)
         );
     }
@@ -714,35 +692,42 @@ mod tests {
     #[test]
     fn inner_layers_override_outer_ones() {
         assert_eq!(
-            layered(&[r#"{"*": null}"#, r#"{"toml": "taplo"}"#]).unwrap(),
+            layered(&[r#"{"built-in": false}"#, r#"{"toml": "taplo"}"#]).unwrap(),
             Formatting::off().with(LanguageName::Toml, Formatter::taplo())
         );
-        let formatting = layered(&[r#"{"toml": null}"#, r#"{"*": "taplo"}"#]).unwrap();
-        for language in LanguageName::value_variants() {
-            assert_eq!(
-                formatting.formatter(*language),
-                Some(&Formatter::taplo()),
-                "{language}"
-            );
-        }
-    }
-
-    #[test]
-    fn star_applies_before_the_languages_beside_it() {
         assert_eq!(
-            layered(&[r#"{"toml": "taplo", "*": null}"#]).unwrap(),
-            Formatting::off().with(LanguageName::Toml, Formatter::taplo())
+            layered(&[r#"{"toml": false}"#, r#"{"built-in": true}"#]).unwrap(),
+            Formatting::built_in()
+        );
+        assert_eq!(
+            layered(&[r#"{"toml": "taplo"}"#, r#"{"toml": "biome"}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Toml, Formatter::biome())
         );
     }
 
+    /// A formatting file can configure a program, where the command line can't.
+    #[test]
+    fn a_layer_can_run_a_command() {
+        assert_eq!(
+            layered(&[r#"{"rust": {"command": "sh", "args": ["-c", "cat"]}}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Rust, Formatter::command("sh", ["-c", "cat"]))
+        );
+    }
+
+    /// Including the spellings formatting files had before they were layers:
+    /// `null` for no formatter and `"*"` for every language.
     #[test]
     fn misspellings_are_errors() {
         for layer in [
-            r#"{"rsut": null}"#,
+            r#"{"rsut": false}"#,
             r#"{"rust": "rustformat"}"#,
-            r#"{"rust": false}"#,
-            r#"{"*": "off"}"#,
+            r#"{"rust": true}"#,
+            r#"{"rust": null}"#,
+            r#"{"*": null}"#,
+            r#"{"other": "taplo"}"#,
+            r#"{"built-in": "true"}"#,
             r#"["rust"]"#,
+            r#"[true]"#,
             r#"{"whole-file": "true"}"#,
             r#"{"whole-file": 1}"#,
             r#"{"whole-file": null}"#,
@@ -751,6 +736,28 @@ mod tests {
         ] {
             assert!(layered(&[layer]).is_err(), "{layer}");
         }
+    }
+
+    /// A test that can't read its formatting fails, naming the file and why.
+    #[test]
+    fn a_bad_formatting_file_is_named_in_the_error() {
+        let dir = std::env::temp_dir().join(format!(
+            "semantic-edit-formatting-file-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(FORMATTING_FILE);
+        fs::write(&file, r#"{"jsx": null}"#).unwrap();
+        let error = formatting_for(&[root_formatting_file(), file.clone()]).unwrap_err();
+        fs::remove_dir_all(&dir).ok();
+        assert_eq!(
+            format!("{error:#}"),
+            format!(
+                "in {}: invalid type: null, expected a built-in formatter's name or a table \
+                 with `command` and `args`, or `false` for none at line 1 column 12",
+                file.display()
+            )
+        );
     }
 
     /// Formatters keep only their changes to the edit unless a layer sets
@@ -773,9 +780,9 @@ mod tests {
             layered(&[&root, r#"{"whole-file": true}"#, r#"{"whole-file": false}"#]).unwrap(),
             Formatting::built_in()
         );
-        // `"*"` sets formatters, not `"whole-file"`.
+        // `"built-in"` sets formatters, not `"whole-file"`.
         assert_eq!(
-            layered(&[r#"{"whole-file": true}"#, r#"{"*": null}"#]).unwrap(),
+            layered(&[r#"{"whole-file": true}"#, r#"{"built-in": false}"#]).unwrap(),
             Formatting::off().with_whole_file(true)
         );
     }

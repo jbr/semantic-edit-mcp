@@ -148,6 +148,37 @@ Add this to your MCP configuration JSON file:
 To format edits with the built-in formatters, make the arguments
 `["serve", "--format", "built-in"]`.
 
+## Embedding
+
+The crate is also a library, for a host that runs the tools in-process instead
+of as a server; the crate documentation describes it. The host configures
+formatting with a `Formatting` value, which it can read from its own
+configuration. In TOML:
+
+```toml
+[formatting]
+built-in = true   # each language's built-in formatter, unless set below
+python = { command = "uvx", args = ["ruff", "format", "--stdin-filename", "{path}", "-"] }
+json = false      # but no formatter for JSON
+whole-file = false
+```
+
+Each language (`rust`, `json`, `toml`, `javascript`, `typescript`, `tsx`,
+`python` and `jsx`) takes a built-in formatter's name, a table naming a
+`command` and its `args`, where `{path}` stands for the edited file's path, or
+`false` for none. Every key is optional: a language left out has no formatter,
+unless `built-in = true` gives it its built-in one, and `whole-file` is
+`--format-whole-file`. An unknown key or formatter is an error. For settings
+read from more than one place, `FormattingLayer` reads the same table as a
+change to the settings before it, changing only the keys it sets.
+
+`Formatting` implements schemars' `JsonSchema`, so a host whose configuration
+derives `JsonSchema` takes the settings' schema along: a `$ref` to a
+`Formatting` definition, which joins the host's own definitions. The
+descriptions never name this tool, so they read correctly under the host's
+name. `Formatting::schema()` returns the schema on its own; a copy is checked in
+as `tests/formatting.schema.json`.
+
 
 ## License
 

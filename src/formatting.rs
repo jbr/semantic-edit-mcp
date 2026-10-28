@@ -7,20 +7,34 @@
 //! to a file whose language has no formatter is written as laid out. A
 //! formatter changes only the edit unless configured to change the
 //! [whole file](Formatting::whole_file).
+//!
+//! The settings are also data, for an embedder's own configuration: see
+//! [`FormattingLayer`] for their serialized shape and [`Formatting::schema`]
+//! for its JSON schema.
 
 mod command;
 mod resolve;
 mod rustfmt;
+mod serialized;
+
+#[allow(
+    unused_imports,
+    reason = "embedding API, used by library consumers and the snapshot runner"
+)]
+pub use serialized::FormattingLayer;
 
 use crate::{indentation::Indentation, languages::LanguageName};
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow};
+use clap::ValueEnum;
 use enum_map::{EnumMap, enum_map};
+use schemars::JsonSchema;
 use std::{
     ffi::OsString,
     fmt::{self, Display},
     path::Path,
     str::FromStr,
 };
+use strum::VariantArray;
 
 /// The formatter, if any, for each language's files, and whether it may change
 /// the whole of an edited file.
@@ -52,6 +66,14 @@ use std::{
 ///
 /// With `whole_file` set, all of its changes are kept, so an edit to a file the
 /// formatter wouldn't leave as it is changes lines far from the edit.
+///
+/// The settings deserialize from a table of each language's formatter, as in
+/// the TOML `rust = "rustfmt"`, whose shape [`FormattingLayer`] describes: they
+/// are that table applied over [`off`](Self::off), so every key is optional.
+/// They serialize to the same shape, naming each language that has a formatter,
+/// and their [`JsonSchema`] is its schema. Files of no known language
+/// ([`LanguageName::Other`]) have no key, so settings that give them a formatter
+/// fail to serialize.
 #[derive(Clone, Debug, PartialEq, Eq, fieldwork::Fieldwork)]
 pub struct Formatting {
     formatters: EnumMap<LanguageName, Option<Formatter>>,
@@ -136,6 +158,10 @@ impl Formatting {
 /// Parsing a built-in formatter's name (`"rustfmt"`, `"ruff"`, `"biome"` or
 /// `"taplo"`) gives that formatter, and that name, or a command's program, is
 /// how responses name it.
+///
+/// It deserializes from a built-in formatter's name, or from a table naming a
+/// command, `{ command = "…", args = […] }` in TOML, and serializes to the
+/// same.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Formatter {
     kind: Kind,
@@ -143,11 +169,81 @@ pub struct Formatter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Kind {
-    Rustfmt,
-    Ruff,
-    Biome,
-    Taplo,
+    BuiltIn(BuiltIn),
     Command { program: String, args: Vec<String> },
+}
+
+// The built-in formatters, by the names they parse from and display as. Each
+// variant's doc comment describes its name in the settings' schema. The type
+// has none: its schema is one of the spellings of a formatter, whose own
+// description covers them all, and an editor shows the description of each
+// spelling it offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, JsonSchema, strum::IntoStaticStr, VariantArray)]
+#[schemars(rename = "BuiltInFormatter", rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+enum BuiltIn {
+    /// rustfmt, for Rust, at the edition the nearest `Cargo.toml` declares, or
+    /// 2024 when none does. Found on `PATH`.
+    Rustfmt,
+    /// `ruff format`, for Python. Found on `PATH`.
+    Ruff,
+    /// `biome format`, for JavaScript, JSX, TypeScript, TSX and JSON. Found on
+    /// `PATH`.
+    Biome,
+    /// taplo, for TOML. It runs in-process, so nothing needs to be installed.
+    Taplo,
+}
+
+impl BuiltIn {
+    /// Its name, as it parses and as responses give it.
+    fn name(self) -> &'static str {
+        self.into()
+    }
+
+    /// The built-in formatter named `name`.
+    fn named(name: &str) -> Option<Self> {
+        Self::VARIANTS
+            .iter()
+            .copied()
+            .find(|built_in| built_in.name() == name)
+    }
+
+    /// Why `name` names no built-in formatter.
+    fn unknown(name: &str) -> String {
+        let names = Self::VARIANTS.iter().map(|built_in| built_in.name());
+        format!("unknown formatter {name:?}; expected {}", either(names))
+    }
+}
+
+/// `names` as a list ending in "or": `a, b or c`.
+fn either<'a>(names: impl IntoIterator<Item = &'a str>) -> String {
+    let names: Vec<&str> = names.into_iter().collect();
+    match names.split_last() {
+        Some((last, [])) => (*last).to_owned(),
+        Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+        None => String::new(),
+    }
+}
+
+/// The languages a formatter can be set for: every language but
+/// [`LanguageName::Other`], which is files of no language this crate knows.
+/// Settings name them as [`LanguageName`] displays them.
+pub(crate) fn formatted_languages() -> impl Iterator<Item = LanguageName> {
+    LanguageName::value_variants()
+        .iter()
+        .copied()
+        .filter(|language| *language != LanguageName::Other)
+}
+
+/// The language a formatter can be set for that settings name `name`.
+pub(crate) fn formatted_language(name: &str) -> Option<LanguageName> {
+    formatted_languages().find(|language| language.to_string() == name)
+}
+
+/// Why `name` names no language a formatter can be set for.
+pub(crate) fn unknown_language(name: &str) -> String {
+    let names = formatted_languages().map(<&str>::from);
+    format!("unknown language {name:?}; expected {}", either(names))
 }
 
 /// What a command's argument holds for the file's path.
@@ -168,28 +264,32 @@ impl Formatter {
     /// 2024 when none does. Running in the file's directory, it finds the
     /// project's `rustfmt.toml`.
     pub fn rustfmt() -> Self {
-        Self {
-            kind: Kind::Rustfmt,
-        }
+        Self::built_in(BuiltIn::Rustfmt)
     }
 
     /// `ruff format`, for Python, given the file's path. A file the project's
     /// configuration excludes is left as it is.
     pub fn ruff() -> Self {
-        Self { kind: Kind::Ruff }
+        Self::built_in(BuiltIn::Ruff)
     }
 
     /// `biome format`, for JavaScript, JSX, TypeScript, TSX and JSON, given the
     /// file's path. A file no biome configuration governs keeps the indentation
     /// it already uses, rather than taking biome's default of tabs.
     pub fn biome() -> Self {
-        Self { kind: Kind::Biome }
+        Self::built_in(BuiltIn::Biome)
     }
 
     /// taplo, for TOML, with its default options. It runs in-process, so
     /// nothing needs to be installed.
     pub fn taplo() -> Self {
-        Self { kind: Kind::Taplo }
+        Self::built_in(BuiltIn::Taplo)
+    }
+
+    fn built_in(built_in: BuiltIn) -> Self {
+        Self {
+            kind: Kind::BuiltIn(built_in),
+        }
     }
 
     /// `program` run with `args`: any program that reads the source on stdin
@@ -223,13 +323,13 @@ impl Formatter {
             command::run(program, &args, path.parent(), source, command::TIMEOUT)
         };
         match &self.kind {
-            Kind::Rustfmt => run(
+            Kind::BuiltIn(BuiltIn::Rustfmt) => run(
                 "rustfmt",
                 os_strings(["--emit", "stdout", "--edition", rustfmt::edition(&path)]),
             ),
-            Kind::Ruff => run("ruff", ruff_args(&path)),
-            Kind::Biome => run("biome", biome_args(&path, original)),
-            Kind::Taplo => Ok(taplo::formatter::format(
+            Kind::BuiltIn(BuiltIn::Ruff) => run("ruff", ruff_args(&path)),
+            Kind::BuiltIn(BuiltIn::Biome) => run("biome", biome_args(&path, original)),
+            Kind::BuiltIn(BuiltIn::Taplo) => Ok(taplo::formatter::format(
                 source,
                 taplo::formatter::Options::default(),
             )),
@@ -245,10 +345,7 @@ impl Display for Formatter {
     /// The built-in formatter's name, as it parses, or the command's program.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match &self.kind {
-            Kind::Rustfmt => "rustfmt",
-            Kind::Ruff => "ruff",
-            Kind::Biome => "biome",
-            Kind::Taplo => "taplo",
+            Kind::BuiltIn(built_in) => built_in.name(),
             Kind::Command { program, .. } => program,
         })
     }
@@ -259,13 +356,9 @@ impl FromStr for Formatter {
 
     /// The built-in formatter named `name`.
     fn from_str(name: &str) -> Result<Self> {
-        Ok(match name {
-            "rustfmt" => Self::rustfmt(),
-            "ruff" => Self::ruff(),
-            "biome" => Self::biome(),
-            "taplo" => Self::taplo(),
-            _ => bail!("unknown formatter {name:?}; expected rustfmt, ruff, biome or taplo"),
-        })
+        BuiltIn::named(name)
+            .map(Self::built_in)
+            .ok_or_else(|| anyhow!(BuiltIn::unknown(name)))
     }
 }
 
