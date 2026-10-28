@@ -1,6 +1,4 @@
-fn alpha() {
-    let a = 1;
-}
+fn alpha() { let a = 1; }
 // gap
 // gap
 // gap

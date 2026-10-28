@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "add(item: string): void {\n        this.items.push(item);\n    }",
+    "content": "add(item: string, count = 1): void {\n        for (let i = 0; i < count; i++) {\n            this.items.push(item);\n        }\n    }"
+  }
+}

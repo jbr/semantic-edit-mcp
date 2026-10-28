@@ -1,0 +1,7 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "let removed = 3;"
+  }
+}

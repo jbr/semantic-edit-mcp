@@ -104,7 +104,13 @@ impl FindAnchor {
             item: None,
         };
 
-        let editor = Editor::new(String::new(), selector, language, file_path)?;
+        let editor = Editor::new(
+            String::new(),
+            selector,
+            language,
+            &state.formatting(),
+            file_path,
+        )?;
 
         editor.find_anchor()
     }

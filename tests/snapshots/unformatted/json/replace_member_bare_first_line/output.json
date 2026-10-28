@@ -1,0 +1,9 @@
+{
+  "name": "app",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "version": "1.0.0"
+}

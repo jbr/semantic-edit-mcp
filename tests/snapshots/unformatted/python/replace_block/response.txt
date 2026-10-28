@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -1,6 +1,7 @@
+ def load(path):
+     with open(path) as f:
+-        return f.read()
++        data = f.read( )
++        return {'data':data}
+
+
+ def main():

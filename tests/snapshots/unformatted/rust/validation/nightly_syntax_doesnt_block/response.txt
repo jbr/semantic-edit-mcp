@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+Note: the syntax check was off for this edit, because the file already failed it; the result fails it too: line 5, column 9: expected identifier or integer
+
+===DIFF===
+@@ -6,3 +6,7 @@
+         yield 2;
+     }
+ }
++
++fn total() -> u32 {
++    numbers().sum()
++}

@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "result += item",
+      "content": "result += item\n\tcount += 1"
+    }
+  }
+]

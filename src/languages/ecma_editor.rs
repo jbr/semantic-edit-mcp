@@ -1,14 +1,9 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    indentation::Indentation,
     languages::LanguageEditor,
+    layout::Rules,
 };
-use anyhow::{Result, anyhow};
-use std::{
-    io::{Read, Write},
-    path::Path,
-    process::{Command, Stdio},
-};
+use anyhow::Result;
 
 /// Offer leading/trailing comma variants of each candidate so an insert into a
 /// comma-separated list (object literal, array, call/param list, enum, JSON
@@ -44,52 +39,21 @@ pub(super) fn with_comma_variants<'editor, 'language>(
 
 pub(super) struct EcmaEditor;
 impl LanguageEditor for EcmaEditor {
+    /// A line inside a string (continued with a backslash), a template literal
+    /// (interpolations and all) or a TypeScript template literal type is never
+    /// re-indented. JSX text isn't a literal: JSX collapses the whitespace around
+    /// its line breaks, so its indentation is layout like code's.
+    fn layout(&self) -> Rules {
+        Rules {
+            literals: &["string", "template_string", "template_literal_type"],
+            ..Rules::CODE
+        }
+    }
+
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         Ok(with_comma_variants(EditIterator::new(editor).find_edits()?))
-    }
-
-    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
-        let mut command = Command::new("biome");
-        command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .arg("format")
-            .arg(format!("--stdin-file-path={}", file_path.display()))
-            .arg("--diagnostic-level=error");
-
-        match Indentation::determine(source).unwrap_or(Indentation::Spaces(2)) {
-            Indentation::Spaces(spaces) => command
-                .arg("--indent-style=space")
-                .arg(format!("--indent-width={spaces}")),
-
-            Indentation::Tabs => command.arg("--indent-style=tab"),
-        };
-
-        let mut child = command.spawn()?;
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(source.as_bytes())?;
-            drop(stdin);
-        }
-
-        let mut stdout = String::new();
-        if let Some(mut out) = child.stdout.take() {
-            out.read_to_string(&mut stdout)?;
-        }
-
-        let mut stderr = String::new();
-        if let Some(mut err) = child.stderr.take() {
-            err.read_to_string(&mut stderr)?;
-        }
-
-        if child.wait()?.success() {
-            Ok(stdout)
-        } else {
-            Err(anyhow!(stderr))
-        }
     }
 }

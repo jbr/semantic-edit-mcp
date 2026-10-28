@@ -11,19 +11,81 @@
 
 A Model Context Protocol server for AST-aware code editing
 
-## Supported Languages and Important Language Notes
+## Supported Languages
 
 * Rust
-  - Must have `rustfmt` available on the `PATH`
-  - Currently assumes edition 2024 for formatting, eventually this will be determined from context
 * Python
-  - Must have [`ruff`](https://docs.astral.sh/ruff/) available on the `PATH`
-* JavaScript/TypeScript/JSON/JSX/TSX
-  - Must have [`biome`](https://biomejs.dev/) available on the `PATH`
+* JavaScript, TypeScript, JSX, TSX and JSON
 * TOML
-  - No external dependencies, taplo formatting included
-* Plaintext / markdown / default editor
-  - No external dependencies
+* Markdown, plain text and anything else, edited as text
+
+None of them needs anything installed: edits are laid out and validated
+in-process. Formatting is optional, and off unless you turn it on.
+
+## Formatting
+
+By default an edit is written as given, at the indentation of the code it
+replaces or goes next to, and nothing else in the file changes. To have edits
+formatted, pass `--format`, before or after the subcommand. It works for `serve`
+and for the tool subcommands, and can be repeated:
+
+```bash
+$ semantic-edit-mcp serve --format built-in                       # every built-in formatter
+$ semantic-edit-mcp serve --format rust=rustfmt                   # Rust only
+$ semantic-edit-mcp serve --format rust=rustfmt --format toml=taplo
+```
+
+`LANGUAGE=FORMATTER` formats one language's files, and `built-in` formats each
+language with its built-in formatter. Settings apply in turn, so a later one for
+a language replaces an earlier one. The built-in formatters:
+
+| Formatter | Formats | Needs |
+|---|---|---|
+| `rustfmt` | Rust, at the edition the nearest `Cargo.toml` declares (2024 when none does) | `rustfmt` on the `PATH` |
+| `ruff` | Python | [`ruff`](https://docs.astral.sh/ruff/) on the `PATH` |
+| `biome` | JavaScript, JSX, TypeScript, TSX and JSON | [`biome`](https://biomejs.dev/) on the `PATH` |
+| `taplo` | TOML | nothing: it runs in-process |
+
+Markdown and plain text have no formatter.
+
+A formatter formats the edit, and the response names it. It runs on the whole
+file, so it sees the edit in context, but only its changes to the lines the edit
+changed, and to the line on either side of them, are kept: the rest of the file
+stays as it was, even where the formatter would change it. A change that reaches
+across that boundary, like a statement reflowed from the line before the edit,
+is kept whole. When the formatter moves part of the edit elsewhere, as rustfmt
+does to sort an inserted import, the moved text goes where the formatter put it,
+as long as the formatter changes nothing else there, and the response says it
+moved. If the changes kept can't stand without the rest of the formatter's,
+because the file isn't valid without them, or because the formatter moved text
+between the edit and the rest of the file in any other way (into the edit from
+elsewhere, or out of it to a place where it also changes other lines), the edit
+is written unformatted, and the response says so. To keep all of a formatter's
+changes, reformatting the whole file, pass `--format-whole-file`:
+
+```bash
+$ semantic-edit-mcp serve --format built-in --format-whole-file
+```
+
+Then the diff in a response can include changes far from the edit, in a file
+the formatter wouldn't have left as it was; hunks there that change only
+whitespace are counted rather than shown.
+
+The formatter runs in the edited file's directory and is given the file's path,
+so it uses the project's own configuration (`rustfmt.toml`, `ruff.toml` or
+`pyproject.toml`, `biome.json`); biome is told to keep a file's own indentation
+only when no biome configuration governs the file. Whether a formatter failed is
+judged against the file:
+
+- If it formats the file as it was but fails on the edit, the edit is rejected,
+  leaving the file untouched.
+- If it fails on the file even without the edit, or can't run (it isn't
+  installed, or doesn't finish within 10 seconds), the edit is written
+  unformatted, and the response says why.
+
+Its output must pass the same validation as the edit, or it counts as failing.
+It runs only on the placement validation picked: it can reject an edit, but
+never moves it somewhere else.
 
 ## Tools
 ```
@@ -34,12 +96,17 @@ A Model Context Protocol server for AST-aware code editing
 ```
 
 Accepted edits persist immediately. For syntactically valid code, an edit must
-still parse and pass the formatter; otherwise the file is left untouched. A
-source that already has syntax errors can be repaired progressively: anchor
-edits use textual ranges, still-invalid results are written without formatting,
-and the response shows all remaining syntax-error regions, even outside the
-diff. Once syntax is restored, the normal validity guard resumes. Formatter
-failures during repair are reported without discarding the edit.
+leave it valid, and must not be what a configured formatter fails on; otherwise
+the file is left untouched. For Rust, Python and TOML, valid means passing a
+check stricter than the syntax tree: a full Rust parse, Python's indentation
+rules, and TOML's rule against defining a key twice. A file that already fails
+that check stays editable, and while it fails, each edit's response says the
+check was off. A source that already has syntax errors can be repaired
+progressively: anchor edits use textual ranges, still-invalid results are
+written without formatting, and the response shows all remaining syntax-error
+regions, even outside the diff. Once syntax is restored, the normal validity
+guard resumes. Formatter failures during repair are reported without discarding
+the edit.
 
 Review the returned diff: if the edit landed somewhere other than intended,
 `retarget-edit` moves it and `undo-edit` reverts it. Both take the file path;
@@ -77,6 +144,40 @@ Add this to your MCP configuration JSON file:
   }
 }
 ```
+
+To format edits with the built-in formatters, make the arguments
+`["serve", "--format", "built-in"]`.
+
+## Embedding
+
+The crate is also a library, for a host that runs the tools in-process instead
+of as a server; the crate documentation describes it. The host configures
+formatting with a `Formatting` value, which it can read from its own
+configuration. In TOML:
+
+```toml
+[formatting]
+built-in = true   # each language's built-in formatter, unless set below
+python = { command = "uvx", args = ["ruff", "format", "--stdin-filename", "{path}", "-"] }
+json = false      # but no formatter for JSON
+whole-file = false
+```
+
+Each language (`rust`, `json`, `toml`, `javascript`, `typescript`, `tsx`,
+`python` and `jsx`) takes a built-in formatter's name, a table naming a
+`command` and its `args`, where `{path}` stands for the edited file's path, or
+`false` for none. Every key is optional: a language left out has no formatter,
+unless `built-in = true` gives it its built-in one, and `whole-file` is
+`--format-whole-file`. An unknown key or formatter is an error. For settings
+read from more than one place, `FormattingLayer` reads the same table as a
+change to the settings before it, changing only the keys it sets.
+
+`Formatting` implements schemars' `JsonSchema`, so a host whose configuration
+derives `JsonSchema` takes the settings' schema along: a `$ref` to a
+`Formatting` definition, which joins the host's own definitions. The
+descriptions never name this tool, so they read correctly under the host's
+name. `Formatting::schema()` returns the schema on its own; a copy is checked in
+as `tests/formatting.schema.json`.
 
 
 ## License

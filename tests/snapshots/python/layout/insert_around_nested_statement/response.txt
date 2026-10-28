@@ -1,0 +1,29 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: ruff formatted the edit.
+
+===DIFF===
+@@ -4,6 +4,9 @@
+         item = queue.pop()
+         if item is None:
+             break
++        if item.skip:
++            continue
++        item = transform(item)
+         sink.write(item)
+     sink.flush()
+     return written
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: ruff formatted the edit.
+
+===DIFF===
+@@ -8,5 +8,8 @@
+             continue
+         item = transform(item)
+         sink.write(item)
++        written += 1
++        if written % 100 == 0:
++            sink.flush()
+     sink.flush()
+     return written

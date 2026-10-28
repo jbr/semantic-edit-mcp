@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "name: {name}\nspec:",
+      "content": "name: {name}\n  labels:\n    app: {name}\nspec:"
+    }
+  }
+]

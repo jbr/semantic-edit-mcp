@@ -35,10 +35,10 @@ pub struct Edit<'editor, 'language> {
     #[field(with, get)]
     anchor_hit: Option<(usize, usize)>,
     /// Whether this candidate's result parsed cleanly — a candidate can be
-    /// structurally valid yet still rejected (context-query violation, formatter
-    /// error). When every candidate fails, the editor prefers reporting a
-    /// structurally-valid one: its failure describes what blocked the edit,
-    /// rather than the syntax wreckage of an inner-node splice.
+    /// structurally valid yet still rejected (a context-query violation, or the
+    /// language's check). When every candidate fails, the editor prefers
+    /// reporting a structurally-valid one: its failure describes what blocked
+    /// the edit, rather than the syntax wreckage of an inner-node splice.
     #[field(get)]
     structurally_valid: bool,
 }
@@ -280,9 +280,9 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             return false;
         }
 
-        // Recovery-tree syntax is advisory while the original source is broken.
-        // Formatters generally refuse incomplete code, so preserve it verbatim
-        // until syntax is restored; Editor::apply reports every remaining region.
+        // Recovery-tree syntax is advisory while the original source is broken,
+        // so a result that still has errors is accepted as is; Editor::apply
+        // reports every remaining region.
         if self.editor.starts_with_syntax_errors()
             && Editor::syntax_errors(self.editor.language(), &self.tree, &output).is_some()
         {
@@ -291,6 +291,8 @@ impl<'editor, 'language> Edit<'editor, 'language> {
             return true;
         }
 
+        // Validation alone decides: the formatter runs only on the candidate
+        // that wins, and may veto it but never moves on to another.
         let valid = if let Some(message) = self.validate(&output) {
             self.message = Some(message);
             false
@@ -300,34 +302,8 @@ impl<'editor, 'language> Edit<'editor, 'language> {
                 "Applied {} operation",
                 self.editor.selector.operation_name()
             ));
-
-            match self.editor.format_code(&output) {
-                Ok(formatted) => {
-                    let Some(tree) = self.editor.parse(&formatted, None) else {
-                        self.message = Some(
-                            "Unable to parse formatter output; the file was not modified.".into(),
-                        );
-                        return false;
-                    };
-                    self.tree = tree;
-                    if let Some(message) = self.validate(&formatted) {
-                        self.message = Some(message);
-                        false
-                    } else {
-                        self.output = Some(formatted);
-                        true
-                    }
-                }
-                Err(err) => {
-                    self.message = Some(err);
-                    if self.editor.starts_with_syntax_errors() {
-                        self.output = Some(output);
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
+            self.output = Some(output);
+            true
         };
 
         self.valid = Some(valid);
@@ -353,11 +329,6 @@ Suggestion: Try a different change.\n
 
     pub(crate) fn start_byte(&self) -> usize {
         self.position.start_byte
-    }
-
-    pub(crate) fn set_start_byte(&mut self, start_byte: usize) -> &mut Self {
-        self.position.start_byte = start_byte;
-        self
     }
 
     pub(crate) fn with_start_byte(mut self, start_byte: usize) -> Self {

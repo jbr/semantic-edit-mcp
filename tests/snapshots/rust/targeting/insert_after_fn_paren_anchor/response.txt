@@ -1,19 +1,9 @@
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
+Note: rustfmt formatted the edit.
 
 ===DIFF===
-@@ -1,8 +1,5 @@
- /// The request envelope, shared source for both renderers.
--fn request_value(
--    model: &str,
--    limit: usize,
--) -> String {
-+fn request_value(model: &str, limit: usize) -> String {
-     format!("{model}-{limit}")
- }
-
-@@ -10,3 +7,13 @@
+@@ -10,3 +10,13 @@
  pub fn render_request_yaml(model: &str) -> String {
      request_value(model, 1)
  }

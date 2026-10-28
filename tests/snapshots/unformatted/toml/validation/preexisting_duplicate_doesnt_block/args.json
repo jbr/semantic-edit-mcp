@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "serde = \"1\"",
+      "content": "serde = \"1.0\""
+    }
+  }
+]

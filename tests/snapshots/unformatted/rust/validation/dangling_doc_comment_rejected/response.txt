@@ -1,0 +1,21 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERROR===
+line 11, column 1: unexpected end of input, expected one of: `default`, `fn`, `const`, `type`, identifier, `self`, `super`, `crate`, `::`
+   8   ⎸    }
+   9   ⎸
+  10   ⎸    /// Resets the count to zero.
+  11 ->⎸}
+
+
+===DIFF===
+@@ -6,4 +6,6 @@
+     fn increment(&mut self) {
+         self.count += 1;
+     }
++
++    /// Resets the count to zero.
+ }

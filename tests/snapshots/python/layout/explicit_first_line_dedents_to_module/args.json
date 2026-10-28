@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "counts[\"large\"] += 1\n    return counts",
+      "content": "            counts[\"large\"] += 1\n        else:\n            counts[\"huge\"] = counts.get(\"huge\", 0) + 1\n    return counts\n\n\ndef total(counts):\n    return sum(counts.values())"
+    }
+  }
+]

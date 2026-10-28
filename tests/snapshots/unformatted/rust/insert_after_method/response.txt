@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -18,4 +18,8 @@
+     pub fn get(&self) -> u32 {
+         self.count
+     }
++    /// Whether nothing has been counted.
++    pub fn is_empty(&self) -> bool {
++        self.count == 0
++    }
+ }

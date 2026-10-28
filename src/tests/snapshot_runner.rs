@@ -1,12 +1,17 @@
+use crate::formatting::{Formatting, FormattingLayer};
 use crate::state::SemanticEditTools;
 use crate::tools::Tools;
-use anyhow::{Error, Result};
+use anyhow::{Context, Error, Result};
 use diffy::{DiffOptions, PatchFormatter};
 use mcplease::traits::Dispatch;
 use mcplease::types::RequestContext;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// A test directory, or any directory above one, may hold this file to set the
+/// formatting of every test beneath it. See [`formatting_for`].
+const FORMATTING_FILE: &str = "formatting.json";
 
 pub struct SnapshotRunner {
     update_mode: bool,
@@ -21,6 +26,9 @@ pub struct SnapshotTest {
     pub args_path: PathBuf,
     pub response_path: PathBuf,
     pub output_path: Option<PathBuf>,
+    /// Every [`FORMATTING_FILE`] from the snapshot root down to the test's own
+    /// directory, outermost first.
+    pub formatting_paths: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -94,8 +102,8 @@ impl SnapshotRunner {
         })
     }
 
-    fn reset_state(&mut self, base_path: PathBuf) -> Result<()> {
-        self.state = SemanticEditTools::new(base_path)?;
+    fn reset_state(&mut self, base_path: PathBuf, formatting: Formatting) -> Result<()> {
+        self.state = SemanticEditTools::new(base_path)?.with_formatting(formatting);
         Ok(())
     }
 
@@ -104,17 +112,14 @@ impl SnapshotRunner {
         let snapshots_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots");
         let mut tests = Vec::new();
 
-        Self::discover_tests_recursive(&snapshots_dir, &snapshots_dir, &mut tests)?;
+        Self::discover_tests_recursive(&snapshots_dir, &snapshots_dir, &[], &mut tests)?;
 
         tests.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(tests)
     }
 
-    /// Filter tests based on the TEST_FILTER environment variable
-    /// Supports patterns like:
-    /// - "basic_operations" (matches all tests starting with this)
-    /// - "basic_operations::insert_after" (exact match)
-    /// - "json_operations,markdown_operations" (multiple patterns separated by commas)
+    /// Filter tests by the TEST_FILTER environment variable: patterns separated
+    /// by commas, each matched by [`filter_matches`].
     fn filter_tests(&self, tests: Vec<SnapshotTest>) -> Vec<SnapshotTest> {
         if let Some(filter) = &self.test_filter {
             let patterns: Vec<&str> = filter.split(',').map(|s| s.trim()).collect();
@@ -122,17 +127,9 @@ impl SnapshotRunner {
             tests
                 .into_iter()
                 .filter(|test| {
-                    patterns.iter().any(|pattern| {
-                        if pattern.is_empty() {
-                            false
-                        } else if pattern.contains("::") {
-                            // Exact match for full test names
-                            test.name == *pattern
-                        } else {
-                            // Prefix match for categories
-                            test.name.starts_with(pattern)
-                        }
-                    })
+                    patterns
+                        .iter()
+                        .any(|pattern| filter_matches(pattern, &test.name))
                 })
                 .collect()
         } else {
@@ -140,11 +137,15 @@ impl SnapshotRunner {
         }
     }
 
+    /// Collect the tests under `dir`. `formatting` is the [`FORMATTING_FILE`]s
+    /// above it, outermost first.
     fn discover_tests_recursive(
         base: &Path,
         dir: &Path,
+        formatting: &[PathBuf],
         tests: &mut Vec<SnapshotTest>,
     ) -> Result<()> {
+        let formatting = with_formatting_file(formatting, dir);
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -187,10 +188,11 @@ impl SnapshotRunner {
                         args_path,
                         response_path,
                         output_path,
+                        formatting_paths: with_formatting_file(&formatting, &path),
                     });
                 } else {
                     // Recurse into subdirectories
-                    Self::discover_tests_recursive(base, &path, tests)?;
+                    Self::discover_tests_recursive(base, &path, &formatting, tests)?;
                 }
             }
         }
@@ -207,7 +209,9 @@ impl SnapshotRunner {
                     test,
                     actual_response: String::new(),
                     expected_response: None,
-                    error: Some(e.to_string()),
+                    // With its causes: a bad formatting file is named by its
+                    // context and explained by its cause.
+                    error: Some(format!("{e:#}")),
                     actual_output: None,
                     expected_output: None,
                     response_matches: false,
@@ -346,7 +350,7 @@ impl SnapshotRunner {
             None => None,
         };
 
-        self.reset_state(scratch_dir)?;
+        self.reset_state(scratch_dir, formatting_for(&test.formatting_paths)?)?;
 
         // Read the arguments
         let args_content = fs::read_to_string(&test.args_path)?;
@@ -406,7 +410,11 @@ impl SnapshotRunner {
     pub fn run_all_tests(&mut self) -> Result<Vec<SnapshotResult>> {
         let all_tests = self.discover_tests()?;
         let tests = self.filter_tests(all_tests);
-        assert_ne!(tests.len(), 0);
+        assert!(
+            !tests.is_empty(),
+            "no snapshot test matches TEST_FILTER={}",
+            self.test_filter.as_deref().unwrap_or_default()
+        );
 
         if let Some(filter) = &self.test_filter {
             println!("🔍 Running filtered tests: {filter}");
@@ -512,5 +520,270 @@ impl SnapshotRunner {
                 println!("\n\n");
             }
         }
+    }
+}
+
+/// Whether the TEST_FILTER pattern `pattern` selects the test named `name`.
+///
+/// - A bare category (no `::`, e.g. `rust`) selects every test whose name
+///   begins with it.
+/// - A `::` path (e.g. `rust::repair`, or a full name like
+///   `rust::repair::insert`) selects the test of that name and every test
+///   beneath it, on `::` boundaries: `rust::repair` doesn't select
+///   `rust::repairs::insert`. So the full name the failure summary prints
+///   selects exactly that test.
+fn filter_matches(pattern: &str, name: &str) -> bool {
+    if pattern.is_empty() {
+        false
+    } else if pattern.contains("::") {
+        name.strip_prefix(pattern)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
+    } else {
+        name.starts_with(pattern)
+    }
+}
+
+/// `formatting` with `dir`'s own [`FORMATTING_FILE`], if it has one, as the
+/// innermost layer.
+fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
+    let mut layers = formatting.to_vec();
+    let file = dir.join(FORMATTING_FILE);
+    if file.is_file() {
+        layers.push(file);
+    }
+    layers
+}
+
+/// The formatting a test runs with: the default, which is off, overridden by
+/// each of its [`FORMATTING_FILE`]s in turn, outermost first. The one at the
+/// snapshot root turns on [`Formatting::built_in`], so a test is formatted
+/// unless a file nearer to it says otherwise.
+///
+/// A formatting file is a [`FormattingLayer`] in JSON: each key it sets
+/// replaces the setting before it, and each it leaves out keeps it. A language
+/// (named as `args.json` names one: `rust`, `typescript`, …) maps to a built-in
+/// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`), a command
+/// (`{"command": "sh", "args": [...]}`), or `false` for none. `"built-in"`
+/// gives the languages the file leaves out their built-in formatters (`true`)
+/// or none (`false`), and `"whole-file"` is `true` for the formatters to keep
+/// all of their changes ([`Formatting::whole_file`]), or `false` for only their
+/// changes to the edit, which is what they keep unless a file sets it.
+///
+/// - `{"built-in": false}`: no formatter for any language
+/// - `{"rust": false}`: none for Rust, the rest as inherited
+/// - `{"toml": "taplo"}`: taplo for TOML, the rest as inherited
+/// - `{"whole-file": true}`: the inherited formatters, keeping all of their
+///   changes
+fn formatting_for(layers: &[PathBuf]) -> Result<Formatting> {
+    let mut formatting = Formatting::default();
+    for path in layers {
+        let text = fs::read_to_string(path)?;
+        let layer: FormattingLayer =
+            serde_json::from_str(&text).with_context(|| format!("in {}", path.display()))?;
+        formatting = formatting.with_layer(&layer);
+    }
+    Ok(formatting)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{formatting::Formatter, languages::LanguageName};
+
+    #[test]
+    fn a_path_selects_the_test_and_every_test_beneath_it() {
+        assert!(filter_matches("rust::repair", "rust::repair"));
+        assert!(filter_matches("rust::repair", "rust::repair::insert"));
+        assert!(filter_matches(
+            "rust::repair",
+            "rust::repair::deeper::insert"
+        ));
+        assert!(!filter_matches("rust::repair", "rust::repairs"));
+        assert!(!filter_matches("rust::repair", "rust::repairs::insert"));
+        assert!(!filter_matches("rust::repair", "rust"));
+        assert!(!filter_matches("rust::repair", "unformatted::rust::repair"));
+    }
+
+    #[test]
+    fn a_full_name_selects_just_that_test() {
+        assert!(filter_matches(
+            "rust::repair::insert",
+            "rust::repair::insert"
+        ));
+        assert!(!filter_matches(
+            "rust::repair::insert",
+            "rust::repair::insert_more"
+        ));
+    }
+
+    #[test]
+    fn a_bare_category_is_a_prefix() {
+        assert!(filter_matches("rust", "rust::attributes"));
+        assert!(filter_matches("py", "python::layout::replace_nested_block"));
+        assert!(!filter_matches("rust", "unformatted::rust::replace"));
+        assert!(!filter_matches("", "rust::attributes"));
+    }
+
+    fn layered(layers: &[&str]) -> Result<Formatting> {
+        let mut formatting = Formatting::default();
+        for layer in layers {
+            formatting = formatting.with_layer(&serde_json::from_str(layer)?);
+        }
+        Ok(formatting)
+    }
+
+    fn snapshot_formatting_file(dir: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/snapshots")
+            .join(dir)
+            .join(FORMATTING_FILE)
+    }
+
+    fn root_formatting_file() -> PathBuf {
+        snapshot_formatting_file("")
+    }
+
+    #[test]
+    fn no_layers_is_formatting_off() {
+        assert_eq!(layered(&[]).unwrap(), Formatting::off());
+        assert_eq!(formatting_for(&[]).unwrap(), Formatting::off());
+    }
+
+    /// The tree's expectations were written with every built-in formatter on, so
+    /// the root turns exactly that set on.
+    #[test]
+    fn the_root_layer_is_the_built_in_set() {
+        assert_eq!(
+            formatting_for(&[root_formatting_file()]).unwrap(),
+            Formatting::built_in()
+        );
+    }
+
+    /// `unformatted/` tests layout and validation on their own.
+    #[test]
+    fn unformatted_turns_every_formatter_off_again() {
+        assert_eq!(
+            formatting_for(&[
+                root_formatting_file(),
+                snapshot_formatting_file("unformatted")
+            ])
+            .unwrap(),
+            Formatting::off()
+        );
+    }
+
+    #[test]
+    fn built_in_false_turns_every_formatter_off() {
+        assert_eq!(
+            layered(&[r#"{"built-in": true}"#, r#"{"built-in": false}"#]).unwrap(),
+            Formatting::off()
+        );
+    }
+
+    #[test]
+    fn a_language_false_turns_just_that_one_off() {
+        let root = fs::read_to_string(root_formatting_file()).unwrap();
+        assert_eq!(
+            layered(&[&root, r#"{"rust": false}"#]).unwrap(),
+            Formatting::built_in().without(LanguageName::Rust)
+        );
+    }
+
+    #[test]
+    fn inner_layers_override_outer_ones() {
+        assert_eq!(
+            layered(&[r#"{"built-in": false}"#, r#"{"toml": "taplo"}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Toml, Formatter::taplo())
+        );
+        assert_eq!(
+            layered(&[r#"{"toml": false}"#, r#"{"built-in": true}"#]).unwrap(),
+            Formatting::built_in()
+        );
+        assert_eq!(
+            layered(&[r#"{"toml": "taplo"}"#, r#"{"toml": "biome"}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Toml, Formatter::biome())
+        );
+    }
+
+    /// A formatting file can configure a program, where the command line can't.
+    #[test]
+    fn a_layer_can_run_a_command() {
+        assert_eq!(
+            layered(&[r#"{"rust": {"command": "sh", "args": ["-c", "cat"]}}"#]).unwrap(),
+            Formatting::off().with(LanguageName::Rust, Formatter::command("sh", ["-c", "cat"]))
+        );
+    }
+
+    /// Including the spellings formatting files had before they were layers:
+    /// `null` for no formatter and `"*"` for every language.
+    #[test]
+    fn misspellings_are_errors() {
+        for layer in [
+            r#"{"rsut": false}"#,
+            r#"{"rust": "rustformat"}"#,
+            r#"{"rust": true}"#,
+            r#"{"rust": null}"#,
+            r#"{"*": null}"#,
+            r#"{"other": "taplo"}"#,
+            r#"{"built-in": "true"}"#,
+            r#"["rust"]"#,
+            r#"[true]"#,
+            r#"{"whole-file": "true"}"#,
+            r#"{"whole-file": 1}"#,
+            r#"{"whole-file": null}"#,
+            r#"{"whole_file": true}"#,
+            r#"{"scope": "file"}"#,
+        ] {
+            assert!(layered(&[layer]).is_err(), "{layer}");
+        }
+    }
+
+    /// A test that can't read its formatting fails, naming the file and why.
+    #[test]
+    fn a_bad_formatting_file_is_named_in_the_error() {
+        let dir = std::env::temp_dir().join(format!(
+            "semantic-edit-formatting-file-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(FORMATTING_FILE);
+        fs::write(&file, r#"{"jsx": null}"#).unwrap();
+        let error = formatting_for(&[root_formatting_file(), file.clone()]).unwrap_err();
+        fs::remove_dir_all(&dir).ok();
+        assert_eq!(
+            format!("{error:#}"),
+            format!(
+                "in {}: invalid type: null, expected a built-in formatter's name or a table \
+                 with `command` and `args`, or `false` for none at line 1 column 12",
+                file.display()
+            )
+        );
+    }
+
+    /// Formatters keep only their changes to the edit unless a layer sets
+    /// `"whole-file"`, which leaves the formatters as inherited.
+    #[test]
+    fn whole_file_sets_how_much_the_inherited_formatters_change() {
+        let root = fs::read_to_string(root_formatting_file()).unwrap();
+        assert!(!layered(&[&root]).unwrap().whole_file());
+        assert_eq!(
+            layered(&[&root, r#"{"whole-file": true}"#]).unwrap(),
+            Formatting::built_in().with_whole_file(true)
+        );
+        assert_eq!(
+            layered(&[r#"{"whole-file": true}"#, r#"{"rust": "rustfmt"}"#]).unwrap(),
+            Formatting::off()
+                .with(LanguageName::Rust, Formatter::rustfmt())
+                .with_whole_file(true)
+        );
+        assert_eq!(
+            layered(&[&root, r#"{"whole-file": true}"#, r#"{"whole-file": false}"#]).unwrap(),
+            Formatting::built_in()
+        );
+        // `"built-in"` sets formatters, not `"whole-file"`.
+        assert_eq!(
+            layered(&[r#"{"whole-file": true}"#, r#"{"built-in": false}"#]).unwrap(),
+            Formatting::off().with_whole_file(true)
+        );
     }
 }

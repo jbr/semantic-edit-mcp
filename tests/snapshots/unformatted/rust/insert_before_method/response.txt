@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied insert before — the file has been updated.
+Note: no formatter is run on this file; the diff shows exactly what was written.
+
+===DIFF===
+@@ -14,6 +14,11 @@
+         self.count += 1;
+     }
+
++    /// Forgets everything counted.
++    pub fn reset(&mut self) {
++        self.count = 0;
++    }
++
+     /// The current count.
+     pub fn get(&self) -> u32 {
+         self.count

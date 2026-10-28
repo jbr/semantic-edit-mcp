@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "result = 0",
+      "content": "result = 0\n        count = 0"
+    }
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "/// Adds one to the count.\n    #[inline]\n    pub fn increment(&mut self) {\n        self.count += 1;\n    }",
+    "content": "/// Adds `by` to the count, stopping at the maximum.\n    #[inline]\n    pub fn increment(&mut self, by: u32) {\n        self.count = self.count.saturating_add(by);\n    }"
+  }
+}

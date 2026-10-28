@@ -1,0 +1,5 @@
+scope = "..."
+[commands]
+ls = true
+[paths]
+"." = true

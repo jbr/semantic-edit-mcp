@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "let body = \"old\";",
+    "content": "let body = r#\"\nline one\n  line two\n\"#;\n        let footer = \"end\";"
+  }
+}

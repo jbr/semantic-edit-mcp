@@ -5,6 +5,138 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-27
+
+Formatting is now optional and off by default. Edits are laid out, validated and written
+entirely in-process, so the server needs no external tools, and an edit changes nothing
+outside itself. A configured formatter, by default, changes only the edited code. For the
+behavior closest to 0.3.0's, start the server with `--format built-in --format-whole-file`,
+or embed with `Formatting::built_in().with_whole_file(true)`.
+
+### Added
+
+- Formatters are configured per language. The standalone server takes
+  `--format LANGUAGE=FORMATTER` (repeatable) or `--format built-in`, before or after the
+  subcommand. The built-in set is `rustfmt` for Rust, `ruff` for Python, `biome` for
+  JavaScript, TypeScript, JSX, TSX and JSON, and `taplo` (in-process) for TOML.
+  Embedders pass a `Formatting` to `SemanticEditTools::with_formatting`, or replace it on
+  a running instance with `set_formatting`. `Formatter::command(program, args)` runs any
+  program that reads the source on stdin and writes the result to stdout, with `{path}`
+  replaced by the file's path.
+- Formatting settings deserialize from a strict TOML or JSON table. Unknown keys,
+  misspelled languages and unknown formatters are errors.
+
+  ```toml
+  built-in = true          # every language gets its built-in formatter...
+  json = false             # ...except JSON
+  python = { command = "uvx", args = ["ruff", "format", "--stdin-filename", "{path}", "-"] }
+  whole-file = false
+  ```
+
+  `FormattingLayer` reads the same table as a partial layer, for settings that override
+  earlier ones. Both types provide a JSON schema, from `Formatting::schema()` or derived
+  inside an embedder's own `JsonSchema` config type. The schema's descriptions read
+  correctly in an embedder's schema.
+- A formatter's changes are limited to the edit by default. The formatter sees the whole
+  file, but only its changes to the edited lines and the line on either side are kept.
+  When it moves the edit's own text, as rustfmt does sorting an inserted `use` or `mod`,
+  the text lands where it sorts and the response says so. `--format-whole-file`
+  (`Formatting::with_whole_file(true)`) reformats the whole file instead.
+- In-process validation that doesn't depend on a formatter:
+  - a Rust edit must leave the file parseable by `syn`;
+  - a Python edit must satisfy the language's indentation rules (no empty blocks,
+    unexpected indents, unmatched dedents, or ambiguous tabs and spaces), reported with
+    CPython's messages;
+  - a TOML edit must not define a key twice.
+
+  Like the context checks, these block an edit only if the file passed them before it.
+  When a file already fails one, the response says the check was off for that edit.
+- Files that already have syntax errors can be repaired step by step.
+  - Edits are accepted while the file is broken, and a result that still doesn't parse is
+    written unformatted.
+  - The response lists every remaining error region, including any outside the diff.
+  - Once the file parses again, edits must keep it valid as usual.
+
+  Previously such files refused every edit.
+- `--root` sets the directory relative paths resolve against. It defaults to the server's
+  working directory.
+
+### Changed
+
+- **Breaking.** Edits are no longer formatted unless formatting is configured. Unformatted
+  content is written as given, at the indentation of the code it replaces or goes next
+  to.
+- **Breaking.** A missing or broken formatter no longer makes a language uneditable:
+  - a formatter that can't run (missing from `PATH`, or timed out) is skipped, with a
+    note in the response;
+  - so is one that already fails on the file before the edit;
+  - only a failure the edit itself causes rejects the edit.
+- The formatter no longer influences where an edit lands. Validation alone picks the
+  placement, and the formatter runs once, on the result.
+- Formatters run in the edited file's directory and are given its path. A project's
+  `rustfmt.toml`, ruff configuration and `biome.json` now apply, and ruff respects the
+  project's exclusions. biome's indentation flags are passed only when no biome
+  configuration governs the file. A formatter run times out after 10 seconds. On Windows,
+  formatters installed by npm (`.cmd` shims) are found.
+- Content is laid out by one rule in every language, which the `content` parameter's
+  description now states:
+  - content is written at the file's columns;
+  - a first line without indentation takes the target's column, and leading whitespace
+    on it replaces that line's indentation;
+  - continuation lines are kept as written;
+  - content written dedented, relative to column 0, is still shifted to the target;
+  - lines inside string literals never move.
+
+  An insert next to code that occupies whole lines goes on lines of its own. An insert
+  within a line stays inline. Inserted line breaks match the file's line endings.
+- `undo_edit` is multi-level. Calling it again reverts a file's previous edit, as long as
+  the file hasn't changed in between; the 32 most recent edits across all files are kept.
+- **Breaking.** Undo history and tips are kept in the server process rather than in
+  session files under `~/.ai-tools`, so they no longer survive a server restart. Paths
+  resolve against the server's root rather than a per-session working directory.
+- A successful edit's note line names the formatter that ran, or says why none did. The
+  first line of every response is unchanged.
+- **Breaking, for embedders:**
+  - `SemanticEditTools::new(root)` replaces `new(storage_path)` and `embedded(working_directory)`.
+    Create one instance per root.
+  - Tool calls are async, and their bodies run on tokio's blocking pool, so the host must
+    run a tokio runtime. This follows mcplease 0.5.
+  - `snapshot()` and `restore()` of a `ToolState` replace `session_snapshot` and
+    `restore_session`.
+  - The commit hook is set with `with_commit_fn` and must be `Send + Sync`
+    (`CommitFn = Arc<dyn Fn(PathBuf, String) + Send + Sync>`).
+  - `Editor::new` and `Editor::from_source` take the `Formatting` to use.
+  - `LanguageEditor::format_code` and `Editor::format_code` are removed, because
+    formatting is no longer part of a language.
+
+### Removed
+
+- **Breaking.** The `set_working_directory` tool. A path is absolute, or relative to the
+  server's root (`--root`).
+
+### Fixed
+
+- Python edits whose content was indented the way agents usually write it, at the file's
+  columns like the anchor, had their continuation lines pushed a level too deep and were
+  refused.
+- Re-indenting Python content changed the contents of multi-line strings in it.
+- An `insert_before` in nested Python code could land inside the wrong block.
+- Inserting after a Python decorator could merge the two into `@a @ b`.
+- Inserting a TOML table after another table's header moved that table's keys into the
+  new table.
+- Deleting a Rust item left its doc comments and attributes behind. They would dangle, or
+  attach to the next item (`#[test] #[test] fn next`).
+- A replace anchored on a Rust function's signature duplicated its doc comment and
+  attributes.
+- Replacing a Rust `//` comment, or a line together with its line break, added a blank
+  line.
+- Deleting whole lines could leave an empty line or doubled blank lines behind.
+- Inserts into files with CRLF line endings added LF line breaks, and diffs showed stray
+  `\r`.
+- A large insert written with different indentation could make biome reindent the whole
+  file to match it.
+- Very deeply nested files could crash the server with a stack overflow.
+
 ## [0.3.0] - 2026-09-13
 
 ### Added

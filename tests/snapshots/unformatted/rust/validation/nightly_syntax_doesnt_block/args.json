@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "fn numbers() -> impl Iterator<Item = u32> {\n    gen {\n        yield 1;\n        yield 2;\n    }\n}",
+      "content": "\n\nfn total() -> u32 {\n    numbers().sum()\n}"
+    }
+  }
+]

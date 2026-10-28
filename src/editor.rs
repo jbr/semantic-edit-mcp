@@ -1,18 +1,21 @@
 mod edit;
 mod edit_iterator;
 mod edit_position;
+mod format;
 
 use crate::{
-    languages::LanguageCommon,
+    formatting::{Formatter, Formatting},
+    languages::{LanguageCommon, LanguageName},
     searcher::find_positions,
     selector::{Operation, Selector},
     state::{AppliedEdit, EditOperation},
-    validation::{ContextValidator, format_violations},
+    validation::{ContextValidator, Diagnostic, format_violations},
 };
 use anyhow::{Result, anyhow};
 use diffy::{DiffOptions, Line as DiffyLine, PatchFormatter};
 use ropey::Rope;
 use std::{
+    cell::OnceCell,
     collections::{BTreeMap, BTreeSet},
     iter,
     path::PathBuf,
@@ -22,10 +25,25 @@ use tree_sitter::Tree;
 pub(crate) use edit::Edit;
 pub(crate) use edit_iterator::EditIterator;
 pub(crate) use edit_position::EditPosition;
+use format::{Formatted, Whitespace};
+
+/// What trying an edit's candidates came to.
+enum Outcome {
+    /// The winning candidate's result, as it is to be written.
+    Applied {
+        output: String,
+        whitespace: Whitespace,
+        /// Set when the winning candidate's anchor also matched elsewhere.
+        ambiguity_note: Option<String>,
+    },
+    /// No candidate could be written: the report saying why.
+    Rejected(String),
+}
 
 /// Why a candidate's result tree was rejected. `syntax: true` means the result
 /// didn't even parse cleanly (the placement itself is structural nonsense);
-/// `syntax: false` means it parsed but introduced a context-query violation.
+/// `syntax: false` means it parsed but introduced a context-query violation or
+/// failed the language's [check](crate::languages::traits::LanguageEditor::check).
 pub(crate) struct ValidationFailure {
     pub(crate) message: String,
     pub(crate) syntax: bool,
@@ -38,20 +56,38 @@ pub struct Editor<'language> {
     selector: Selector,
     file_path: PathBuf,
     language: &'language LanguageCommon,
+    /// The file's formatter under the calling tool's settings, if it has one.
+    formatter: Option<Formatter>,
+    /// Whether the formatter may change the whole file, and not only the edit.
+    whole_file: bool,
     source_code: String,
     tree: Tree,
     rope: Rope,
+    /// Whether the source passes its language's check, which gates candidates
+    /// only if it does. Computed on first use, once for every candidate.
+    #[field(skip)]
+    passes_check: OnceCell<bool>,
 }
 
 impl<'language> Editor<'language> {
+    /// An editor for the file at `file_path`, formatted as `formatting` says for
+    /// `language`.
     pub fn new(
         content: String,
         selector: Selector,
         language: &'language LanguageCommon,
+        formatting: &Formatting,
         file_path: PathBuf,
     ) -> Result<Self> {
         let source_code = std::fs::read_to_string(&file_path)?;
-        Self::from_source(content, selector, language, file_path, source_code)
+        Self::from_source(
+            content,
+            selector,
+            language,
+            formatting,
+            file_path,
+            source_code,
+        )
     }
 
     /// Construct against an explicit source text instead of reading
@@ -62,6 +98,7 @@ impl<'language> Editor<'language> {
         content: String,
         selector: Selector,
         language: &'language LanguageCommon,
+        formatting: &Formatting,
         file_path: PathBuf,
         source_code: String,
     ) -> Result<Self> {
@@ -79,10 +116,13 @@ impl<'language> Editor<'language> {
             content,
             selector,
             language,
+            formatter: formatting.formatter(language.name()).cloned(),
+            whole_file: formatting.whole_file(),
             tree,
             file_path,
             source_code,
             rope,
+            passes_check: OnceCell::new(),
         })
     }
 
@@ -97,14 +137,18 @@ impl<'language> Editor<'language> {
             .is_empty()
     }
 
-    /// Validate a candidate result tree, relative to the file being edited.
+    /// Validate a candidate result tree, relative to the file being edited: it
+    /// must parse cleanly, introduce no context-query violation, and pass the
+    /// language's [check](crate::languages::traits::LanguageEditor::check) if the
+    /// file did.
     ///
     /// Unlike the absolute [`validate`](Self::validate), context-query violations
-    /// are compared against the *original* source: a violation that already
-    /// exists in the unedited file is pre-existing code, not something this edit
-    /// introduced, so it never fails the candidate. Without this, one imperfect
-    /// heuristic match anywhere in a file makes the whole file uneditable — and
-    /// the resulting error points at code the caller never touched.
+    /// and the check are compared against the *original* source: a violation
+    /// that already exists in the unedited file is pre-existing code, not
+    /// something this edit introduced, so it never fails the candidate. Without
+    /// this, one imperfect heuristic match anywhere in a file makes the whole
+    /// file uneditable — and the resulting error points at code the caller never
+    /// touched.
     fn validate_tree(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
         if self.starts_with_syntax_errors() {
             return None;
@@ -115,7 +159,13 @@ impl<'language> Editor<'language> {
                 syntax: true,
             });
         }
+        self.introduced_violations(tree, content)
+            .or_else(|| self.check_failure(tree, content))
+    }
 
+    /// The context-query violations in a candidate's result that the original
+    /// source doesn't already have.
+    fn introduced_violations(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
         let query = self.language.validation_query()?;
         let result = ContextValidator::validate_tree(tree, query, content);
         if result.is_valid {
@@ -150,6 +200,35 @@ impl<'language> Editor<'language> {
         })
     }
 
+    /// The language's check of a candidate's result, if the original source
+    /// passes it. A file the checker can't handle, with syntax newer than the
+    /// checker or a nightly feature, is still editable; what remains unguarded
+    /// is an edit introducing such syntax into a file that didn't use it.
+    ///
+    /// A result that fails the check parsed cleanly, so the placement was
+    /// plausible and its failure explains what blocked it: it is reported over
+    /// candidates that didn't parse, as a formatter's refusal was.
+    fn check_failure(&self, tree: &Tree, content: &str) -> Option<ValidationFailure> {
+        if !self.passes_check() {
+            return None;
+        }
+        let diagnostic = self.language.editor().check(tree, content).err()?;
+        Some(ValidationFailure {
+            message: check_errors(&diagnostic, content),
+            syntax: false,
+        })
+    }
+
+    /// Whether the source as it was before the edit passes its language's check.
+    fn passes_check(&self) -> bool {
+        *self.passes_check.get_or_init(|| {
+            self.language
+                .editor()
+                .check(&self.tree, &self.source_code)
+                .is_ok()
+        })
+    }
+
     /// Absolute validation of a standalone tree — syntax plus *all* context-query
     /// violations, with no baseline to compare against. Candidate edits go
     /// through [`validate_tree`](Self::validate_tree) instead, which only fails
@@ -180,48 +259,32 @@ impl<'language> Editor<'language> {
             return None;
         }
 
-        let context_lines = 3;
         let lines_with_errors = errors.into_iter().collect::<BTreeSet<_>>();
-        let context_lines = lines_with_errors
-            .iter()
-            .copied()
-            .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
-            .collect::<BTreeSet<_>>();
         Some(
             iter::once(String::from("===SYNTAX ERRORS===\n"))
-                .chain(
-                    content
-                        .lines()
-                        .enumerate()
-                        .filter(|(index, _)| context_lines.contains(index))
-                        .map(|(index, line)| {
-                            let display_index = index + 1;
-                            if lines_with_errors.contains(&index) {
-                                format!("{display_index:>4} ->⎸{line}\n")
-                            } else {
-                                format!("{display_index:>4}   ⎸{line}\n")
-                            }
-                        }),
-                )
+                .chain(excerpt(content, &lines_with_errors))
                 .collect(),
         )
     }
 
+    /// The candidates to try, in order, each laid out at its target: targeting,
+    /// then [layout](crate::layout), which runs whether or not a formatter will.
     fn build_edits<'editor>(&'editor self) -> Result<Vec<Edit<'editor, 'language>>, String> {
-        if self.starts_with_syntax_errors() {
-            EditIterator::new(self).find_text_edits()
+        let edits = if self.starts_with_syntax_errors() {
+            EditIterator::new(self).find_text_edits()?
         } else {
-            self.language.editor().build_edits(self)
-        }
+            self.language.editor().build_edits(self)?
+        };
+        Ok(crate::layout::lay_out(self, edits))
     }
 
-    /// Returns `(message, output, ambiguity_note)` — `output` is `Some` only when
-    /// a candidate applied cleanly, and `ambiguity_note` is `Some` only when the
-    /// winning candidate's anchor also matched elsewhere in the file.
-    fn edit(&mut self) -> Result<(String, Option<String>, Option<String>)> {
+    /// Try the candidates in order. The first that validates wins, and the
+    /// file's formatter, if it has one, then runs on it alone: it may veto the
+    /// edit, but never moves it to another candidate.
+    fn edit(&mut self) -> Result<Outcome> {
         let mut edits = match self.build_edits() {
             Ok(all_edits) => all_edits,
-            Err(message) => return Ok((message, None, None)),
+            Err(message) => return Ok(Outcome::Rejected(message)),
         };
 
         // let count = edits.len();
@@ -238,12 +301,19 @@ impl<'language> Editor<'language> {
                 if let Some(annotation) = edit.annotation() {
                     log::info!("used {annotation}");
                 }
-                let note = self.ambiguity_note(edit);
-                return Ok((
-                    edit.take_message().unwrap_or_default(),
-                    edit.take_output(),
-                    note,
-                ));
+                let ambiguity_note = self.ambiguity_note(edit);
+                // The result is the source with the candidate's text in place
+                // of what it replaces, starting where the candidate does.
+                let span = edit.start_byte()..edit.start_byte() + edit.content().len();
+                let output = edit.take_output().unwrap_or_default();
+                return Ok(match self.format(output, span) {
+                    Formatted::Written { output, whitespace } => Outcome::Applied {
+                        output,
+                        whitespace,
+                        ambiguity_note,
+                    },
+                    Formatted::Vetoed(message) => Outcome::Rejected(message),
+                });
             }
         }
 
@@ -278,7 +348,7 @@ item you mean to target.",
                     .to_string(),
             },
         };
-        Ok((message, None, None))
+        Ok(Outcome::Rejected(message))
     }
 
     /// When the winning edit's anchor matched at more than one location, describe
@@ -389,80 +459,155 @@ decorations, which stay attached to it.",
     }
 
     /// Run the edit against the in-memory source. Nothing is written here: on
-    /// success the report (formatting note, diff, ambiguity note) comes back
-    /// with the [`AppliedEdit`] record, and the *caller* persists the record's
-    /// `post_edit_source` and prepends its own headline. On failure the
-    /// failure report comes back alone and there is nothing to persist.
+    /// success the report (what happened to the edit's whitespace, the diff,
+    /// the ambiguity note) comes back with the [`AppliedEdit`] record, and the
+    /// *caller* persists the record's `post_edit_source` and prepends its own
+    /// headline. On failure, including the formatter's veto, the failure report
+    /// comes back alone and there is nothing to persist.
     pub fn apply(mut self) -> Result<(String, Option<AppliedEdit>)> {
-        let (message, output, note) = self.edit()?;
-        if let Some(output) = output {
-            let plain_text = self.language.name() == crate::languages::LanguageName::Other;
-            let (diff, elided) = if plain_text {
-                (clean_diff(&self.source_code, &output), 0)
-            } else {
-                focused_diff(&self.source_code, &output)
-            };
-            let remaining_errors = self
-                .parse(&output, None)
-                .and_then(|tree| Self::syntax_errors(self.language, &tree, &output));
-            let mut report = if let Some(errors) = remaining_errors {
-                format!(
-                    "Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.\n\n{errors}"
-                )
-            } else if message.starts_with("Warning:") {
-                format!("{message}\n")
-            } else if plain_text {
-                String::from(
-                    "Note: plain-text edits preserve supplied whitespace; no formatter is run.\n",
-                )
-            } else {
-                String::from(
-                    "Note: the editor applies a consistent formatting style to the entire file, including your edit\n",
-                )
-            };
-            if elided > 0 {
-                report.push_str(&format!(
-                    "{elided} formatting-only hunk{} elsewhere in the file {} not shown \
-(whitespace only — no token changed; anchors are whitespace-insensitive, so later edits are \
-unaffected).\n",
-                    if elided == 1 { "" } else { "s" },
-                    if elided == 1 { "is" } else { "are" },
-                ));
-            }
-            if let Some(placement) = self.item_placement_note() {
-                report.push_str(&placement);
-                report.push('\n');
-            }
-            report.push('\n');
-            report.push_str(&diff);
-            if let Some(note) = note {
-                report.push_str("\n\n");
-                report.push_str(&note);
-            }
-
-            let Self {
-                content,
-                selector,
-                file_path,
-                language,
-                source_code,
-                ..
-            } = self;
-            let record = AppliedEdit {
-                operation: EditOperation {
-                    selector,
-                    content,
-                    file_path,
-                    language_name: language.name(),
-                },
-                pre_edit_source: source_code,
-                post_edit_source: output,
-            };
-            Ok((report, Some(record)))
-        } else {
-            Ok((message, None))
+        match self.edit()? {
+            Outcome::Applied {
+                output,
+                whitespace,
+                ambiguity_note,
+            } => Ok(self.report(output, whitespace, ambiguity_note)),
+            Outcome::Rejected(message) => Ok((message, None)),
         }
     }
+
+    /// The success report for `output`, the winning candidate's result as it is
+    /// written, and the record of the edit.
+    fn report(
+        self,
+        output: String,
+        whitespace: Whitespace,
+        note: Option<String>,
+    ) -> (String, Option<AppliedEdit>) {
+        // Only a formatter that may change the whole file can have changed
+        // lines far from the edit. Otherwise every hunk is the edit's own, even
+        // one far from it that places text the formatter moved there.
+        let whole_file = matches!(whitespace, Whitespace::FormattedFile(_));
+        let plain_text = self.language.name() == LanguageName::Other;
+        let (diff, elided) = if plain_text {
+            (clean_diff(&self.source_code, &output), 0)
+        } else {
+            focused_diff(&self.source_code, &output, whole_file)
+        };
+        let tree = self.parse(&output, None);
+        let remaining_errors = tree
+            .as_ref()
+            .and_then(|tree| Self::syntax_errors(self.language, tree, &output));
+        // A repair is accepted unchecked. Once it parses again, the language's
+        // check still says whether it's valid, as a formatter's refusal did.
+        let failed_check = match &tree {
+            Some(tree) if remaining_errors.is_none() && self.starts_with_syntax_errors() => {
+                self.language.editor().check(tree, &output).err()
+            }
+            _ => None,
+        };
+        // A source that already failed the check had it off for this edit
+        // (see `check_failure`). That is said whenever the result still fails
+        // it: then the check isn't protecting the edit. A result that passes
+        // is what the check would have let through anyway.
+        let unguarded = match &tree {
+            Some(tree) if !self.starts_with_syntax_errors() && !self.passes_check() => {
+                self.language.editor().check(tree, &output).err()
+            }
+            _ => None,
+        };
+        // What happened to the edit's whitespace, said first unless a
+        // warning about the repair it belongs to has to come before it.
+        let whitespace_note = match &whitespace {
+            Whitespace::FormattedEdit {
+                formatter,
+                moved: false,
+            } => format!("Note: {formatter} formatted the edit.\n"),
+            Whitespace::FormattedEdit {
+                formatter,
+                moved: true,
+            } => format!(
+                "Note: {formatter} formatted the edit, and moved all or part of it elsewhere in the \
+file, as sorting imports does; the diff shows where it went.\n"
+            ),
+            Whitespace::FormattedFile(formatter) => {
+                format!("Note: {formatter} formatted the whole file, including the edit.\n")
+            }
+            Whitespace::Unformatted(note) | Whitespace::RepairUnformatted(note) => {
+                format!("{note}\n")
+            }
+            Whitespace::AsLaidOut if plain_text => String::from(
+                "Note: plain-text edits preserve supplied whitespace; no formatter is run.\n",
+            ),
+            Whitespace::AsLaidOut => String::from(
+                "Note: no formatter is run on this file; the diff shows exactly what was written.\n",
+            ),
+        };
+        let mut report = if let Some(errors) = remaining_errors {
+            format!(
+                "Warning: the source already had syntax errors. This edit was accepted without formatting; the resulting file still has syntax errors in the regions below, including any outside the diff.\n\n{errors}"
+            )
+        } else if matches!(whitespace, Whitespace::RepairUnformatted(_)) {
+            whitespace_note
+        } else if let Some(diagnostic) = failed_check {
+            let mut warning = format!(
+                "Warning: the source already had syntax errors, so this edit was accepted without validation. The result parses again but has the error below, and until it is fixed, edits to this file aren't checked for errors like it.\n\n{}",
+                check_errors(&diagnostic, &output)
+            );
+            // Why the formatter wasn't used is said whatever else is.
+            if matches!(whitespace, Whitespace::Unformatted(_)) {
+                warning.push_str(&whitespace_note);
+            }
+            warning
+        } else {
+            whitespace_note
+        };
+        if elided > 0 {
+            report.push_str(&format!(
+                "{elided} formatting-only hunk{} elsewhere in the file {} not shown \
+(whitespace only — no token changed; anchors are whitespace-insensitive, so later edits are \
+unaffected).\n",
+                if elided == 1 { "" } else { "s" },
+                if elided == 1 { "is" } else { "are" },
+            ));
+        }
+        if let Some(diagnostic) = unguarded {
+            report.push_str(&format!(
+                "Note: the syntax check was off for this edit, because the file already \
+failed it; the result fails it too: {diagnostic}\n"
+            ));
+        }
+        if let Some(placement) = self.item_placement_note() {
+            report.push_str(&placement);
+            report.push('\n');
+        }
+        report.push('\n');
+        report.push_str(&diff);
+        if let Some(note) = note {
+            report.push_str("\n\n");
+            report.push_str(&note);
+        }
+
+        let Self {
+            content,
+            selector,
+            file_path,
+            language,
+            source_code,
+            ..
+        } = self;
+        let record = AppliedEdit {
+            operation: EditOperation {
+                selector,
+                content,
+                file_path,
+                language_name: language.name(),
+            },
+            pre_edit_source: source_code,
+            post_edit_source: output,
+        };
+        (report, Some(record))
+    }
+
     /// Show every location the anchor matches, with surrounding context.
     ///
     /// This deliberately reports *text matches*, not nodes: the node an edit
@@ -534,34 +679,47 @@ with more of the target's own text until it is unique.",
         cleaned_diff
     }
 
-    pub fn format_code(&self, source: &str) -> Result<String, String> {
-        self.language
-            .editor()
-            .format_code(source, &self.file_path)
-            .map_err(|e| {
-                if self.starts_with_syntax_errors() {
-                    format!(
-                        "Warning: formatting failed; the edit was accepted without formatting \
-                     because the source already had syntax errors.\n\n{e}"
-                    )
-                } else {
-                    let diff = self.diff(source);
-                    format!(
-                        "The formatter has encountered the following error making \
-                     that change, so the file has not been modified. The tool has \
-                     prevented what it believes to be an unsafe edit. Please try a \
-                     different edit.\n\n{e}\n\n{diff}"
-                    )
-                }
-            })
-    }
-
     fn parse(&self, output: &str, old_tree: Option<&Tree>) -> Option<Tree> {
         // A parser-construction failure (e.g. a tree-sitter ABI mismatch) folds into
         // the existing "couldn't parse" path rather than panicking the host process.
         let mut parser = self.language.tree_sitter_parser().ok()?;
         parser.parse(output, old_tree)
     }
+}
+
+/// The lines of `content` around each of `marked` (indexes from 0), numbered,
+/// with the marked ones pointed out.
+fn excerpt<'a>(content: &'a str, marked: &'a BTreeSet<usize>) -> impl Iterator<Item = String> + 'a {
+    let context_lines = 3;
+    let shown = marked
+        .iter()
+        .copied()
+        .flat_map(|line| line.saturating_sub(context_lines)..line + context_lines)
+        .collect::<BTreeSet<_>>();
+    content
+        .lines()
+        .enumerate()
+        .filter(move |(index, _)| shown.contains(index))
+        .map(|(index, line)| {
+            let display_index = index + 1;
+            if marked.contains(&index) {
+                format!("{display_index:>4} ->⎸{line}\n")
+            } else {
+                format!("{display_index:>4}   ⎸{line}\n")
+            }
+        })
+}
+
+/// A language check's rejection of `content`: the checker's diagnostic, then
+/// the lines around the one it points at.
+fn check_errors(diagnostic: &Diagnostic, content: &str) -> String {
+    let mut errors = format!("===SYNTAX ERROR===\n{diagnostic}\n");
+    if let Some(line) = diagnostic.line {
+        let last = content.lines().count().max(1);
+        let marked = BTreeSet::from([line.clamp(1, last) - 1]);
+        errors.extend(excerpt(content, &marked));
+    }
+    errors
 }
 
 /// A `===DIFF===` section between two versions of a file, cleaned for AI
@@ -581,7 +739,12 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
         if line.starts_with("---") || line.starts_with("+++") {
             continue;
         }
-        cleaned_diff.push_str(line);
+        // A blank context line has no prefix (`PatchFormatter`'s
+        // `suppress_blank_empty`), but diffy sees a CRLF file's blank line as
+        // `\r`, prefixes it, and `lines` leaves just the prefix.
+        if line != " " {
+            cleaned_diff.push_str(line);
+        }
         cleaned_diff.push('\n');
     }
 
@@ -593,12 +756,15 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 }
 
 /// The same `===DIFF===` section with the **whitespace-only hunks dropped**, plus
-/// the number dropped.
+/// the number dropped, when `whole_file` says a formatter that may change the
+/// whole file ([`Formatting::whole_file`]) produced `modified`.
 ///
-/// An edit is validated by formatting the whole file, so the file-level diff can
-/// carry formatter churn arbitrarily far from the edit — on a large file that
-/// buries the semantic change and costs a round of re-inspecting code the caller
-/// never touched.
+/// Such a formatter's changes can reach arbitrarily far from the edit, as churn in
+/// a file that wasn't already formatted — on a large file that buries the semantic
+/// change and costs a round of re-inspecting code the caller never touched.
+/// Without one, nothing changed but the edit, the lines beside it, and the edit's
+/// own text wherever the formatter moved it, so every hunk is the edit's own,
+/// whitespace included, and none is dropped.
 ///
 /// The classification is against the formatter's own contribution, hunk by hunk: a
 /// hunk whose deleted and inserted text are identical once all whitespace is
@@ -609,14 +775,14 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 /// continue from a file it no longer describes. If nothing survives the filter
 /// (an edit that was itself whitespace-only), the full diff is returned instead,
 /// because an empty diff answers nothing.
-pub(crate) fn focused_diff(original: &str, modified: &str) -> (String, usize) {
+pub(crate) fn focused_diff(original: &str, modified: &str, whole_file: bool) -> (String, usize) {
     let patch = DiffOptions::new().create_patch(original, modified);
     let mut kept = String::from("===DIFF===\n");
     let mut elided = 0;
     let mut shown = 0;
 
     for hunk in patch.hunks() {
-        if hunk_is_whitespace_only(hunk) {
+        if whole_file && hunk_is_whitespace_only(hunk) {
             elided += 1;
             continue;
         }
@@ -634,16 +800,18 @@ pub(crate) fn focused_diff(original: &str, modified: &str) -> (String, usize) {
                 DiffyLine::Delete(text) => ('-', *text),
                 DiffyLine::Insert(text) => ('+', *text),
             };
+            // Each line without its line ending, as `clean_diff`'s are: a CRLF
+            // file's diff reads like any other.
+            let text = text.strip_suffix('\n').unwrap_or(text);
+            let text = text.strip_suffix('\r').unwrap_or(text);
             // Mirrors `PatchFormatter`'s `suppress_blank_empty` (its default, and
             // what every existing snapshot was written against): a blank context
             // line carries no ` ` prefix, so the diff has no trailing whitespace.
-            if !(prefix == ' ' && text == "\n") {
+            if !(prefix == ' ' && text.is_empty()) {
                 kept.push(prefix);
             }
             kept.push_str(text);
-            if !text.ends_with('\n') {
-                kept.push('\n');
-            }
+            kept.push('\n');
         }
     }
 
@@ -690,7 +858,7 @@ mod diff_tests {
             + &"// filler\n".repeat(20)
             + "struct S {\n    a: u8,\n    b: u8,\n}\n";
 
-        let (diff, elided) = focused_diff(&original, &modified);
+        let (diff, elided) = focused_diff(&original, &modified, true);
         assert_eq!(elided, 1, "{diff}");
         assert!(diff.contains("+    b: u8,"), "the edit is shown: {diff}");
         assert!(!diff.contains("let x = 1"), "reflow is not: {diff}");
@@ -705,7 +873,7 @@ mod diff_tests {
         let modified =
             "use a::c;\n".to_string() + &"// filler\n".repeat(20) + "struct S {\n    a: u8,\n}\n";
 
-        let (diff, elided) = focused_diff(&original, &modified);
+        let (diff, elided) = focused_diff(&original, &modified, true);
         assert_eq!(elided, 0, "{diff}");
         assert!(diff.contains("+use a::c;"), "{diff}");
         assert!(diff.contains("+    a: u8,"), "{diff}");
@@ -715,16 +883,34 @@ mod diff_tests {
     /// — the full diff is returned: an empty diff answers nothing.
     #[test]
     fn an_all_whitespace_diff_falls_back_to_the_full_diff() {
-        let (diff, elided) = focused_diff("fn a() {\n  x\n}\n", "fn a() {\n    x\n}\n");
+        let (diff, elided) = focused_diff("fn a() {\n  x\n}\n", "fn a() {\n    x\n}\n", true);
         assert_eq!(elided, 0);
         assert!(diff.contains("+    x"), "{diff}");
+    }
+
+    /// Without a formatter that may change the whole file, a whitespace-only hunk
+    /// is the edit's own: dropping it would hide what the edit did to the file and
+    /// claim a formatter did it.
+    #[test]
+    fn an_unformatted_whitespace_only_hunk_is_shown() {
+        let original = "fn a() {\n        let x = 1;\n}\n".to_string()
+            + &"// filler\n".repeat(20)
+            + "struct S {\n    a: u8,\n}\n";
+        let modified = "fn a() {\n    let x = 1;\n}\n".to_string()
+            + &"// filler\n".repeat(20)
+            + "struct S {\n    a: u8,\n    b: u8,\n}\n";
+
+        let (diff, elided) = focused_diff(&original, &modified, false);
+        assert_eq!(elided, 0, "{diff}");
+        assert!(diff.contains("+    let x = 1;"), "{diff}");
+        assert!(diff.contains("+    b: u8,"), "{diff}");
     }
 
     /// Hunk headers are the result's only line numbers, and an edit result is where
     /// a caller re-targets from.
     #[test]
     fn hunks_carry_their_line_numbers() {
-        let (diff, _) = focused_diff("a\nb\nc\n", "a\nB\nc\n");
+        let (diff, _) = focused_diff("a\nb\nc\n", "a\nB\nc\n", true);
         assert!(diff.contains("@@ -1,3 +1,3 @@"), "{diff}");
     }
 
@@ -732,8 +918,17 @@ mod diff_tests {
     /// the diff has no trailing whitespace.
     #[test]
     fn a_blank_context_line_has_no_prefix() {
-        let (diff, _) = focused_diff("a\n\nb\n", "a\n\nB\n");
+        let (diff, _) = focused_diff("a\n\nb\n", "a\n\nB\n", true);
         assert!(diff.contains("\n\n"), "blank line stays bare: {diff:?}");
         assert!(!diff.contains(" \n"), "no trailing space: {diff:?}");
+    }
+
+    /// A CRLF file's diff reads like any other, as the full diff's does.
+    #[test]
+    fn a_crlf_diff_has_no_carriage_returns() {
+        let (original, modified) = ("a\r\n\r\nb\r\n", "a\r\n\r\nB\r\n");
+        let (diff, _) = focused_diff(original, modified, false);
+        assert_eq!(diff, "===DIFF===\n@@ -1,3 +1,3 @@\n a\n\n-b\n+B");
+        assert_eq!(diff, clean_diff(original, modified));
     }
 }

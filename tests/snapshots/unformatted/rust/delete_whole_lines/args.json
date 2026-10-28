@@ -1,0 +1,23 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "eprintln!(\"adding book {count}\");\n"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn len(&self) -> usize {\n        self.books.len()\n    }"
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "pub fn is_empty(&self) -> bool {\n        self.books.is_empty()\n    }"
+    }
+  }
+]

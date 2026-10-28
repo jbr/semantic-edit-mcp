@@ -1,12 +1,8 @@
 use crate::{
     editor::{Edit, EditIterator, Editor},
-    languages::{
-        LanguageCommon, LanguageEditor, LanguageName,
-        ecma_editor::{EcmaEditor, with_comma_variants},
-    },
+    languages::{LanguageCommon, LanguageEditor, LanguageName, ecma_editor::with_comma_variants},
 };
 use anyhow::Result;
-use std::path::Path;
 
 pub fn language() -> LanguageCommon {
     LanguageCommon {
@@ -33,10 +29,6 @@ impl JsonEditor {
 }
 
 impl LanguageEditor for JsonEditor {
-    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
-        EcmaEditor.format_code(source, file_path)
-    }
-
     fn build_edits<'language, 'editor>(
         &self,
         editor: &'editor Editor<'language>,

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_before",
+      "anchor": "host = \"localhost\"",
+      "content": "name = \"api\""
+    }
+  },
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "url = \"postgres://localhost/app\"",
+      "content": "pool = 5"
+    }
+  }
+]

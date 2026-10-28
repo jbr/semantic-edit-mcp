@@ -1,0 +1,11 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: rustfmt formatted the edit.
+
+===DIFF===
+@@ -14,4 +14,5 @@
+
+ struct Config {
+     name: String,
++    retries: u8,
+ }

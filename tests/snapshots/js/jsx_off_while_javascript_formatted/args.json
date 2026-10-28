@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "<p className=\"greeting\">Hello, {name}!</p>",
+    "content": "<p className='greeting'>Hi, {name}!</p>"
+  }
+}

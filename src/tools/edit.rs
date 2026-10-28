@@ -14,18 +14,25 @@ use serde::{Deserialize, Serialize};
 /// Apply an edit to a file and see the resulting diff
 ///
 /// Find the `anchor` text in the file and apply `operation` at that location.
-/// Edits to syntactically valid code must still parse and pass the formatter,
-/// or they are rejected without changing the file. If the source already has
-/// syntax errors, edits are accepted while it is being repaired: remaining
-/// error regions are reported, and formatting is skipped until syntax is valid.
-/// Accepted edits are written immediately. Review the returned diff, and if
-/// the edit landed somewhere other than
-/// intended, `retarget_edit` moves it to a corrected anchor and `undo_edit`
-/// reverts it.
+/// Edits to syntactically valid code must leave it valid, or they are rejected
+/// without changing the file. If the source already has syntax errors, edits
+/// are accepted while it is being repaired, and the error regions that remain
+/// are reported. Accepted edits are written immediately. Review the returned
+/// diff, and if the edit landed somewhere other than intended, `retarget_edit`
+/// moves it to a corrected anchor and `undo_edit` reverts it.
 ///
-/// When formatting runs, the whole file is reformatted with the language's
-/// standard formatter, so the diff may include fixes beyond the edit itself.
-/// Markdown/plain text is not reformatted.
+/// Unless a formatter is configured for the file's language, content is
+/// written as given, indented as `content` describes, and nothing outside the
+/// edit changes. With one, the formatter formats the edit, and may change the
+/// line on either side of it or move part of the edit elsewhere, as sorting
+/// imports does, but leaves the rest of the file as it was, unless it is set to
+/// reformat the whole file: then the diff may include changes beyond the edit
+/// itself. Each response says whether the edit was formatted, whether any of
+/// it moved, and how much of the file was. An edit to valid code that the
+/// formatter fails on is rejected, unless the formatter fails on the file
+/// without the edit too, or can't run: then the edit is written unformatted,
+/// and the response says why. A file with syntax errors isn't formatted until
+/// an edit makes it parse.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "edit")]
 #[group(skip)]
@@ -43,16 +50,18 @@ pub struct Edit {
     #[clap(flatten)]
     pub selector: Selector,
 
-    /// The new code.
+    /// The new code, written at the file's columns: indented as it should
+    /// appear in the file.
+    ///
+    /// The first line may leave its indentation off, as an anchor's first line
+    /// does; it is then indented like the code it replaces or goes next to.
+    /// Leading whitespace on the first line replaces that indentation instead.
+    /// Continuation lines are kept as written.
     ///
     /// For `replace`, this takes the place of the anchored code; omit it to
-    /// delete the anchored code instead. For inserts, include any blank lines
-    /// you want between the new code and its neighbors.
-    ///
-    /// Markdown/plain text has no formatter. For a replacement starting at
-    /// the first text on a line, explicit leading spaces/tabs in content
-    /// replace that line's indentation; without them, existing indentation
-    /// stays. Continuation lines keep exactly the whitespace you supply.
+    /// delete the anchored code instead. Blank lines between the new code and
+    /// its neighbors come from the content, so for an insert, include any you
+    /// want.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
 }
@@ -236,6 +245,9 @@ impl Edit {
 
         let file_path = state.resolve_path(&file_path)?;
         let _write_lock = state.write_lock();
+        // One snapshot for the whole call: the shorthand check below re-runs the
+        // edit, and only the same settings make its diff comparable.
+        let formatting = state.formatting();
         let education = state.education();
 
         let owns_persistence = state.owns_persistence();
@@ -279,6 +291,7 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
             content.clone(),
             selector.clone(),
             language,
+            &formatting,
             file_path.clone(),
         )?;
         let shorthand = editor.shorthand_suggestion();
@@ -304,6 +317,7 @@ re-applies the content there in one step. (`undo_edit` also reverts it.)"
                         item: None,
                     },
                     language,
+                    &formatting,
                     file_path.clone(),
                 )
                 .and_then(Editor::apply)

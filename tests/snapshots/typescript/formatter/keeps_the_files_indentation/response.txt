@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: biome formatted the edit.
+
+===DIFF===
+@@ -2,4 +2,11 @@
+   greet(name: string) {
+     return "hello " + name;
+   }
++
++  farewell(name: string) {
++    if (name) {
++      return "goodbye " + name;
++    }
++    return "goodbye";
++  }
+ }

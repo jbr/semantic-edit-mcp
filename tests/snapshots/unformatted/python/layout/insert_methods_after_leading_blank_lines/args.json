@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "insert_after",
+      "anchor": "def add(self, item):\n        self.items.append(item)",
+      "content": "\n\ndef remove(self, item):\n        self.items.remove(item)\n\n    def size(self):\n        return len(self.items)"
+    }
+  }
+]

@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: ruff formatted the edit.
+
+===DIFF===
+@@ -6,5 +6,6 @@
+         self.rows = rows
+
+     @property
++    @functools.cache
+     def total(self):
+         return sum(self.rows)

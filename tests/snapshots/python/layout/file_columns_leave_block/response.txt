@@ -1,0 +1,14 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: ruff formatted the edit.
+
+===DIFF===
+@@ -5,6 +5,8 @@
+             counts["small"] += 1
+         elif item < 100:
+             counts["large"] += 1
++        else:
++            counts["huge"] = counts.get("huge", 0) + 1
+     return counts
+
+

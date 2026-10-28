@@ -1,0 +1,10 @@
+[
+  {
+    "name": "edit",
+    "arguments": {
+      "operation": "replace",
+      "anchor": "def usage(prog):\n    return f\"usage: {prog} FILE\"",
+      "content": "def usage(prog):\n    name = prog.rsplit(\"/\", 1)[-1]\n    return (f\"usage: {name} [-h] [-v] FILE\\n\"\n            \"  -h, --help     show this help message and exit\\n\"\n            \"  -v, --verbose  print each file as it is processed\")"
+    }
+  }
+]

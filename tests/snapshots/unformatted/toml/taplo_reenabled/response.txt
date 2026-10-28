@@ -1,0 +1,9 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: taplo formatted the edit.
+
+===DIFF===
+@@ -1,2 +1,3 @@
+ [server]
+ host = "localhost"
++port = 8080

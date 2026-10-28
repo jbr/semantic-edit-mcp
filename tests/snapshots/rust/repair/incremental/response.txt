@@ -17,11 +17,10 @@ Warning: the source already had syntax errors. This edit was accepted without fo
  // gap
 === snapshot test tool call: edit ===
 Applied replace — the file has been updated.
-Note: the editor applies a consistent formatting style to the entire file, including your edit
-1 formatting-only hunk elsewhere in the file is not shown (whitespace only — no token changed; anchors are whitespace-insensitive, so later edits are unaffected).
+Note: rustfmt formatted the edit.
 
 ===DIFF===
-@@ -11,4 +13,6 @@
+@@ -11,4 +11,6 @@
  // gap
  // gap
  // gap
@@ -35,18 +34,16 @@ This edit would result in invalid syntax, but the file is still in a valid state
 Suggestion: Try a different change.
 
 ===SYNTAX ERRORS===
-   1   ⎸fn alpha() {
-   2 ->⎸    let a = ;
-   3   ⎸}
-   4   ⎸// gap
+   1 ->⎸fn alpha() { let a = ; }
+   2   ⎸// gap
+   3   ⎸// gap
 
 
 ===DIFF===
-@@ -1,5 +1,5 @@
- fn alpha() {
--    let a = 1;
-+    let a = ;
- }
+@@ -1,4 +1,4 @@
+-fn alpha() { let a = 1; }
++fn alpha() { let a = ; }
+ // gap
  // gap
  // gap
 

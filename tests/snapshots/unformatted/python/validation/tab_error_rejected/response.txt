@@ -1,0 +1,21 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERROR===
+line 5: TabError: inconsistent use of tabs and spaces in indentation
+   2   ⎸    result = 0
+   3   ⎸    for item in items:
+   4   ⎸        result += item
+   5 ->⎸	count += 1
+   6   ⎸    return result
+
+
+===DIFF===
+@@ -2,4 +2,5 @@
+     result = 0
+     for item in items:
+         result += item
++	count += 1
+     return result

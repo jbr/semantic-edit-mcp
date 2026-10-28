@@ -1,0 +1,8 @@
+{
+  "name": "edit",
+  "arguments": {
+    "operation": "replace",
+    "anchor": "return f\"Hello, {name}\"\n\n\ndef main():\n    print(Greeter().greet(\"world\"))",
+    "content": "return f\"Hello, {name}!\"\n\n\ndef main():\n    greeter = Greeter()\n    print(greeter.greet(\"world\"))"
+  }
+}

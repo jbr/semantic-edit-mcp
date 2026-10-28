@@ -1,0 +1,23 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERROR===
+line 4: IndentationError: expected an indented block after 'if' statement on line 3
+   1   ⎸def total(items):
+   2   ⎸    result = 0
+   3   ⎸    if not items:
+   4 ->⎸    for item in items:
+   5   ⎸        result += item
+   6   ⎸    return result
+
+
+===DIFF===
+@@ -1,5 +1,6 @@
+ def total(items):
+     result = 0
++    if not items:
+     for item in items:
+         result += item
+     return result

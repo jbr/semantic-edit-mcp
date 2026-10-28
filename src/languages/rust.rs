@@ -2,13 +2,10 @@ use crate::editor::{Edit, EditIterator, Editor};
 use crate::selector::Operation;
 
 use super::{LanguageCommon, LanguageName, traits::LanguageEditor};
-use anyhow::{Result, anyhow};
-use std::{
-    io::{Read, Write},
-    path::Path,
-    process::{Command, Stdio},
-};
-use tree_sitter::{Node, Query};
+use crate::{layout::Rules, validation::Diagnostic};
+use anyhow::Result;
+use std::thread;
+use tree_sitter::{Node, Query, Tree};
 
 pub fn language() -> LanguageCommon {
     let language = tree_sitter_rust::LANGUAGE.into();
@@ -25,37 +22,13 @@ pub fn language() -> LanguageCommon {
 struct RustEditor;
 
 impl LanguageEditor for RustEditor {
-    fn format_code(&self, source: &str, file_path: &Path) -> Result<String> {
-        // let source = syn::parse_file(source)?;
-        // Ok(prettyplease::unparse(&source))
-
-        let edition = rust_edition(file_path);
-        let mut child = Command::new("rustfmt")
-            .args(["--emit", "stdout", "--edition", edition])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(source.as_bytes())?;
-            drop(stdin);
-        }
-
-        let mut stdout = String::new();
-        if let Some(mut out) = child.stdout.take() {
-            out.read_to_string(&mut stdout)?;
-        }
-
-        let mut stderr = String::new();
-        if let Some(mut err) = child.stderr.take() {
-            err.read_to_string(&mut stderr)?;
-        }
-
-        if child.wait()?.success() {
-            Ok(stdout)
-        } else {
-            Err(anyhow!(stderr))
+    /// A line inside a string or raw string literal is never re-indented. Block
+    /// comments aren't literals here: their continuation lines (` * …`) sit at
+    /// the code's column, so they move with it and count as evidence like code.
+    fn layout(&self) -> Rules {
+        Rules {
+            literals: &["string_literal", "raw_string_literal"],
+            ..Rules::CODE
         }
     }
 
@@ -65,6 +38,14 @@ impl LanguageEditor for RustEditor {
     ) -> Result<Vec<Edit<'editor, 'language>>, String> {
         let edit_iterator = EditIterator::new(editor);
         let mut edits = edit_iterator.find_edits()?;
+        if matches!(editor.selector().operation, Operation::Replace)
+            && editor.content().trim().is_empty()
+        {
+            for edit in &mut edits {
+                take_decorations(edit, editor.tree());
+            }
+            return Ok(edits);
+        }
         let mut parser = editor
             .language()
             .tree_sitter_parser()
@@ -77,10 +58,14 @@ impl LanguageEditor for RustEditor {
                 let mut walk = root.walk();
                 let replacement = root.children(&mut walk).collect::<Vec<_>>();
 
+                // A doc comment's node takes its line's break, so replacing one
+                // takes the break too, and content ending in a comment of its own
+                // has to give it back. A `//` comment's node stops before its
+                // break, which stays: adding another would leave a blank line.
                 if let Some("line_comment") = replacement.last().map(|node| node.kind())
-                    && let Some("line_comment") = edit
-                        .nodes()
-                        .and_then(|nodes| nodes.last().map(|node| node.kind()))
+                    && edit
+                        .edit_region()
+                        .is_some_and(|region| region.ends_with('\n'))
                     && !editor.content().ends_with('\n')
                 {
                     edit.content_mut().to_mut().push('\n');
@@ -92,6 +77,86 @@ impl LanguageEditor for RustEditor {
 
         Ok(edits)
     }
+
+    /// syn's parse of the file, which rejects what rustc's parser does where
+    /// tree-sitter's grammar doesn't: an item an `impl` can't hold, or a doc
+    /// comment or attribute with no item after it.
+    fn check(&self, tree: &Tree, source: &str) -> Result<(), Diagnostic> {
+        if nests_deeper_than(tree, SYN_MAX_DEPTH) {
+            return Ok(());
+        }
+        check_with_syn(source)
+    }
+}
+
+/// How deep a parse may nest for syn to check it. syn's descent recurses as the
+/// source nests, and overflowing a stack ends the process, which may be the
+/// host's: on [`SYN_STACK_SIZE`], a debug build overflows at about 6,000 nested
+/// parentheses. The deepest of 18,948 real files nests 73 deep.
+const SYN_MAX_DEPTH: usize = 1_000;
+
+/// The stack syn parses on: a reservation, which the thread touches only as
+/// deep as the source nests.
+const SYN_STACK_SIZE: usize = 64 << 20;
+
+/// Whether `tree` nests deeper than `limit`, walked without recursion.
+fn nests_deeper_than(tree: &Tree, limit: usize) -> bool {
+    let mut cursor = tree.walk();
+    let mut depth = 0;
+    loop {
+        if cursor.goto_first_child() {
+            depth += 1;
+            if depth > limit {
+                return true;
+            }
+            continue;
+        }
+        while !cursor.goto_next_sibling() {
+            if !cursor.goto_parent() {
+                return false;
+            }
+            depth -= 1;
+        }
+    }
+}
+
+/// `source` parsed by syn on a thread of its own.
+///
+/// For line and column, proc-macro2 keeps a copy of every source it lexes in a
+/// thread-local map that only grows, and its spans index into that map. On a
+/// thread of its own a check's copy is freed when the thread ends, and the map
+/// never meets spans the host holds on its own threads. The thread also gives
+/// syn a deep stack. If the thread can't start, or syn panics, the source isn't
+/// rejected: tree-sitter has already accepted it.
+fn check_with_syn(source: &str) -> Result<(), Diagnostic> {
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name(String::from("syn"))
+            .stack_size(SYN_STACK_SIZE)
+            .spawn_scoped(scope, || syn_diagnostic(source))
+            .ok()
+            .and_then(|parse| parse.join().ok())
+            .flatten()
+            .map_or(Ok(()), Err)
+    })
+}
+
+fn syn_diagnostic(source: &str) -> Option<Diagnostic> {
+    let error = syn::parse_file(source).err()?;
+    let span = error.span();
+    // An error at the end of the input has the call site's span, which isn't in
+    // the source: the input ran out, so the error is where the file ends.
+    let (line, column) = if span.source_text().is_some() {
+        let start = span.start();
+        (start.line, Some(start.column + 1))
+    } else {
+        (source.trim_end().lines().count().max(1), None)
+    };
+    Some(Diagnostic {
+        message: error.to_string(),
+        line: Some(line),
+        column,
+    })
 }
 
 fn handle_grouping<'editor, 'language>(
@@ -130,6 +195,91 @@ fn handle_grouping<'editor, 'language>(
 enum ExpansionType {
     BackwardsToMatchPattern,
     ForwardToIncludePrimary,
+}
+
+/// A deletion of an item takes the outer attributes and doc comments that
+/// decorate it. They apply to the item across the comments and blank lines
+/// between, and only to it: left behind, they would decorate whatever follows,
+/// or nothing, which doesn't parse. Only the start moves, so a separator the
+/// anchor took still goes; plain comments above the topmost decoration stay,
+/// and so do decorations a deletion of only decorations didn't take.
+///
+/// The item is the candidate's first node, or for a candidate that has none,
+/// the outermost node that starts where it does and ends within it.
+fn take_decorations<'editor>(edit: &mut Edit<'editor, '_>, tree: &'editor Tree) {
+    let Some(end) = edit.position().end_byte else {
+        return;
+    };
+    let item = match edit.nodes() {
+        Some(nodes) if nodes.iter().all(|node| is_preceding_item(*node)) => return,
+        Some(nodes) => nodes[0],
+        None => match item_at(tree, edit.start_byte(), end) {
+            Some(item) => item,
+            None => return,
+        },
+    };
+    let Some(decorations) = decorations_above(item) else {
+        return;
+    };
+    edit.position_mut()
+        .set_start_byte(decorations[0].start_byte());
+    if let Some(nodes) = edit.take_nodes() {
+        edit.set_nodes([decorations, nodes].concat());
+    }
+    edit.set_annotation("rust: deletion takes the item's decorations");
+}
+
+/// The outermost named node that starts at `start` and ends by `end`, when it
+/// is an item rather than a comment or attribute.
+fn item_at(tree: &Tree, start: usize, end: usize) -> Option<Node<'_>> {
+    let mut node = tree
+        .root_node()
+        .named_descendant_for_byte_range(start, start + 1)?;
+    if node.start_byte() != start {
+        return None;
+    }
+    while let Some(parent) = node.parent().filter(|parent| {
+        parent.parent().is_some() && parent.start_byte() == start && parent.end_byte() <= end
+    }) {
+        node = parent;
+    }
+    (!is_preceding_item(node)).then_some(node)
+}
+
+/// The decorations above `node`, top to bottom, from the topmost outer
+/// attribute or doc comment through any comments between them and `node`, or
+/// `None` when it has none.
+fn decorations_above(node: Node<'_>) -> Option<Vec<Node<'_>>> {
+    let mut above = Vec::new();
+    let mut current = node;
+    while let Some(previous) = current.prev_sibling() {
+        if !is_outer_decoration(previous) && !is_plain_comment(previous) {
+            break;
+        }
+        above.push(previous);
+        current = previous;
+    }
+    let topmost = above.iter().rposition(|node| is_outer_decoration(*node))?;
+    above.truncate(topmost + 1);
+    above.reverse();
+    Some(above)
+}
+
+/// An outer attribute or doc comment: `#[…]`, `///`, `/** */`.
+fn is_outer_decoration(node: Node<'_>) -> bool {
+    node.kind() == "attribute_item"
+        || is_comment(node) && node.child_by_field_name("outer").is_some()
+}
+
+/// A comment that documents nothing: not `///`, `//!`, `/** */` or `/*! */`.
+fn is_plain_comment(node: Node<'_>) -> bool {
+    is_comment(node)
+        && node.child_by_field_name("outer").is_none()
+        && node.child_by_field_name("inner").is_none()
+}
+
+fn is_comment(node: Node<'_>) -> bool {
+    matches!(node.kind(), "line_comment" | "block_comment")
 }
 
 fn determine_expansion_type<'editor>(
@@ -305,180 +455,4 @@ fn is_preceding_item(node: Node<'_>) -> bool {
         node.kind(),
         "line_comment" | "block_comment" | "attribute_item"
     )
-}
-
-/// Editions `rustfmt` understands; anything else (a typo, a future edition) falls
-/// back to [`DEFAULT_EDITION`] rather than making rustfmt error.
-const KNOWN_EDITIONS: &[&str] = &["2015", "2018", "2021", "2024"];
-
-/// Edition assumed when no `Cargo.toml` governs the file (e.g. a standalone
-/// snippet). The newest edition is the most permissive about modern syntax.
-const DEFAULT_EDITION: &str = "2024";
-
-/// Resolve the Rust edition that applies to `file_path` for formatting, always
-/// returning one of [`KNOWN_EDITIONS`]. Walks up to the nearest `Cargo.toml`,
-/// honoring workspace inheritance and Cargo's "no `edition` key means 2015" rule,
-/// and falls back to [`DEFAULT_EDITION`] when nothing declares one.
-fn rust_edition(file_path: &Path) -> &'static str {
-    resolve_edition(file_path)
-        .as_deref()
-        .and_then(clamp_edition)
-        .unwrap_or(DEFAULT_EDITION)
-}
-
-fn clamp_edition(edition: &str) -> Option<&'static str> {
-    KNOWN_EDITIONS
-        .iter()
-        .copied()
-        .find(|known| *known == edition)
-}
-
-/// What a single manifest tells us about the edition.
-#[derive(Debug, PartialEq, Eq)]
-enum ManifestEdition {
-    /// Determined by this manifest (explicit, defaulted to 2015, or inheritance
-    /// satisfied by this same file's `[workspace.package]`).
-    Edition(String),
-    /// `[package] edition.workspace = true` but no `[workspace.package].edition`
-    /// here — the value lives in a workspace manifest further up.
-    InheritFromAbove,
-    /// No `[package]` table (a virtual workspace manifest); keep walking.
-    Unknown,
-}
-
-fn resolve_edition(file_path: &Path) -> Option<String> {
-    let mut dir = file_path.parent();
-    let mut inheriting = false;
-
-    while let Some(current) = dir {
-        if let Ok(text) = std::fs::read_to_string(current.join("Cargo.toml")) {
-            if inheriting {
-                if let Some(edition) = workspace_package_edition(&text) {
-                    return Some(edition);
-                }
-            } else {
-                match edition_in_manifest(&text) {
-                    ManifestEdition::Edition(edition) => return Some(edition),
-                    ManifestEdition::InheritFromAbove => inheriting = true,
-                    ManifestEdition::Unknown => {}
-                }
-            }
-        }
-        dir = current.parent();
-    }
-
-    None
-}
-
-/// Extract the `[workspace.package].edition` from a manifest, if present.
-fn workspace_package_edition(text: &str) -> Option<String> {
-    let dom = taplo::parser::parse(text).into_dom();
-    dom.get("workspace")
-        .get("package")
-        .get("edition")
-        .as_str()
-        .map(|s| s.value().to_string())
-}
-
-/// Interpret a single manifest's `[package]` edition, applying Cargo's rules.
-fn edition_in_manifest(text: &str) -> ManifestEdition {
-    let dom = taplo::parser::parse(text).into_dom();
-    let package = dom.get("package");
-
-    if package.as_table().is_none() {
-        return ManifestEdition::Unknown;
-    }
-
-    let edition = package.get("edition");
-
-    if let Some(value) = edition.as_str() {
-        return ManifestEdition::Edition(value.value().to_string());
-    }
-
-    // `edition.workspace = true` / `edition = { workspace = true }`
-    if edition
-        .get("workspace")
-        .as_bool()
-        .is_some_and(|b| b.value())
-    {
-        return match workspace_package_edition(text) {
-            Some(edition) => ManifestEdition::Edition(edition),
-            None => ManifestEdition::InheritFromAbove,
-        };
-    }
-
-    // `[package]` present without an `edition` key → Cargo defaults to 2015.
-    ManifestEdition::Edition("2015".to_string())
-}
-
-#[cfg(test)]
-mod edition_tests {
-    use super::*;
-    use std::path::Path;
-
-    #[test]
-    fn explicit_edition() {
-        assert_eq!(
-            edition_in_manifest("[package]\nname = \"x\"\nedition = \"2018\"\n"),
-            ManifestEdition::Edition("2018".into())
-        );
-    }
-
-    #[test]
-    fn missing_edition_defaults_to_2015() {
-        assert_eq!(
-            edition_in_manifest("[package]\nname = \"x\"\n"),
-            ManifestEdition::Edition("2015".into())
-        );
-    }
-
-    #[test]
-    fn workspace_inheritance_satisfied_in_same_file() {
-        let manifest = "[package]\nname = \"x\"\nedition.workspace = true\n\n\
-                        [workspace.package]\nedition = \"2021\"\n";
-        assert_eq!(
-            edition_in_manifest(manifest),
-            ManifestEdition::Edition("2021".into())
-        );
-    }
-
-    #[test]
-    fn workspace_inheritance_deferred_upwards() {
-        assert_eq!(
-            edition_in_manifest("[package]\nname = \"x\"\nedition = { workspace = true }\n"),
-            ManifestEdition::InheritFromAbove
-        );
-    }
-
-    #[test]
-    fn virtual_manifest_is_unknown() {
-        assert_eq!(
-            edition_in_manifest("[workspace]\nmembers = []\n"),
-            ManifestEdition::Unknown
-        );
-    }
-
-    #[test]
-    fn clamp_rejects_unknown_editions() {
-        assert_eq!(clamp_edition("2021"), Some("2021"));
-        assert_eq!(clamp_edition("2030"), None);
-        assert_eq!(clamp_edition(""), None);
-    }
-
-    #[test]
-    fn walk_resolves_real_manifest() {
-        // This crate's Cargo.toml declares edition 2024; a file inside it resolves
-        // to that (and this is why the in-repo snapshot fixtures stay on 2024).
-        let in_repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/languages/rust.rs");
-        assert_eq!(rust_edition(&in_repo), "2024");
-    }
-
-    #[test]
-    fn walk_falls_back_when_no_manifest() {
-        // No Cargo.toml anywhere above this path → default, no panic.
-        assert_eq!(
-            rust_edition(Path::new("/semantic-edit-nonexistent/a/b/file.rs")),
-            DEFAULT_EDITION
-        );
-    }
 }

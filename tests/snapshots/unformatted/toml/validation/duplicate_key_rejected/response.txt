@@ -1,0 +1,24 @@
+=== snapshot test tool call: edit ===
+=== error ===
+This edit would result in invalid syntax, but the file is still in a valid state. No change was performed.
+Suggestion: Try a different change.
+
+===SYNTAX ERROR===
+line 4: conflicting keys: `name` is already defined on line 2
+   1   ⎸[package]
+   2   ⎸name = "example"
+   3   ⎸version = "0.1.0"
+   4 ->⎸name = "renamed"
+   5   ⎸edition = "2024"
+   6   ⎸
+
+
+===DIFF===
+@@ -1,6 +1,7 @@
+ [package]
+ name = "example"
+ version = "0.1.0"
++name = "renamed"
+ edition = "2024"
+
+ [dependencies]
