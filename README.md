@@ -25,9 +25,9 @@ in-process. Formatting is optional, and off unless you turn it on.
 ## Formatting
 
 By default an edit is written as given, at the indentation of the code it
-replaces or goes next to, and nothing else in the file changes. To have edited
-files reformatted, pass `--format`, before or after the subcommand. It works for
-`serve` and for the tool subcommands, and can be repeated:
+replaces or goes next to, and nothing else in the file changes. To have edits
+formatted, pass `--format`, before or after the subcommand. It works for `serve`
+and for the tool subcommands, and can be repeated:
 
 ```bash
 $ semantic-edit-mcp serve --format built-in                       # every built-in formatter
@@ -48,9 +48,28 @@ a language replaces an earlier one. The built-in formatters:
 
 Markdown and plain text have no formatter.
 
-A formatter reformats the whole file after each edit, and the response names
-it. It runs in the edited file's directory and is given the file's path, so it
-uses the project's own configuration (`rustfmt.toml`, `ruff.toml` or
+A formatter formats the edit, and the response names it. It runs on the whole
+file, so it sees the edit in context, but only its changes to the lines the edit
+changed, and to the line on either side of them, are kept: the rest of the file
+stays as it was, even where the formatter would change it. A change that reaches
+across that boundary, like a statement reflowed from the line before the edit,
+is kept whole. If the changes kept can't stand without the rest of the
+formatter's, because the file isn't valid without them or the formatter moved a
+line between the edit and the rest of the file (as rustfmt does to sort
+imports), the edit is written unformatted, and the response says so. To keep all
+of a formatter's changes, reformatting the whole file, pass
+`--format-scope file`:
+
+```bash
+$ semantic-edit-mcp serve --format built-in --format-scope file
+```
+
+Then the diff in a response can include changes far from the edit, in a file
+the formatter wouldn't have left as it was; hunks there that change only
+whitespace are counted rather than shown.
+
+The formatter runs in the edited file's directory and is given the file's path,
+so it uses the project's own configuration (`rustfmt.toml`, `ruff.toml` or
 `pyproject.toml`, `biome.json`); biome is told to keep a file's own indentation
 only when no biome configuration governs the file. Whether a formatter failed is
 judged against the file:
@@ -123,7 +142,7 @@ Add this to your MCP configuration JSON file:
 }
 ```
 
-To reformat edited files with the built-in formatters, make the arguments
+To format edits with the built-in formatters, make the arguments
 `["serve", "--format", "built-in"]`.
 
 

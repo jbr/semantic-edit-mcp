@@ -1,0 +1,12 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: rustfmt's changes couldn't be applied to the edit alone, so this edit wasn't formatted; the diff shows exactly what was written.
+
+===DIFF===
+@@ -5,5 +5,6 @@
+ use e::E;
+ use f::F;
+ use g::G;
++use aa::AA;
+
+ fn main() {}

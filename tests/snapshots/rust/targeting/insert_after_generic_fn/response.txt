@@ -1,6 +1,6 @@
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: rustfmt formatted the whole file, including the edit.
+Note: rustfmt formatted the edit.
 
 ===DIFF===
 @@ -6,6 +6,8 @@

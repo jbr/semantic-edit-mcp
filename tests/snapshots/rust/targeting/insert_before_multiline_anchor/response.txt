@@ -1,9 +1,9 @@
 === snapshot test tool call: edit ===
 Applied insert before — the file has been updated.
-Note: rustfmt formatted the whole file, including the edit.
+Note: rustfmt formatted the edit.
 
 ===DIFF===
-@@ -1,8 +1,15 @@
+@@ -1,3 +1,13 @@
 +/// Render just the projected messages array.
 +pub fn render_messages_pretty(model: &str) -> String {
 +    request_value(model, 2)
@@ -15,11 +15,5 @@ Note: rustfmt formatted the whole file, including the edit.
 +}
 +
  /// The request envelope, shared source for both renderers.
--fn request_value(
--    model: &str,
--    limit: usize,
--) -> String {
-+fn request_value(model: &str, limit: usize) -> String {
-     format!("{model}-{limit}")
- }
-
+ fn request_value(
+     model: &str,

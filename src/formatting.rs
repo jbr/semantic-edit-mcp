@@ -1,9 +1,11 @@
-//! Formatting: which formatter, if any, reformats a file after an edit.
+//! Formatting: which formatter, if any, formats an edit, and how much of the
+//! file it may change.
 //!
 //! Formatters are configuration, separate from languages: [`Formatting`] maps
 //! each [`LanguageName`] to a [`Formatter`] or to none, and a [`Formatter`]
 //! carries its own invocation. Formatting is off unless configured, and an edit
-//! to a file whose language has no formatter is written as laid out.
+//! to a file whose language has no formatter is written as laid out. Its
+//! [`Scope`] is the edit unless configured to be the whole file.
 
 mod command;
 mod resolve;
@@ -11,6 +13,7 @@ mod rustfmt;
 
 use crate::{indentation::Indentation, languages::LanguageName};
 use anyhow::{Result, bail};
+use clap::ValueEnum;
 use enum_map::{EnumMap, enum_map};
 use std::{
     ffi::OsString,
@@ -19,17 +22,43 @@ use std::{
     str::FromStr,
 };
 
-/// The formatter, if any, for each language's files.
+/// The formatter, if any, for each language's files, and how much of an edited
+/// file it may change.
 ///
-/// A formatter reformats the whole file after each edit to it. An edit it fails
-/// on is rejected, unless it fails on the file as it was before the edit too, or
+/// A formatter formats each edit to a file of its language. An edit it fails on
+/// is rejected, unless it fails on the file as it was before the edit too, or
 /// can't run at all: then the edit is written as laid out, and the response says
 /// why. A language without a formatter has its edits written as laid out. The
 /// default is [`off`](Self::off), and [`built_in`](Self::built_in) is each
-/// language's built-in formatter.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// language's built-in formatter, both at the default [`Scope`].
+#[derive(Clone, Debug, PartialEq, Eq, fieldwork::Fieldwork)]
 pub struct Formatting {
     formatters: EnumMap<LanguageName, Option<Formatter>>,
+    /// how much of an edited file its formatter may change: the edit, unless set
+    /// to the whole file
+    #[field(get, set, with, copy)]
+    scope: Scope,
+}
+
+/// How much of an edited file its formatter may change.
+///
+/// Either way, the formatter formats the whole file, so it sees the edit in
+/// context.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum Scope {
+    /// The edit: only the formatter's changes to the lines the edit changed, or
+    /// to the line on either side of them, are kept, and the rest of the file is
+    /// left as it was. A change that reaches across that boundary is kept whole.
+    /// If the changes kept can't stand without the rest, because the file isn't
+    /// valid without them or the formatter moved a line between the edit and the
+    /// rest of the file (as sorting imports does), the edit is written as laid
+    /// out, and the response says so. The default.
+    #[default]
+    Edit,
+    /// The whole file: all of the formatter's changes are kept, so an edit to a
+    /// file the formatter wouldn't leave as it is changes lines far from the
+    /// edit.
+    File,
 }
 
 impl Default for Formatting {
@@ -45,6 +74,7 @@ impl Formatting {
     pub fn off() -> Self {
         Self {
             formatters: EnumMap::default(),
+            scope: Scope::default(),
         }
     }
 
@@ -65,6 +95,7 @@ impl Formatting {
                 LanguageName::Toml => Some(Formatter::taplo()),
                 LanguageName::Other => None,
             },
+            scope: Scope::default(),
         }
     }
 
@@ -93,7 +124,8 @@ impl Formatting {
     }
 }
 
-/// A formatter, which reformats a file's whole source.
+/// A formatter, which formats a file's whole source. The [`Scope`] says how
+/// much of what it changes is kept.
 ///
 /// Each constructor carries its tool's invocation. A formatter program reads
 /// the source on stdin and writes the result to stdout. It runs in the file's
@@ -315,6 +347,39 @@ mod tests {
     #[test]
     fn the_default_formats_nothing() {
         assert_eq!(Formatting::default(), Formatting::off());
+    }
+
+    /// Edits are local unless whole-file formatting is asked for.
+    #[test]
+    fn the_scope_is_the_edit_unless_set() {
+        assert_eq!(Scope::default(), Scope::Edit);
+        for formatting in [
+            Formatting::default(),
+            Formatting::off(),
+            Formatting::built_in(),
+        ] {
+            assert_eq!(formatting.scope(), Scope::Edit);
+        }
+
+        let whole_file = Formatting::built_in().with_scope(Scope::File);
+        assert_eq!(whole_file.scope(), Scope::File);
+        assert_ne!(whole_file, Formatting::built_in());
+        // The scope is separate from the formatters, which it leaves alone.
+        for language in every_language() {
+            assert_eq!(
+                whole_file.formatter(language),
+                Formatting::built_in().formatter(language),
+                "{language}"
+            );
+        }
+
+        let mut formatting = whole_file.with(LanguageName::Rust, Formatter::taplo());
+        assert_eq!(formatting.scope(), Scope::File);
+        formatting.set_scope(Scope::Edit);
+        assert_eq!(
+            formatting,
+            Formatting::built_in().with(LanguageName::Rust, Formatter::taplo())
+        );
     }
 
     #[test]

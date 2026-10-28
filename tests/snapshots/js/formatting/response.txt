@@ -1,6 +1,6 @@
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: biome formatted the whole file, including the edit.
+Note: biome formatted the edit.
 
 ===DIFF===
 @@ -92,6 +92,9 @@

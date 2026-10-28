@@ -9,7 +9,10 @@ pub fn render_messages_yaml(model: &str) -> String {
 }
 
 /// The request envelope, shared source for both renderers.
-fn request_value(model: &str, limit: usize) -> String {
+fn request_value(
+    model: &str,
+    limit: usize,
+) -> String {
     format!("{model}-{limit}")
 }
 

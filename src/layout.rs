@@ -885,7 +885,7 @@ fn inside(tree: &Tree, byte: usize, kinds: &[&str]) -> bool {
 
 /// The line ending `source` uses: that of its first line, `\n` when it has
 /// only one line.
-fn line_ending(source: &str) -> &'static str {
+pub(crate) fn line_ending(source: &str) -> &'static str {
     match source.find('\n') {
         Some(newline) if source[..newline].ends_with('\r') => "\r\n",
         _ => "\n",

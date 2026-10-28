@@ -1,0 +1,13 @@
+=== snapshot test tool call: edit ===
+Applied insert after — the file has been updated.
+Note: ruff formatted the edit.
+
+===DIFF===
+@@ -4,3 +4,7 @@
+
+ def near():
+     return "double"
++
++
++def added():
++    return "x"

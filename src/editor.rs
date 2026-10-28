@@ -4,7 +4,7 @@ mod edit_position;
 mod format;
 
 use crate::{
-    formatting::{Formatter, Formatting},
+    formatting::{Formatter, Formatting, Scope},
     languages::{LanguageCommon, LanguageName},
     searcher::find_positions,
     selector::{Operation, Selector},
@@ -58,6 +58,9 @@ pub struct Editor<'language> {
     language: &'language LanguageCommon,
     /// The file's formatter under the calling tool's settings, if it has one.
     formatter: Option<Formatter>,
+    /// How much of the file the formatter may change.
+    #[field(copy)]
+    scope: Scope,
     source_code: String,
     tree: Tree,
     rope: Rope,
@@ -115,6 +118,7 @@ impl<'language> Editor<'language> {
             selector,
             language,
             formatter: formatting.formatter(language.name()).cloned(),
+            scope: formatting.scope(),
             tree,
             file_path,
             source_code,
@@ -299,8 +303,11 @@ impl<'language> Editor<'language> {
                     log::info!("used {annotation}");
                 }
                 let ambiguity_note = self.ambiguity_note(edit);
+                // The result is the source with the candidate's text in place
+                // of what it replaces, starting where the candidate does.
+                let span = edit.start_byte()..edit.start_byte() + edit.content().len();
                 let output = edit.take_output().unwrap_or_default();
-                return Ok(match self.format(output) {
+                return Ok(match self.format(output, span) {
                     Formatted::Written { output, whitespace } => Outcome::Applied {
                         output,
                         whitespace,
@@ -477,12 +484,14 @@ decorations, which stay attached to it.",
         whitespace: Whitespace,
         note: Option<String>,
     ) -> (String, Option<AppliedEdit>) {
-        let formatted = matches!(whitespace, Whitespace::Formatted(_));
+        // Only a formatter that may change the whole file can have changed
+        // lines far from the edit. Otherwise every hunk is the edit's own.
+        let whole_file = matches!(whitespace, Whitespace::Formatted(_, Scope::File));
         let plain_text = self.language.name() == LanguageName::Other;
         let (diff, elided) = if plain_text {
             (clean_diff(&self.source_code, &output), 0)
         } else {
-            focused_diff(&self.source_code, &output, formatted)
+            focused_diff(&self.source_code, &output, whole_file)
         };
         let tree = self.parse(&output, None);
         let remaining_errors = tree
@@ -509,7 +518,10 @@ decorations, which stay attached to it.",
         // What happened to the edit's whitespace, said first unless a
         // warning about the repair it belongs to has to come before it.
         let whitespace_note = match &whitespace {
-            Whitespace::Formatted(formatter) => {
+            Whitespace::Formatted(formatter, Scope::Edit) => {
+                format!("Note: {formatter} formatted the edit.\n")
+            }
+            Whitespace::Formatted(formatter, Scope::File) => {
                 format!("Note: {formatter} formatted the whole file, including the edit.\n")
             }
             Whitespace::Unformatted(note) | Whitespace::RepairUnformatted(note) => {
@@ -736,13 +748,14 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 }
 
 /// The same `===DIFF===` section with the **whitespace-only hunks dropped**, plus
-/// the number dropped, when `formatted` says a formatter produced `modified`.
+/// the number dropped, when `whole_file` says a formatter that may change the
+/// whole file ([`Scope::File`]) produced `modified`.
 ///
-/// A formatted edit is validated by formatting the whole file, so the file-level
-/// diff can carry formatter churn arbitrarily far from the edit — on a large file
-/// that buries the semantic change and costs a round of re-inspecting code the
-/// caller never touched. Without a formatter nothing outside the edit changed, so
-/// every hunk is the edit's own, whitespace included, and none is dropped.
+/// Such a formatter's changes can reach arbitrarily far from the edit, as churn in
+/// a file that wasn't already formatted — on a large file that buries the semantic
+/// change and costs a round of re-inspecting code the caller never touched.
+/// Without one, nothing outside the edit and the lines beside it changed, so every
+/// hunk is the edit's own, whitespace included, and none is dropped.
 ///
 /// The classification is against the formatter's own contribution, hunk by hunk: a
 /// hunk whose deleted and inserted text are identical once all whitespace is
@@ -753,14 +766,14 @@ pub(crate) fn clean_diff(original: &str, modified: &str) -> String {
 /// continue from a file it no longer describes. If nothing survives the filter
 /// (an edit that was itself whitespace-only), the full diff is returned instead,
 /// because an empty diff answers nothing.
-pub(crate) fn focused_diff(original: &str, modified: &str, formatted: bool) -> (String, usize) {
+pub(crate) fn focused_diff(original: &str, modified: &str, whole_file: bool) -> (String, usize) {
     let patch = DiffOptions::new().create_patch(original, modified);
     let mut kept = String::from("===DIFF===\n");
     let mut elided = 0;
     let mut shown = 0;
 
     for hunk in patch.hunks() {
-        if formatted && hunk_is_whitespace_only(hunk) {
+        if whole_file && hunk_is_whitespace_only(hunk) {
             elided += 1;
             continue;
         }
@@ -866,8 +879,9 @@ mod diff_tests {
         assert!(diff.contains("+    x"), "{diff}");
     }
 
-    /// Without a formatter, a whitespace-only hunk is the edit's own: dropping it
-    /// would hide what the edit did to the file and claim a formatter did it.
+    /// Without a formatter that may change the whole file, a whitespace-only hunk
+    /// is the edit's own: dropping it would hide what the edit did to the file and
+    /// claim a formatter did it.
     #[test]
     fn an_unformatted_whitespace_only_hunk_is_shown() {
         let original = "fn a() {\n        let x = 1;\n}\n".to_string()

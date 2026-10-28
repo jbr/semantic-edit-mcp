@@ -1,0 +1,17 @@
+=== snapshot test tool call: edit ===
+Applied replace — the file has been updated.
+Note: rustfmt formatted the edit.
+
+===DIFF===
+@@ -10,9 +10,8 @@
+ fn near() {
+     let   dropped = 0;
+     let clean = 1;
+-    let   before = 2;
+-    let removed = 3;
+-    let   after = 4;
++    let before = 2;
++    let after = 4;
+     let clean2 = 5;
+     let   dropped2 = 6;
+ }

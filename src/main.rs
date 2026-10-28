@@ -20,7 +20,7 @@ mod tests;
 use anyhow::{Result, anyhow, bail};
 use async_compat::Compat;
 use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
-use formatting::{Formatter, Formatting};
+use formatting::{Formatter, Formatting, Scope};
 use languages::LanguageName;
 use mcplease::{Cli, ServerConfig, server_info, traits::Dispatch, types::RequestContext};
 use state::SemanticEditTools;
@@ -46,15 +46,40 @@ struct Args {
     /// javascript, jsx, typescript, tsx and json, and taplo for toml. rustfmt,
     /// ruff and biome are found on PATH and run in the edited file's directory,
     /// so they find its project's configuration; taplo runs in-process. A
-    /// formatter reformats the whole file after each edit. An edit to valid
-    /// code that it fails on is rejected, unless it fails on the file without
-    /// the edit too, or can't run: then the edit is written unformatted, and the
-    /// response says why.
+    /// formatter formats each edit: it runs on the whole file, so it sees the
+    /// edit in context, but only its changes to the edited lines and the line
+    /// on either side of them are kept, unless `--format-scope file` keeps them
+    /// all. An edit to valid code that it fails on is rejected, unless it fails
+    /// on the file without the edit too, or can't run: then the edit is written
+    /// unformatted, and the response says why.
     // Not `global`: clap keeps a global option's occurrences from one side of
     // the subcommand only. `parse_argv` adds it to each subcommand instead, so
     // parse with that rather than with `Parser`'s methods.
     #[arg(long, value_name = "LANGUAGE=FORMATTER|built-in")]
     format: Vec<FormatSetting>,
+
+    /// How much of an edited file the formatters `--format` sets may change
+    /// [default: edit]
+    ///
+    /// `edit` keeps a formatter's changes to the lines an edit changed and to
+    /// the line on either side of them, and leaves the rest of the file as it
+    /// was; if those changes can't stand without the rest, because the file
+    /// isn't valid without them or the formatter moved a line between the edit
+    /// and the rest of the file (as sorting imports does), the edit is written
+    /// unformatted, and the response says so. `file` keeps all of them, so an
+    /// edit to a file the formatter wouldn't leave as it is changes lines far
+    /// from the edit.
+    // `global` keeps the occurrence after the subcommand when there are two,
+    // which is the later one, as with `--format`. The values are described
+    // above, so clap doesn't list them again with `Scope`'s own descriptions.
+    #[arg(
+        long,
+        global = true,
+        value_enum,
+        value_name = "edit|file",
+        hide_possible_values = true
+    )]
+    format_scope: Option<Scope>,
 
     #[command(subcommand)]
     command: Cli<Tools>,
@@ -88,8 +113,8 @@ impl Args {
         Ok(args)
     }
 
-    /// The formatting the `--format` settings ask for, applied in turn: none
-    /// without them.
+    /// The formatting the `--format` settings ask for, applied in turn, none
+    /// without them, at the `--format-scope`.
     fn formatting(&self) -> Formatting {
         self.format
             .iter()
@@ -99,6 +124,7 @@ impl Args {
                     formatting.with(*language, formatter.clone())
                 }
             })
+            .with_scope(self.format_scope.unwrap_or_default())
     }
 }
 
@@ -337,5 +363,79 @@ mod cli_tests {
             panic!("parsed");
         };
         assert_eq!(error.kind(), ErrorKind::InvalidValue);
+    }
+
+    /// Edits are local unless whole-file formatting is asked for.
+    #[test]
+    fn the_format_scope_is_the_edit_unless_set() {
+        for argv in [&["--format", "built-in", "serve"][..], &["serve"]] {
+            assert_eq!(formatting(argv).scope(), Scope::Edit, "{argv:?}");
+        }
+        assert_eq!(
+            formatting(&["--format", "built-in", "--format-scope", "edit", "serve"]),
+            Formatting::built_in()
+        );
+    }
+
+    /// Like `--format`, `--format-scope` goes before the subcommand or after it,
+    /// and of two, the later applies. It sets the scope of every `--format`
+    /// setting, wherever they are.
+    #[test]
+    fn the_format_scope_goes_on_either_side_of_the_subcommand() {
+        let whole_file = Formatting::built_in().with_scope(Scope::File);
+        for argv in [
+            &["--format-scope", "file", "--format", "built-in", "serve"][..],
+            &["--format", "built-in", "serve", "--format-scope=file"],
+            &["serve", "--format-scope", "file", "--format", "built-in"],
+            &[
+                "--format-scope",
+                "edit",
+                "serve",
+                "--format",
+                "built-in",
+                "--format-scope",
+                "file",
+            ],
+            &[
+                "--format",
+                "built-in",
+                "edit",
+                "a.rs",
+                "replace",
+                "x",
+                "y",
+                "--format-scope",
+                "file",
+            ],
+        ] {
+            assert_eq!(formatting(argv), whole_file, "{argv:?}");
+        }
+        assert_eq!(
+            formatting(&["--format-scope", "file", "serve", "--format-scope", "edit"]),
+            Formatting::off()
+        );
+        // Without `--format` it has no formatter to apply to.
+        assert_eq!(
+            formatting(&["--format-scope", "file", "serve"]),
+            Formatting::off().with_scope(Scope::File)
+        );
+    }
+
+    #[test]
+    fn an_unknown_format_scope_is_an_error_naming_the_known_ones() {
+        for argv in [
+            ["--format-scope", "whole", "serve"],
+            ["serve", "--format-scope", "File"],
+            ["serve", "--format-scope", ""],
+        ] {
+            let Err(error) = parse(&argv) else {
+                panic!("{argv:?} parsed");
+            };
+            assert_eq!(error.kind(), ErrorKind::InvalidValue, "{argv:?}");
+            assert!(
+                error.to_string().contains("[possible values: edit, file]"),
+                "{argv:?}: {error}"
+            );
+        }
     }
 }

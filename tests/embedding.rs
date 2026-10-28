@@ -2,7 +2,9 @@
 
 use mcplease::traits::Dispatch;
 use mcplease::types::RequestContext;
-use semantic_edit_mcp::{Formatter, Formatting, LanguageName, SemanticEditTools, Tools};
+use semantic_edit_mcp::{
+    Formatter, Formatting, LanguageName, SemanticEditTools, Tools, formatting::Scope,
+};
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -200,9 +202,7 @@ async fn built_in_formatting_formats_edits() {
             "rustfmt"
         };
         assert!(
-            response.contains(&format!(
-                "Note: {formatter} formatted the whole file, including the edit."
-            )),
+            response.contains(&format!("Note: {formatter} formatted the edit.")),
             "{response}"
         );
     }
@@ -347,7 +347,7 @@ isn'\"'\"'t allowed' >&2; exit 1 ;;\nesac\nprintf '%s' \"$input\" | sed 's/let b
         .await
         .unwrap();
     assert!(
-        response.contains("Note: sh formatted the whole file, including the edit."),
+        response.contains("Note: sh formatted the edit."),
         "{response}"
     );
     assert_eq!(
@@ -491,5 +491,148 @@ async fn built_in_formatters_use_the_files_project_configuration() {
             // biome.json's indentation, not the file's own.
             "function f() {\n        return 2;\n}\n",
         ]
+    );
+}
+
+/// A Rust file that rustfmt wouldn't leave as it is far from its `let a = 1;`.
+const CHURN: &str = "fn misindented() {\n        let x = 1;\n}\n\n// a\n// b\n// c\n// d\n// e\n// f\n\nfn main() {\n    let a = 1;\n}\n";
+
+/// By default a formatter's changes are kept to the edit: the edit is
+/// formatted, and the rest of the file is left as it was, even where the
+/// formatter would change it.
+#[tokio::test]
+async fn by_default_the_formatter_formats_the_edit_alone() {
+    let scratch = Scratch::new("edit-scope", CHURN);
+    let state = SemanticEditTools::new(scratch.dir.clone())
+        .unwrap()
+        .with_formatting(Formatting::off().with(LanguageName::Rust, Formatter::rustfmt()));
+
+    let response = edit(&state, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert_eq!(scratch.source(), CHURN.replace("let a = 1;", "let a = 2;"));
+    assert!(
+        response.contains("\nNote: rustfmt formatted the edit.\n"),
+        "{response}"
+    );
+    // Nothing outside the edit changed, so there is nothing to leave out.
+    assert!(!response.contains("formatting-only"), "{response}");
+    assert!(
+        response.ends_with(
+            "===DIFF===\n@@ -10,5 +10,5 @@\n // f\n\n fn main() {\n-    let a = 1;\n+    let a = 2;\n }"
+        ),
+        "{response}"
+    );
+}
+
+/// With whole-file scope, every change the formatter makes is kept, as it
+/// always was, and the whitespace-only ones far from the edit are counted
+/// rather than shown.
+#[tokio::test]
+async fn with_file_scope_the_formatter_formats_the_whole_file() {
+    let scratch = Scratch::new("file-scope", CHURN);
+    let state = SemanticEditTools::new(scratch.dir.clone())
+        .unwrap()
+        .with_formatting(
+            Formatting::off()
+                .with(LanguageName::Rust, Formatter::rustfmt())
+                .with_scope(Scope::File),
+        );
+
+    let response = edit(&state, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert_eq!(
+        scratch.source(),
+        CHURN
+            .replace("        let x", "    let x")
+            .replace("let a = 1;", "let a = 2;")
+    );
+    assert!(
+        response.contains(
+            "\nNote: rustfmt formatted the whole file, including the edit.\n1 formatting-only \
+hunk elsewhere in the file is not shown"
+        ),
+        "{response}"
+    );
+    assert!(!response.contains("let x"), "{response}");
+}
+
+/// The edit scope can be set while the tools run, like the rest of the
+/// settings.
+#[tokio::test]
+async fn the_scope_can_change_while_the_tools_run() {
+    let scratch = Scratch::new("scope-change", CHURN);
+    let formatting = Formatting::off().with(LanguageName::Rust, Formatter::rustfmt());
+    let state = SemanticEditTools::new(scratch.dir.clone())
+        .unwrap()
+        .with_formatting(formatting.clone());
+
+    edit(&state, "replace", "let a = 1;", "let a=2;")
+        .await
+        .unwrap();
+    assert!(scratch.source().contains("        let x = 1;"));
+
+    state.set_formatting(formatting.with_scope(Scope::File));
+    edit(&state, "replace", "let a = 2;", "let a=3;")
+        .await
+        .unwrap();
+    assert_eq!(
+        scratch.source(),
+        CHURN
+            .replace("        let x", "    let x")
+            .replace("let a = 1;", "let a = 3;")
+    );
+}
+
+/// A formatter's changes to the edit may only make sense with its changes
+/// elsewhere. This one moves the brace that closes `a` from its own line to
+/// the end of the file, which takes a change far from the edit and one beside
+/// it: the one beside it alone leaves a stray brace. Then the edit is written
+/// as laid out, with a note, rather than rejected, or formatted along with the
+/// rest of the file.
+#[cfg(unix)]
+#[tokio::test]
+async fn changes_the_edit_cant_have_without_the_rest_leave_it_unformatted() {
+    let original = "fn a() {\n    let x = 1;\n}\n// 1\n// 2\n// 3\n// 4\n// 5\nfn main() {\n    let b = 1;\n}\n";
+    let scratch = Scratch::new("coupled", original);
+    let formatter = scratch.script("sed -e '3d' -e 's/let b=2;/let b = 2;/' -e '$a\\\n}'\n");
+
+    let response = edit(
+        &scratch.tools(formatter.clone()),
+        "replace",
+        "let b = 1;",
+        "let b=2;",
+    )
+    .await
+    .unwrap();
+    assert_eq!(scratch.source(), original.replace("let b = 1;", "let b=2;"));
+    assert!(
+        response.contains(
+            "\nNote: sh's changes couldn't be applied to the edit alone, so this edit wasn't \
+formatted; the diff shows exactly what was written.\n"
+        ),
+        "{response}"
+    );
+
+    // With whole-file scope, all of them are kept, and the result is valid.
+    std::fs::write(scratch.dir.join("demo.rs"), original).unwrap();
+    let state = SemanticEditTools::new(scratch.dir.clone())
+        .unwrap()
+        .with_formatting(
+            Formatting::off()
+                .with(LanguageName::Rust, formatter)
+                .with_scope(Scope::File),
+        );
+    let response = edit(&state, "replace", "let b = 1;", "let b=2;")
+        .await
+        .unwrap();
+    assert!(
+        response.contains("\nNote: sh formatted the whole file, including the edit.\n"),
+        "{response}"
+    );
+    assert_eq!(
+        scratch.source(),
+        "fn a() {\n    let x = 1;\n// 1\n// 2\n// 3\n// 4\n// 5\nfn main() {\n    let b = 2;\n}\n}\n"
     );
 }

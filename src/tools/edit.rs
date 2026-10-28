@@ -23,12 +23,15 @@ use serde::{Deserialize, Serialize};
 ///
 /// Unless a formatter is configured for the file's language, content is
 /// written as given, indented as `content` describes, and nothing outside the
-/// edit changes. With one, the whole file is reformatted after the edit, so
-/// the diff may include changes beyond the edit itself. An edit to valid code
-/// that the formatter fails on is rejected, unless the formatter fails on the
-/// file without the edit too, or can't run: then the edit is written
-/// unformatted, and the response says why. A file with syntax errors isn't
-/// formatted until an edit makes it parse.
+/// edit changes. With one, the formatter formats the edit, and may change the
+/// line on either side of it, but leaves the rest of the file as it was, unless
+/// it is set to reformat the whole file: then the diff may include changes
+/// beyond the edit itself. Each response says whether the edit was formatted,
+/// and how much of the file was. An edit to valid code that the formatter
+/// fails on is rejected, unless the formatter fails on the file without the
+/// edit too, or can't run: then the edit is written unformatted, and the
+/// response says why. A file with syntax errors isn't formatted until an edit
+/// makes it parse.
 #[derive(Serialize, Deserialize, Debug, JsonSchema, clap::Args)]
 #[serde(rename = "edit")]
 #[group(skip)]

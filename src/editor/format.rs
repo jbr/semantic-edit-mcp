@@ -3,6 +3,15 @@
 //! runs once, on that candidate's result (`docs/design/formatting.md`,
 //! "Formatting").
 //!
+//! The formatter formats the whole result, but under [`Scope::Edit`], the
+//! default, only its changes to the edit are kept ([`hunks`]), and the result is
+//! validated again. Changes that can't stand without the rest of the
+//! formatter's, because the file isn't valid without them or because the
+//! formatter moved text between them and the rest, are dropped with the rest:
+//! the edit is written as laid out, with a note. The edit itself validated, so it
+//! isn't rejected, and writing the whole formatted file instead would change
+//! lines far from it.
+//!
 //! A formatter's failure is judged per file:
 //!
 //! | The formatter | Treated as |
@@ -17,8 +26,14 @@
 //! refuse broken code, so there a failure leaves the repair unformatted with a
 //! warning, as it always has.
 
+mod hunks;
+
 use super::Editor;
-use crate::formatting::{Failure, Formatter};
+use crate::{
+    formatting::{Failure, Formatter, Scope},
+    layout::line_ending,
+};
+use std::ops::Range;
 
 /// The longest a formatter's error gets in a one-line note.
 const SUMMARY_LIMIT: usize = 200;
@@ -28,8 +43,8 @@ pub(crate) enum Whitespace {
     /// Written as laid out: the file has no formatter, or the result is a repair
     /// that still has syntax errors, which formatters refuse.
     AsLaidOut,
-    /// The file's formatter formatted it.
-    Formatted(Formatter),
+    /// The file's formatter formatted it, keeping the changes `Scope` allows.
+    Formatted(Formatter, Scope),
     /// Written as laid out because the formatter couldn't be used on this file:
     /// the note saying why, a line of its own.
     Unformatted(String),
@@ -91,8 +106,9 @@ impl Refusal {
 impl Editor<'_> {
     /// `output`, the winning candidate's result, as it is written: formatted by
     /// the file's formatter, if it has one and can format it, or vetoed by it
-    /// (see the module docs).
-    pub(super) fn format(&self, output: String) -> Formatted {
+    /// (see the module docs). `span` is the byte range of `output` that holds the
+    /// edit's text, which is empty for a deletion.
+    pub(super) fn format(&self, output: String, span: Range<usize>) -> Formatted {
         let Some(formatter) = &self.formatter else {
             return written(output, Whitespace::AsLaidOut);
         };
@@ -102,7 +118,7 @@ impl Editor<'_> {
         }
 
         let refusal = match self.formatted(formatter, &output) {
-            Ok(formatted) => return written(formatted, Whitespace::Formatted(formatter.clone())),
+            Ok(formatted) => return self.scoped(formatter, output, formatted, span),
             Err(refusal) => refusal,
         };
         let whitespace = match refusal {
@@ -136,24 +152,73 @@ impl Editor<'_> {
         written(output, whitespace)
     }
 
+    /// What is written for `output`, whose edit's text is at `span`, given
+    /// `formatted`, the formatter's valid output for it: all of it under
+    /// [`Scope::File`]. Under [`Scope::Edit`], `output` with the formatter's
+    /// changes to the edit, if that is valid too, and otherwise `output` as laid
+    /// out, with a note.
+    fn scoped(
+        &self,
+        formatter: &Formatter,
+        output: String,
+        formatted: String,
+        span: Range<usize>,
+    ) -> Formatted {
+        if self.scope == Scope::File {
+            return written(
+                formatted,
+                Whitespace::Formatted(formatter.clone(), Scope::File),
+            );
+        }
+        let edited = hunks::edited_lines(&self.source_code, &output, span);
+        let newline = line_ending(&self.source_code);
+        let refusal = match hunks::keep(&output, &formatted, edited, newline) {
+            // All of the formatter's changes, or none of them, is a result
+            // already validated.
+            Some(kept) if kept == formatted || kept == output => {
+                return written(kept, Whitespace::Formatted(formatter.clone(), Scope::Edit));
+            }
+            Some(kept) => match self.invalid(&kept) {
+                None => {
+                    return written(kept, Whitespace::Formatted(formatter.clone(), Scope::Edit));
+                }
+                Some(errors) => errors,
+            },
+            None => String::from("they move text between the edit and the rest of the file"),
+        };
+        log::debug!("{formatter}'s changes to the edit alone are refused:\n{refusal}");
+        written(
+            output,
+            Whitespace::Unformatted(format!(
+                "Note: {formatter}'s changes couldn't be applied to the edit alone, so this edit \
+                 wasn't formatted; the diff shows exactly what was written."
+            )),
+        )
+    }
+
     /// `source` formatted by `formatter`, if it formats and its output passes
     /// the validation an edit's result must pass.
     fn formatted(&self, formatter: &Formatter, source: &str) -> Result<String, Refusal> {
         let formatted = formatter.format(source, &self.file_path, &self.source_code)?;
-        let Some(tree) = self.parse(&formatted, None) else {
-            return Err(Refusal::Invalid(String::from("It couldn't be parsed.")));
+        match self.invalid(&formatted) {
+            Some(errors) => Err(Refusal::Invalid(errors)),
+            None => Ok(formatted),
+        }
+    }
+
+    /// What fails the validation an edit's result must pass in `result`, a
+    /// formatted one, if anything does.
+    fn invalid(&self, result: &str) -> Option<String> {
+        let Some(tree) = self.parse(result, None) else {
+            return Some(String::from("It couldn't be parsed."));
         };
         // A repair is accepted unvalidated, but a formatter mustn't break the
         // syntax the repair restored.
-        let invalid = if self.starts_with_syntax_errors() {
-            Self::syntax_errors(self.language, &tree, &formatted)
+        if self.starts_with_syntax_errors() {
+            Self::syntax_errors(self.language, &tree, result)
         } else {
-            self.validate_tree(&tree, &formatted)
+            self.validate_tree(&tree, result)
                 .map(|failure| failure.message)
-        };
-        match invalid {
-            Some(errors) => Err(Refusal::Invalid(errors)),
-            None => Ok(formatted),
         }
     }
 

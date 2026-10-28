@@ -1,6 +1,6 @@
 === snapshot test tool call: edit ===
 Applied insert before — the file has been updated.
-Note: ruff formatted the whole file, including the edit.
+Note: ruff formatted the edit.
 
 ===DIFF===
 @@ -4,6 +4,9 @@
@@ -15,7 +15,7 @@ Note: ruff formatted the whole file, including the edit.
      return written
 === snapshot test tool call: edit ===
 Applied insert after — the file has been updated.
-Note: ruff formatted the whole file, including the edit.
+Note: ruff formatted the edit.
 
 ===DIFF===
 @@ -8,5 +8,8 @@

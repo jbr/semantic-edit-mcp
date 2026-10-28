@@ -1,4 +1,4 @@
-use crate::formatting::{Formatter, Formatting};
+use crate::formatting::{Formatter, Formatting, Scope};
 use crate::languages::LanguageName;
 use crate::state::SemanticEditTools;
 use crate::tools::Tools;
@@ -564,11 +564,13 @@ fn with_formatting_file(formatting: &[PathBuf], dir: &Path) -> Vec<PathBuf> {
 /// A formatting file is a JSON object from a language (named as `args.json`
 /// names one: `rust`, `typescript`, …) or `"*"`, every language, to a
 /// formatter (`"rustfmt"`, `"ruff"`, `"biome"`, `"taplo"`) or `null` for none.
-/// `"*"` applies before the languages beside it.
+/// `"*"` applies before the languages beside it. `"scope"` is the formatters'
+/// [`Scope`], `"edit"` or `"file"`, which is the edit unless a file sets it.
 ///
 /// - `{"*": null}`: no formatter for any language
 /// - `{"rust": null}`: none for Rust, the rest as inherited
 /// - `{"toml": "taplo"}`: taplo for TOML, the rest as inherited
+/// - `{"scope": "file"}`: the inherited formatters, keeping all of their changes
 fn formatting_for(layers: &[PathBuf]) -> Result<Formatting> {
     let mut formatting = Formatting::default();
     for path in layers {
@@ -588,10 +590,26 @@ fn apply_formatting_layer(formatting: &mut Formatting, layer: &Map<String, Value
             formatting.set(*language, formatter.clone());
         }
     }
-    for (key, value) in layer.iter().filter(|(key, _)| *key != "*") {
-        formatting.set(parse_language(key)?, parse_formatter(value)?);
+    for (key, value) in layer {
+        match key.as_str() {
+            "*" => {}
+            "scope" => {
+                formatting.set_scope(parse_scope(value)?);
+            }
+            language => {
+                formatting.set(parse_language(language)?, parse_formatter(value)?);
+            }
+        }
     }
     Ok(())
+}
+
+/// A scope as the command line names one: `"edit"` or `"file"`.
+fn parse_scope(value: &Value) -> Result<Scope> {
+    value
+        .as_str()
+        .and_then(|name| <Scope as ValueEnum>::from_str(name, false).ok())
+        .ok_or_else(|| anyhow!("expected \"edit\" or \"file\" for the scope, found {value}"))
 }
 
 /// A language as `args.json` names one. Unlike deserializing a
@@ -727,8 +745,39 @@ mod tests {
             r#"{"rust": false}"#,
             r#"{"*": "off"}"#,
             r#"["rust"]"#,
+            r#"{"scope": "whole"}"#,
+            r#"{"scope": "File"}"#,
+            r#"{"scope": null}"#,
+            r#"{"scope": true}"#,
         ] {
             assert!(layered(&[layer]).is_err(), "{layer}");
         }
+    }
+
+    /// The scope is the edit unless a layer sets it, and it leaves the
+    /// formatters as inherited.
+    #[test]
+    fn scope_sets_how_much_the_inherited_formatters_change() {
+        let root = fs::read_to_string(root_formatting_file()).unwrap();
+        assert_eq!(layered(&[&root]).unwrap().scope(), Scope::Edit);
+        assert_eq!(
+            layered(&[&root, r#"{"scope": "file"}"#]).unwrap(),
+            Formatting::built_in().with_scope(Scope::File)
+        );
+        assert_eq!(
+            layered(&[r#"{"scope": "file"}"#, r#"{"rust": "rustfmt"}"#]).unwrap(),
+            Formatting::off()
+                .with(LanguageName::Rust, Formatter::rustfmt())
+                .with_scope(Scope::File)
+        );
+        assert_eq!(
+            layered(&[&root, r#"{"scope": "file"}"#, r#"{"scope": "edit"}"#]).unwrap(),
+            Formatting::built_in()
+        );
+        // `"*"` sets formatters, not the scope.
+        assert_eq!(
+            layered(&[r#"{"scope": "file"}"#, r#"{"*": null}"#]).unwrap(),
+            Formatting::off().with_scope(Scope::File)
+        );
     }
 }
